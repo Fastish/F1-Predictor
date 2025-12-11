@@ -17,6 +17,7 @@ interface MarketContextType {
   getHolding: (teamId: string) => Holding | undefined;
   getTotalInvestment: () => number;
   getCurrentValue: () => number;
+  refetch: () => void;
 }
 
 const MarketContext = createContext<MarketContextType | undefined>(undefined);
@@ -122,6 +123,13 @@ export function MarketProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const refetch = () => {
+    queryClient.invalidateQueries({ queryKey: ["/api/teams"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/users", userId] });
+    queryClient.invalidateQueries({ queryKey: ["/api/users", userId, "holdings"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/market/prize-pool"] });
+  };
+
   return (
     <MarketContext.Provider
       value={{
@@ -136,6 +144,7 @@ export function MarketProvider({ children }: { children: ReactNode }) {
         getHolding,
         getTotalInvestment,
         getCurrentValue,
+        refetch,
       }}
     >
       {children}

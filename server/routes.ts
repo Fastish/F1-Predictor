@@ -1,8 +1,18 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { buySharesSchema, insertUserSchema } from "@shared/schema";
+import { buySharesSchema, insertUserSchema, depositRequestSchema } from "@shared/schema";
 import { z } from "zod";
+import { 
+  validateStellarAddress, 
+  getUSDCBalance, 
+  accountExists, 
+  hasUSDCTrustline,
+  getRecentUSDCPayments,
+  generateDepositMemo,
+  USE_TESTNET,
+  USDC_ISSUER
+} from "./stellar";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -128,6 +138,159 @@ export async function registerRoutes(
       res.json({ success: true, transaction: result.transaction });
     } catch (error) {
       res.status(500).json({ error: "Failed to process trade" });
+    }
+  });
+
+  // ============ Stellar/USDC Routes ============
+
+  // Get Stellar network info
+  app.get("/api/stellar/info", async (req, res) => {
+    res.json({
+      network: USE_TESTNET ? "testnet" : "mainnet",
+      usdcIssuer: USDC_ISSUER,
+      depositAddress: process.env.STELLAR_DEPOSIT_ADDRESS || "Not configured",
+    });
+  });
+
+  // Validate a Stellar address
+  app.post("/api/stellar/validate-address", async (req, res) => {
+    try {
+      const { address } = req.body;
+      if (!address) {
+        return res.status(400).json({ error: "Address is required" });
+      }
+      
+      const isValid = await validateStellarAddress(address);
+      if (!isValid) {
+        return res.json({ valid: false, reason: "Invalid Stellar address format" });
+      }
+
+      const exists = await accountExists(address);
+      if (!exists) {
+        return res.json({ valid: false, reason: "Account does not exist on Stellar network" });
+      }
+
+      const hasTrustline = await hasUSDCTrustline(address);
+      
+      res.json({ 
+        valid: true, 
+        exists,
+        hasTrustline,
+        warning: !hasTrustline ? "Account does not have USDC trustline" : undefined
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to validate address" });
+    }
+  });
+
+  // Get USDC balance for an address
+  app.get("/api/stellar/balance/:address", async (req, res) => {
+    try {
+      const { address } = req.params;
+      const isValid = await validateStellarAddress(address);
+      if (!isValid) {
+        return res.status(400).json({ error: "Invalid Stellar address" });
+      }
+
+      const balance = await getUSDCBalance(address);
+      res.json({ address, balance, asset: "USDC" });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch balance" });
+    }
+  });
+
+  // Get deposit info for a user
+  app.get("/api/users/:userId/deposit-info", async (req, res) => {
+    try {
+      const user = await storage.getUser(req.params.userId);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const depositAddress = process.env.STELLAR_DEPOSIT_ADDRESS;
+      const memo = generateDepositMemo(user.id);
+
+      res.json({
+        depositAddress,
+        memo,
+        network: USE_TESTNET ? "testnet" : "mainnet",
+        usdcIssuer: USDC_ISSUER,
+        instructions: depositAddress 
+          ? `Send USDC to ${depositAddress} with memo: ${memo}`
+          : "Deposit address not configured. Contact support.",
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to get deposit info" });
+    }
+  });
+
+  // Get user deposits
+  app.get("/api/users/:userId/deposits", async (req, res) => {
+    try {
+      const deposits = await storage.getDepositsByUser(req.params.userId);
+      res.json(deposits);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch deposits" });
+    }
+  });
+
+  // Add demo credits (testing only - gives user demo funds)
+  // This simulates a faucet for the demo environment with per-user limits
+  const DEMO_CREDIT_LIMIT_PER_USER = 5000; // Maximum total demo credits per user
+  
+  app.post("/api/demo/add-credits", async (req, res) => {
+    try {
+      const { userId, amount } = req.body;
+      
+      // Strict validation
+      if (!userId || typeof userId !== "string") {
+        return res.status(400).json({ error: "Invalid userId" });
+      }
+      
+      const creditAmount = Number(amount);
+      if (isNaN(creditAmount) || creditAmount <= 0 || creditAmount > 1000) {
+        return res.status(400).json({ error: "Amount must be between 1 and 1000" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      // Check total demo credits already claimed by this user
+      const existingDeposits = await storage.getDepositsByUser(userId);
+      const totalDemoCredits = existingDeposits
+        .filter(d => d.fromAddress === "demo_faucet")
+        .reduce((sum, d) => sum + d.amount, 0);
+      
+      if (totalDemoCredits + creditAmount > DEMO_CREDIT_LIMIT_PER_USER) {
+        const remaining = Math.max(0, DEMO_CREDIT_LIMIT_PER_USER - totalDemoCredits);
+        return res.status(400).json({ 
+          error: `Demo credit limit reached. You can claim up to $${remaining.toFixed(2)} more.`,
+          remaining 
+        });
+      }
+
+      // Create a demo deposit record (clearly marked as demo)
+      const deposit = await storage.createDeposit({
+        userId,
+        amount: creditAmount,
+        status: "confirmed",
+        stellarTxHash: `demo_faucet_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        fromAddress: "demo_faucet",
+      });
+
+      await storage.updateUserBalance(userId, user.balance + creditAmount);
+
+      res.json({ 
+        success: true, 
+        deposit,
+        newBalance: user.balance + creditAmount,
+        message: "Demo credits added successfully",
+        remainingLimit: DEMO_CREDIT_LIMIT_PER_USER - totalDemoCredits - creditAmount
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to add demo credits" });
     }
   });
 

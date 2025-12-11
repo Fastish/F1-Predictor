@@ -14,6 +14,7 @@ export const users = pgTable("users", {
 export const usersRelations = relations(users, ({ many }) => ({
   holdings: many(holdings),
   transactions: many(transactions),
+  deposits: many(deposits),
 }));
 
 // F1 Teams table - the 10 teams users can bet on
@@ -65,6 +66,25 @@ export const transactions = pgTable("transactions", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// Deposits - tracks USDC deposits from Stellar network
+export const deposits = pgTable("deposits", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  stellarTxHash: text("stellar_tx_hash").unique(),
+  amount: real("amount").notNull(),
+  status: text("status").notNull().default("pending"), // 'pending', 'confirmed', 'failed'
+  fromAddress: text("from_address"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  confirmedAt: timestamp("confirmed_at"),
+});
+
+export const depositsRelations = relations(deposits, ({ one }) => ({
+  user: one(users, {
+    fields: [deposits.userId],
+    references: [users.id],
+  }),
+}));
+
 export const transactionsRelations = relations(transactions, ({ one }) => ({
   user: one(users, {
     fields: [transactions.userId],
@@ -93,11 +113,25 @@ export const insertTransactionSchema = createInsertSchema(transactions).omit({
   createdAt: true,
 });
 
+export const insertDepositSchema = createInsertSchema(deposits).omit({
+  id: true,
+  createdAt: true,
+  confirmedAt: true,
+});
+
 // Buy shares request schema
 export const buySharesSchema = z.object({
   teamId: z.string(),
   quantity: z.number().int().positive(),
   userId: z.string(),
+});
+
+// Deposit request schema
+export const depositRequestSchema = z.object({
+  userId: z.string(),
+  stellarTxHash: z.string(),
+  amount: z.number().positive(),
+  fromAddress: z.string(),
 });
 
 // Types
@@ -110,3 +144,6 @@ export type Holding = typeof holdings.$inferSelect;
 export type InsertTransaction = z.infer<typeof insertTransactionSchema>;
 export type Transaction = typeof transactions.$inferSelect;
 export type BuySharesRequest = z.infer<typeof buySharesSchema>;
+export type InsertDeposit = z.infer<typeof insertDepositSchema>;
+export type Deposit = typeof deposits.$inferSelect;
+export type DepositRequest = z.infer<typeof depositRequestSchema>;

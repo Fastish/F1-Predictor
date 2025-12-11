@@ -1,9 +1,10 @@
 import { 
-  users, teams, holdings, transactions,
+  users, teams, holdings, transactions, deposits,
   type User, type InsertUser, 
   type Team, type InsertTeam,
   type Holding, type InsertHolding,
   type Transaction, type InsertTransaction,
+  type Deposit, type InsertDeposit,
   type BuySharesRequest
 } from "@shared/schema";
 import { db } from "./db";
@@ -36,6 +37,12 @@ export interface IStorage {
   // Market operations
   buyShares(request: BuySharesRequest): Promise<{ success: boolean; error?: string; transaction?: Transaction }>;
   getPrizePool(): Promise<number>;
+  
+  // Deposits
+  createDeposit(deposit: InsertDeposit): Promise<Deposit>;
+  getDepositByTxHash(txHash: string): Promise<Deposit | undefined>;
+  getDepositsByUser(userId: string): Promise<Deposit[]>;
+  confirmDeposit(depositId: string): Promise<Deposit | undefined>;
 }
 
 // Initial F1 2026 teams data
@@ -240,6 +247,61 @@ export class DatabaseStorage implements IStorage {
       const soldShares = team.totalShares - team.availableShares;
       return acc + soldShares * team.price;
     }, 0);
+  }
+
+  // Deposits
+  async createDeposit(deposit: InsertDeposit): Promise<Deposit> {
+    const [newDeposit] = await db.insert(deposits).values(deposit).returning();
+    return newDeposit;
+  }
+
+  async getDepositByTxHash(txHash: string): Promise<Deposit | undefined> {
+    const [deposit] = await db
+      .select()
+      .from(deposits)
+      .where(eq(deposits.stellarTxHash, txHash));
+    return deposit || undefined;
+  }
+
+  async getDepositsByUser(userId: string): Promise<Deposit[]> {
+    return await db
+      .select()
+      .from(deposits)
+      .where(eq(deposits.userId, userId))
+      .orderBy(desc(deposits.createdAt));
+  }
+
+  async confirmDeposit(depositId: string): Promise<Deposit | undefined> {
+    const [deposit] = await db
+      .select()
+      .from(deposits)
+      .where(eq(deposits.id, depositId));
+    
+    if (!deposit) return undefined;
+    
+    // Idempotency check - don't re-credit already confirmed deposits
+    if (deposit.status === "confirmed") {
+      return deposit;
+    }
+
+    const [updated] = await db
+      .update(deposits)
+      .set({ 
+        status: "confirmed", 
+        confirmedAt: new Date() 
+      })
+      .where(and(eq(deposits.id, depositId), eq(deposits.status, "pending")))
+      .returning();
+
+    // Only credit if we actually updated from pending -> confirmed
+    if (updated) {
+      const user = await this.getUser(deposit.userId);
+      if (user) {
+        await this.updateUserBalance(deposit.userId, user.balance + deposit.amount);
+      }
+    }
+
+    return updated || deposit;
   }
 }
 

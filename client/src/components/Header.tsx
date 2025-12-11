@@ -1,4 +1,4 @@
-import { Wallet, TrendingUp, Menu } from "lucide-react";
+import { Wallet, TrendingUp, Menu, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ThemeToggle } from "./ThemeToggle";
@@ -9,6 +9,7 @@ import {
   SheetContent,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { DepositModal } from "./DepositModal";
 
 interface HeaderProps {
   onNavigate?: (section: "market" | "portfolio") => void;
@@ -18,6 +19,7 @@ interface HeaderProps {
 export function Header({ onNavigate, activeSection = "market" }: HeaderProps) {
   const { balance } = useMarket();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [depositOpen, setDepositOpen] = useState(false);
 
   const navItems = [
     { id: "market" as const, label: "Market" },
@@ -56,7 +58,19 @@ export function Header({ onNavigate, activeSection = "market" }: HeaderProps) {
             </span>
           </Badge>
           
+          <Button 
+            size="sm" 
+            variant="outline"
+            onClick={() => setDepositOpen(true)}
+            data-testid="button-deposit"
+          >
+            <Plus className="h-4 w-4 mr-1" />
+            Add Funds
+          </Button>
+          
           <ThemeToggle />
+          
+          <DepositModal open={depositOpen} onOpenChange={setDepositOpen} />
 
           <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
             <SheetTrigger asChild>
