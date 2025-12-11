@@ -1,15 +1,23 @@
-import { Wallet, TrendingUp, Menu, Plus } from "lucide-react";
+import { Wallet, TrendingUp, Menu, Plus, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ThemeToggle } from "./ThemeToggle";
 import { useMarket } from "@/context/MarketContext";
+import { useWallet } from "@/context/WalletContext";
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   Sheet,
   SheetContent,
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { DepositModal } from "./DepositModal";
+
+interface USDCBalanceResponse {
+  address: string;
+  balance: string;
+  asset: string;
+}
 
 interface HeaderProps {
   onNavigate?: (section: "market" | "portfolio") => void;
@@ -18,8 +26,14 @@ interface HeaderProps {
 
 export function Header({ onNavigate, activeSection = "market" }: HeaderProps) {
   const { balance } = useMarket();
+  const { walletAddress } = useWallet();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [depositOpen, setDepositOpen] = useState(false);
+
+  const { data: usdcBalance, isLoading: isLoadingBalance } = useQuery<USDCBalanceResponse>({
+    queryKey: ["/api/stellar/balance", walletAddress],
+    enabled: !!walletAddress,
+  });
 
   const navItems = [
     { id: "market" as const, label: "Market" },
@@ -58,6 +72,21 @@ export function Header({ onNavigate, activeSection = "market" }: HeaderProps) {
             </span>
           </Badge>
           
+          {walletAddress && (
+            <Badge variant="outline" className="gap-1 px-3 py-1.5">
+              {isLoadingBalance ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <>
+                  <span className="text-xs text-muted-foreground">USDC:</span>
+                  <span className="font-semibold tabular-nums" data-testid="text-usdc-balance">
+                    ${parseFloat(usdcBalance?.balance || "0").toFixed(2)}
+                  </span>
+                </>
+              )}
+            </Badge>
+          )}
+          
           <Button 
             size="sm" 
             variant="outline"
@@ -65,7 +94,7 @@ export function Header({ onNavigate, activeSection = "market" }: HeaderProps) {
             data-testid="button-deposit"
           >
             <Plus className="h-4 w-4 mr-1" />
-            Add Funds
+            {walletAddress ? "Add Funds" : "Connect Wallet"}
           </Button>
           
           <ThemeToggle />

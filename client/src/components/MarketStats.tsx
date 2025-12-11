@@ -1,4 +1,4 @@
-import { Users, TrendingUp, Clock } from "lucide-react";
+import { Users, TrendingUp, Clock, Trophy } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useMarket } from "@/context/MarketContext";
 import { useQuery } from "@tanstack/react-query";
@@ -11,6 +11,13 @@ export function MarketStats() {
     queryKey: ["/api/market/shares-by-team"],
     refetchInterval: 10000,
   });
+
+  const { data: prizePoolData } = useQuery<{ prizePool: number }>({
+    queryKey: ["/api/market/prize-pool"],
+    refetchInterval: 10000,
+  });
+
+  const prizePool = prizePoolData?.prizePool ?? 0;
 
   const chartData = teams
     .map((team) => ({
@@ -66,6 +73,23 @@ export function MarketStats() {
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Teams with shares purchased
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between gap-4 pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Prize Pool
+                </CardTitle>
+                <Trophy className="h-4 w-4 text-primary" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold tabular-nums" data-testid="text-stats-prize-pool">
+                  ${prizePool.toFixed(2)}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Total wagered across all teams
                 </p>
               </CardContent>
             </Card>

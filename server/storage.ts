@@ -1,15 +1,16 @@
 import { 
-  users, teams, holdings, transactions, deposits,
+  users, teams, holdings, transactions, deposits, priceHistory,
   type User, type InsertUser, 
   type Team, type InsertTeam,
   type Holding, type InsertHolding,
   type Transaction, type InsertTransaction,
   type Deposit, type InsertDeposit,
+  type PriceHistory, type InsertPriceHistory,
   type BuySharesRequest,
   type SellSharesRequest
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc, asc, sql } from "drizzle-orm";
 
 export interface IStorage {
   // Users
@@ -17,6 +18,7 @@ export interface IStorage {
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   updateUserBalance(id: string, newBalance: number): Promise<User | undefined>;
+  linkWallet(id: string, walletAddress: string): Promise<User | undefined>;
   
   // Teams
   getTeams(): Promise<Team[]>;
@@ -47,6 +49,11 @@ export interface IStorage {
   getDepositByTxHash(txHash: string): Promise<Deposit | undefined>;
   getDepositsByUser(userId: string): Promise<Deposit[]>;
   confirmDeposit(depositId: string): Promise<Deposit | undefined>;
+  
+  // Price History
+  recordPriceSnapshot(teamId: string, price: number): Promise<PriceHistory>;
+  getPriceHistory(teamId?: string, limit?: number): Promise<PriceHistory[]>;
+  recordAllTeamPrices(): Promise<void>;
 }
 
 // Initial F1 2026 teams data - all teams start at equal $0.10 price
@@ -85,6 +92,15 @@ export class DatabaseStorage implements IStorage {
     const [user] = await db
       .update(users)
       .set({ balance: newBalance })
+      .where(eq(users.id, id))
+      .returning();
+    return user || undefined;
+  }
+
+  async linkWallet(id: string, walletAddress: string): Promise<User | undefined> {
+    const [user] = await db
+      .update(users)
+      .set({ walletAddress })
       .where(eq(users.id, id))
       .returning();
     return user || undefined;
@@ -252,6 +268,9 @@ export class DatabaseStorage implements IStorage {
       totalAmount: totalCost,
     });
 
+    // Record price snapshot for charts
+    await this.recordPriceSnapshot(teamId, team.price + priceIncrease);
+
     return { success: true, transaction };
   }
 
@@ -311,6 +330,9 @@ export class DatabaseStorage implements IStorage {
       pricePerShare: sellPrice,
       totalAmount: totalProceeds,
     });
+
+    // Record price snapshot for charts
+    await this.recordPriceSnapshot(teamId, Math.max(0.01, team.price - priceDecrease));
 
     return { success: true, transaction };
   }
@@ -380,6 +402,35 @@ export class DatabaseStorage implements IStorage {
     }
 
     return updated || deposit;
+  }
+
+  // Price History
+  async recordPriceSnapshot(teamId: string, price: number): Promise<PriceHistory> {
+    const [record] = await db.insert(priceHistory).values({ teamId, price }).returning();
+    return record;
+  }
+
+  async getPriceHistory(teamId?: string, limit: number = 100): Promise<PriceHistory[]> {
+    if (teamId) {
+      return await db
+        .select()
+        .from(priceHistory)
+        .where(eq(priceHistory.teamId, teamId))
+        .orderBy(asc(priceHistory.recordedAt))
+        .limit(limit);
+    }
+    return await db
+      .select()
+      .from(priceHistory)
+      .orderBy(asc(priceHistory.recordedAt))
+      .limit(limit);
+  }
+
+  async recordAllTeamPrices(): Promise<void> {
+    const allTeams = await this.getTeams();
+    for (const team of allTeams) {
+      await this.recordPriceSnapshot(team.id, team.price);
+    }
   }
 }
 

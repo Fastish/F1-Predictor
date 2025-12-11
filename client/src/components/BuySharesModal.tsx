@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Minus, Plus, AlertCircle } from "lucide-react";
+import { Minus, Plus, AlertCircle, Wallet } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { useMarket, type F1Team } from "@/context/MarketContext";
+import { useWallet } from "@/context/WalletContext";
 import { useToast } from "@/hooks/use-toast";
 
 interface BuySharesModalProps {
@@ -21,13 +22,15 @@ interface BuySharesModalProps {
 export function BuySharesModal({ team, open, onOpenChange }: BuySharesModalProps) {
   const [quantity, setQuantity] = useState(1);
   const { balance, buyShares } = useMarket();
+  const { walletAddress } = useWallet();
   const { toast } = useToast();
 
   if (!team) return null;
 
   const totalCost = team.price * quantity;
   const canAfford = totalCost <= balance;
-  const canBuy = canAfford && quantity > 0;
+  const walletConnected = !!walletAddress;
+  const canBuy = canAfford && quantity > 0 && walletConnected;
 
   const handleBuy = async () => {
     if (!canBuy) return;
@@ -138,6 +141,13 @@ export function BuySharesModal({ team, open, onOpenChange }: BuySharesModalProps
             <div className="flex items-center gap-2 rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
               <AlertCircle className="h-4 w-4 shrink-0" />
               <span>Insufficient balance. You need ${(totalCost - balance).toFixed(2)} more.</span>
+            </div>
+          )}
+
+          {!walletConnected && (
+            <div className="flex items-center gap-2 rounded-lg border border-amber-500/50 bg-amber-500/10 p-3 text-sm text-amber-600 dark:text-amber-400">
+              <Wallet className="h-4 w-4 shrink-0" />
+              <span>Please connect your Freighter wallet to purchase shares.</span>
             </div>
           )}
         </div>

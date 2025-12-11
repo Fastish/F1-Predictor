@@ -9,6 +9,7 @@ export const users = pgTable("users", {
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
   balance: real("balance").notNull().default(100),
+  walletAddress: text("wallet_address"),
 });
 
 export const usersRelations = relations(users, ({ many }) => ({
@@ -78,10 +79,25 @@ export const deposits = pgTable("deposits", {
   confirmedAt: timestamp("confirmed_at"),
 });
 
+// Price History - tracks team price changes over time for charts
+export const priceHistory = pgTable("price_history", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  teamId: varchar("team_id").notNull().references(() => teams.id),
+  price: real("price").notNull(),
+  recordedAt: timestamp("recorded_at").notNull().defaultNow(),
+});
+
 export const depositsRelations = relations(deposits, ({ one }) => ({
   user: one(users, {
     fields: [deposits.userId],
     references: [users.id],
+  }),
+}));
+
+export const priceHistoryRelations = relations(priceHistory, ({ one }) => ({
+  team: one(teams, {
+    fields: [priceHistory.teamId],
+    references: [teams.id],
   }),
 }));
 
@@ -117,6 +133,11 @@ export const insertDepositSchema = createInsertSchema(deposits).omit({
   id: true,
   createdAt: true,
   confirmedAt: true,
+});
+
+export const insertPriceHistorySchema = createInsertSchema(priceHistory).omit({
+  id: true,
+  recordedAt: true,
 });
 
 // Buy shares request schema
@@ -155,3 +176,5 @@ export type SellSharesRequest = z.infer<typeof sellSharesSchema>;
 export type InsertDeposit = z.infer<typeof insertDepositSchema>;
 export type Deposit = typeof deposits.$inferSelect;
 export type DepositRequest = z.infer<typeof depositRequestSchema>;
+export type InsertPriceHistory = z.infer<typeof insertPriceHistorySchema>;
+export type PriceHistory = typeof priceHistory.$inferSelect;

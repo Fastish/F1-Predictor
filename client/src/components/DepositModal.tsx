@@ -1,13 +1,12 @@
-import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useMarket } from "@/context/MarketContext";
+import { useWallet } from "@/context/WalletContext";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import { Copy, ExternalLink, Wallet, AlertCircle, Link2, Loader2, LogOut } from "lucide-react";
 import { SiStellar } from "react-icons/si";
-import { isConnected, requestAccess, getAddress } from "@stellar/freighter-api";
 
 interface DepositModalProps {
   open: boolean;
@@ -30,10 +29,8 @@ interface USDCBalanceResponse {
 
 export function DepositModal({ open, onOpenChange }: DepositModalProps) {
   const { userId } = useMarket();
+  const { walletAddress, isFreighterInstalled, isConnecting, connectWallet, disconnectWallet } = useWallet();
   const { toast } = useToast();
-  const [walletAddress, setWalletAddress] = useState<string | null>(null);
-  const [isFreighterInstalled, setIsFreighterInstalled] = useState<boolean | null>(null);
-  const [isConnecting, setIsConnecting] = useState(false);
   
   const { data: depositInfo } = useQuery<DepositInfo>({
     queryKey: ["/api/users", userId, "deposit-info"],
@@ -41,63 +38,67 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
   });
 
   const { data: usdcBalance, isLoading: isLoadingBalance } = useQuery<USDCBalanceResponse>({
-    queryKey: [`/api/stellar/balance/${walletAddress}`],
+    queryKey: ["/api/stellar/balance", walletAddress],
     enabled: !!walletAddress && open,
   });
 
-  const disconnectWallet = () => {
-    setWalletAddress(null);
+  const handleDisconnect = () => {
+    disconnectWallet();
     toast({
       title: "Wallet Disconnected",
       description: "Your Freighter wallet has been disconnected.",
     });
   };
 
-  useEffect(() => {
-    const checkFreighter = async () => {
-      try {
-        const result = await isConnected();
-        setIsFreighterInstalled(result.isConnected);
-        if (result.isConnected) {
+  const handleConnect = async () => {
+    const success = await connectWallet();
+    if (success) {
+      // Link wallet to user on the backend
+      if (userId) {
+        try {
+          const { getAddress } = await import("@stellar/freighter-api");
           const addressResult = await getAddress();
           if (addressResult.address) {
-            setWalletAddress(addressResult.address);
+            const res = await fetch(`/api/users/${userId}/link-wallet`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ walletAddress: addressResult.address }),
+            });
+            if (!res.ok) {
+              const error = await res.json();
+              toast({
+                title: "Wallet Link Failed",
+                description: error.error || "Failed to verify wallet. Please try again.",
+                variant: "destructive",
+              });
+              return;
+            }
+            toast({
+              title: "Wallet Connected",
+              description: "Your Freighter wallet has been verified and linked.",
+            });
           }
+        } catch (e) {
+          console.error("Failed to link wallet:", e);
+          toast({
+            title: "Wallet Link Error",
+            description: "Failed to verify wallet connection. Please try again.",
+            variant: "destructive",
+          });
+          return;
         }
-      } catch (e) {
-        setIsFreighterInstalled(false);
-      }
-    };
-    if (open) {
-      checkFreighter();
-    }
-  }, [open]);
-
-  const connectFreighter = async () => {
-    setIsConnecting(true);
-    try {
-      const accessResult = await requestAccess();
-      if (accessResult.error) {
-        toast({
-          title: "Connection Failed",
-          description: accessResult.error,
-          variant: "destructive",
-        });
-      } else if (accessResult.address) {
-        setWalletAddress(accessResult.address);
+      } else {
         toast({
           title: "Wallet Connected",
-          description: `Connected to ${accessResult.address.slice(0, 8)}...${accessResult.address.slice(-4)}`,
+          description: "Your Freighter wallet has been connected.",
         });
       }
-    } catch (e) {
+    } else {
       toast({
-        title: "Error",
+        title: "Connection Failed",
         description: "Failed to connect to Freighter wallet",
         variant: "destructive",
       });
-    } finally {
-      setIsConnecting(false);
     }
   };
 
@@ -141,7 +142,7 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
                     variant="ghost"
                     size="icon"
                     className="h-6 w-6"
-                    onClick={disconnectWallet}
+                    onClick={handleDisconnect}
                     data-testid="button-disconnect-wallet"
                   >
                     <LogOut className="h-3.5 w-3.5" />
@@ -195,7 +196,7 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
             {isFreighterInstalled && !walletAddress && (
               <div className="mb-4">
                 <Button
-                  onClick={connectFreighter}
+                  onClick={handleConnect}
                   disabled={isConnecting}
                   className="w-full"
                   variant="outline"

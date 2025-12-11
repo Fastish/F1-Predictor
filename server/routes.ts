@@ -20,6 +20,13 @@ export async function registerRoutes(
 ): Promise<Server> {
   // Seed teams on startup
   await storage.seedTeams();
+  
+  // Record initial price snapshots if no history exists
+  const existingHistory = await storage.getPriceHistory(undefined, 1);
+  if (existingHistory.length === 0) {
+    await storage.recordAllTeamPrices();
+    console.log("Seeded initial price history snapshots");
+  }
 
   // ============ Teams/Market Routes ============
   
@@ -72,6 +79,28 @@ export async function registerRoutes(
     }
   });
 
+  // Get prize pool (total of all buy transactions)
+  app.get("/api/market/prize-pool", async (req, res) => {
+    try {
+      const prizePool = await storage.getPrizePool();
+      res.json({ prizePool });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch prize pool" });
+    }
+  });
+
+  // Get price history for charts
+  app.get("/api/market/price-history", async (req, res) => {
+    try {
+      const teamId = req.query.teamId as string | undefined;
+      const limit = parseInt(req.query.limit as string) || 500;
+      const history = await storage.getPriceHistory(teamId, limit);
+      res.json(history);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch price history" });
+    }
+  });
+
   // ============ User Routes ============
 
   // Create or get guest user (simplified auth for demo)
@@ -100,6 +129,44 @@ export async function registerRoutes(
       res.json(safeUser);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch user" });
+    }
+  });
+
+  // Link wallet to user
+  app.post("/api/users/:id/link-wallet", async (req, res) => {
+    try {
+      const { walletAddress } = req.body;
+      if (!walletAddress || typeof walletAddress !== "string") {
+        return res.status(400).json({ error: "Wallet address is required" });
+      }
+      
+      // Validate the wallet address format
+      const isValid = await validateStellarAddress(walletAddress);
+      if (!isValid) {
+        return res.status(400).json({ error: "Invalid Stellar wallet address format" });
+      }
+      
+      // Verify account exists on Stellar network
+      const exists = await accountExists(walletAddress);
+      if (!exists) {
+        return res.status(400).json({ error: "Stellar account does not exist. Please fund your wallet first." });
+      }
+      
+      // Verify account has USDC trustline
+      const hasTrustline = await hasUSDCTrustline(walletAddress);
+      if (!hasTrustline) {
+        return res.status(400).json({ error: "Wallet does not have USDC trustline. Please add USDC trustline in your wallet." });
+      }
+      
+      const user = await storage.linkWallet(req.params.id, walletAddress);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      
+      const { password, ...safeUser } = user;
+      res.json(safeUser);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to link wallet" });
     }
   });
 
@@ -133,6 +200,15 @@ export async function registerRoutes(
       const parsed = buySharesSchema.safeParse(req.body);
       if (!parsed.success) {
         return res.status(400).json({ error: "Invalid request", details: parsed.error.errors });
+      }
+
+      // Check if user has a linked wallet
+      const user = await storage.getUser(parsed.data.userId);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      if (!user.walletAddress) {
+        return res.status(403).json({ error: "Wallet not connected. Please connect your Freighter wallet to trade." });
       }
 
       const result = await storage.buyShares(parsed.data);

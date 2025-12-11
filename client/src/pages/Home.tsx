@@ -6,14 +6,23 @@ import { BuySharesModal } from "@/components/BuySharesModal";
 import { PortfolioSection } from "@/components/PortfolioSection";
 import { HowItWorks } from "@/components/HowItWorks";
 import { MarketStats } from "@/components/MarketStats";
+import { TeamValueChart } from "@/components/TeamValueChart";
+import { DepositModal } from "@/components/DepositModal";
+import { useWallet } from "@/context/WalletContext";
 import type { F1Team } from "@/context/MarketContext";
 
 export default function Home() {
+  const { walletAddress } = useWallet();
   const [activeSection, setActiveSection] = useState<"market" | "portfolio">("market");
   const [selectedTeam, setSelectedTeam] = useState<F1Team | null>(null);
   const [buyModalOpen, setBuyModalOpen] = useState(false);
+  const [connectWalletModalOpen, setConnectWalletModalOpen] = useState(false);
 
   const handleBuyTeam = (team: F1Team) => {
+    if (!walletAddress) {
+      setConnectWalletModalOpen(true);
+      return;
+    }
     setSelectedTeam(team);
     setBuyModalOpen(true);
   };
@@ -34,6 +43,11 @@ export default function Home() {
           <div id="market-section">
             <MarketOverview onBuyTeam={handleBuyTeam} />
           </div>
+          <section className="py-8">
+            <div className="mx-auto max-w-7xl px-4">
+              <TeamValueChart />
+            </div>
+          </section>
           <HowItWorks />
           <MarketStats />
         </>
@@ -45,6 +59,11 @@ export default function Home() {
         team={selectedTeam}
         open={buyModalOpen}
         onOpenChange={setBuyModalOpen}
+      />
+
+      <DepositModal
+        open={connectWalletModalOpen}
+        onOpenChange={setConnectWalletModalOpen}
       />
 
       <footer className="border-t py-8">
