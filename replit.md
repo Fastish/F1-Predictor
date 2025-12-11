@@ -30,20 +30,24 @@ Preferred communication style: Simple, everyday language.
 - **Migrations**: Drizzle Kit with `db:push` command
 
 ### Key Data Models
-- **Users**: Account with balance (starts at $100)
+- **Users**: Account with balance (starts at $100), optional walletAddress for Freighter wallet linking
 - **Teams**: 11 F1 teams for 2026 season (Red Bull, Ferrari, Mercedes, McLaren, Aston Martin, Alpine, Williams, RB, Audi, Haas, Cadillac)
   - All teams start at equal $0.10 price - market demand drives pricing
   - Sauber removed (replaced by Audi), Cadillac added as new entry
   - No share limit - unlimited shares can be purchased
 - **Holdings**: User ownership of team shares with average purchase price
 - **Transactions**: Record of all buy/sell activity
+- **PriceHistory**: Team price snapshots recorded on trades and seeded on startup for charts
 
 ### Application Flow
 1. Guest users are auto-created on first visit (stored in localStorage)
 2. Users browse team market with real-time prices
-3. Purchase shares through modal interface
-4. Portfolio tracks holdings, P&L, and total value
-5. Prize pool accumulates from all share purchases
+3. Users must connect Freighter wallet before purchasing shares
+4. Wallet linking validates: address format, account existence on Stellar, USDC trustline
+5. Purchase shares through modal interface (wallet required)
+6. Portfolio tracks holdings, P&L, and total value
+7. Prize pool accumulates from all share purchases
+8. TeamValueChart displays price history over time
 
 ## External Dependencies
 
