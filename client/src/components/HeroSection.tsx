@@ -1,4 +1,4 @@
-import { TrendingUp, ArrowRight, Trophy, Users } from "lucide-react";
+import { TrendingUp, ArrowRight, Users, Flag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useMarket } from "@/context/MarketContext";
 
@@ -7,7 +7,7 @@ interface HeroSectionProps {
 }
 
 export function HeroSection({ onStartTrading }: HeroSectionProps) {
-  const { prizePool, teams } = useMarket();
+  const { teams } = useMarket();
   
   const totalTraders = teams.reduce((acc, t) => acc + (t.totalShares - t.availableShares), 0);
 
@@ -29,8 +29,8 @@ export function HeroSection({ onStartTrading }: HeroSectionProps) {
             </h1>
             
             <p className="mb-6 text-lg text-muted-foreground md:text-xl">
-              Buy shares in your favorite teams. When the season ends, winning shareholders
-              split the prize pool. The more you believe, the more you could win.
+              Buy shares in your favorite teams. Prices rise with demand. 
+              Winning team shares convert to $1 at season end.
             </p>
 
             <div className="flex flex-wrap items-center gap-4">
@@ -47,12 +47,12 @@ export function HeroSection({ onStartTrading }: HeroSectionProps) {
           <div className="grid w-full max-w-sm gap-4 lg:w-auto">
             <div className="flex items-center gap-4 rounded-lg border bg-card p-4">
               <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-                <Trophy className="h-6 w-6 text-primary" />
+                <Flag className="h-6 w-6 text-primary" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Current Prize Pool</p>
-                <p className="text-2xl font-bold tabular-nums" data-testid="text-prize-pool">
-                  ${prizePool.toFixed(2)}
+                <p className="text-sm text-muted-foreground">Teams Available</p>
+                <p className="text-2xl font-bold tabular-nums" data-testid="text-teams-count">
+                  {teams.length}
                 </p>
               </div>
             </div>

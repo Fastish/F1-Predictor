@@ -46,16 +46,6 @@ export async function registerRoutes(
     }
   });
 
-  // Get prize pool
-  app.get("/api/market/prize-pool", async (req, res) => {
-    try {
-      const prizePool = await storage.getPrizePool();
-      res.json({ prizePool });
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch prize pool" });
-    }
-  });
-
   // Get recent transactions (market activity)
   app.get("/api/market/activity", async (req, res) => {
     try {
@@ -265,66 +255,6 @@ export async function registerRoutes(
       res.json(deposits);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch deposits" });
-    }
-  });
-
-  // Add demo credits (testing only - gives user demo funds)
-  // This simulates a faucet for the demo environment with per-user limits
-  const DEMO_CREDIT_LIMIT_PER_USER = 5000; // Maximum total demo credits per user
-  
-  app.post("/api/demo/add-credits", async (req, res) => {
-    try {
-      const { userId, amount } = req.body;
-      
-      // Strict validation
-      if (!userId || typeof userId !== "string") {
-        return res.status(400).json({ error: "Invalid userId" });
-      }
-      
-      const creditAmount = Number(amount);
-      if (isNaN(creditAmount) || creditAmount <= 0 || creditAmount > 1000) {
-        return res.status(400).json({ error: "Amount must be between 1 and 1000" });
-      }
-
-      const user = await storage.getUser(userId);
-      if (!user) {
-        return res.status(404).json({ error: "User not found" });
-      }
-
-      // Check total demo credits already claimed by this user
-      const existingDeposits = await storage.getDepositsByUser(userId);
-      const totalDemoCredits = existingDeposits
-        .filter(d => d.fromAddress === "demo_faucet")
-        .reduce((sum, d) => sum + d.amount, 0);
-      
-      if (totalDemoCredits + creditAmount > DEMO_CREDIT_LIMIT_PER_USER) {
-        const remaining = Math.max(0, DEMO_CREDIT_LIMIT_PER_USER - totalDemoCredits);
-        return res.status(400).json({ 
-          error: `Demo credit limit reached. You can claim up to $${remaining.toFixed(2)} more.`,
-          remaining 
-        });
-      }
-
-      // Create a demo deposit record (clearly marked as demo)
-      const deposit = await storage.createDeposit({
-        userId,
-        amount: creditAmount,
-        status: "confirmed",
-        stellarTxHash: `demo_faucet_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        fromAddress: "demo_faucet",
-      });
-
-      await storage.updateUserBalance(userId, user.balance + creditAmount);
-
-      res.json({ 
-        success: true, 
-        deposit,
-        newBalance: user.balance + creditAmount,
-        message: "Demo credits added successfully",
-        remainingLimit: DEMO_CREDIT_LIMIT_PER_USER - totalDemoCredits - creditAmount
-      });
-    } catch (error) {
-      res.status(500).json({ error: "Failed to add demo credits" });
     }
   });
 

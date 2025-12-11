@@ -1,14 +1,11 @@
 import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { useMarket } from "@/context/MarketContext";
 import { useToast } from "@/hooks/use-toast";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { queryClient } from "@/lib/queryClient";
-import { Copy, ExternalLink, Wallet, DollarSign, AlertCircle, Link2, Loader2, LogOut } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Copy, ExternalLink, Wallet, AlertCircle, Link2, Loader2, LogOut } from "lucide-react";
 import { SiStellar } from "react-icons/si";
 import { isConnected, requestAccess, getAddress } from "@stellar/freighter-api";
 
@@ -32,9 +29,8 @@ interface USDCBalanceResponse {
 }
 
 export function DepositModal({ open, onOpenChange }: DepositModalProps) {
-  const { userId, refetch } = useMarket();
+  const { userId } = useMarket();
   const { toast } = useToast();
-  const [demoAmount, setDemoAmount] = useState("50");
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [isFreighterInstalled, setIsFreighterInstalled] = useState<boolean | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
@@ -105,56 +101,12 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
     }
   };
 
-  const addDemoCredits = useMutation({
-    mutationFn: async (amount: number) => {
-      const res = await fetch("/api/demo/add-credits", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, amount }),
-      });
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.error || "Failed to add credits");
-      }
-      return res.json();
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/users", userId] });
-      toast({
-        title: "Credits Added",
-        description: `$${demoAmount} demo credits have been added to your account.`,
-      });
-      refetch();
-      onOpenChange(false);
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
     toast({
       title: "Copied",
       description: `${label} copied to clipboard`,
     });
-  };
-
-  const handleAddCredits = () => {
-    const amount = parseFloat(demoAmount);
-    if (isNaN(amount) || amount <= 0 || amount > 1000) {
-      toast({
-        title: "Invalid Amount",
-        description: "Please enter an amount between 1 and 1000",
-        variant: "destructive",
-      });
-      return;
-    }
-    addDemoCredits.mutate(amount);
   };
 
   return (
@@ -166,7 +118,7 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
             Add Funds
           </DialogTitle>
           <DialogDescription>
-            Deposit USDC via Stellar network or add demo credits to test trading.
+            Deposit USDC via Stellar network to fund your trading account.
           </DialogDescription>
         </DialogHeader>
 
@@ -308,60 +260,9 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
             ) : (
               <div className="text-sm text-muted-foreground">
                 <AlertCircle className="h-4 w-4 inline mr-2" />
-                Stellar deposit address not configured. Use demo credits below.
+                Stellar deposit address not configured.
               </div>
             )}
-          </div>
-
-          <Separator />
-
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <DollarSign className="h-5 w-5 text-foreground" />
-              <span className="font-medium">Demo Credits</span>
-              <Badge variant="secondary">Testing</Badge>
-            </div>
-            
-            <p className="text-sm text-muted-foreground">
-              Add demo credits to test the trading features. These are not real funds.
-            </p>
-
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
-                <Input
-                  type="number"
-                  value={demoAmount}
-                  onChange={(e) => setDemoAmount(e.target.value)}
-                  className="pl-7"
-                  min="1"
-                  max="1000"
-                  step="10"
-                  data-testid="input-demo-amount"
-                />
-              </div>
-              <Button 
-                onClick={handleAddCredits}
-                disabled={addDemoCredits.isPending}
-                data-testid="button-add-credits"
-              >
-                {addDemoCredits.isPending ? "Adding..." : "Add Credits"}
-              </Button>
-            </div>
-
-            <div className="flex gap-2 flex-wrap">
-              {[25, 50, 100, 250].map((amount) => (
-                <Button
-                  key={amount}
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setDemoAmount(amount.toString())}
-                  data-testid={`button-preset-${amount}`}
-                >
-                  ${amount}
-                </Button>
-              ))}
-            </div>
           </div>
         </div>
       </DialogContent>

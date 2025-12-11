@@ -1,11 +1,11 @@
-import { Trophy, Users, TrendingUp, Clock } from "lucide-react";
+import { Users, TrendingUp, Clock } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useMarket } from "@/context/MarketContext";
 import { useQuery } from "@tanstack/react-query";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 
 export function MarketStats() {
-  const { teams, prizePool } = useMarket();
+  const { teams } = useMarket();
 
   const { data: sharesByTeam = {} } = useQuery<Record<string, number>>({
     queryKey: ["/api/market/shares-by-team"],
@@ -36,23 +36,6 @@ export function MarketStats() {
 
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="grid gap-4 sm:grid-cols-2 lg:col-span-2 lg:grid-cols-2">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between gap-4 pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Prize Pool
-                </CardTitle>
-                <Trophy className="h-4 w-4 text-primary" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold tabular-nums" data-testid="text-stats-prize-pool">
-                  ${prizePool.toFixed(2)}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Total value from all share purchases
-                </p>
-              </CardContent>
-            </Card>
-
             <Card>
               <CardHeader className="flex flex-row items-center justify-between gap-4 pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">

@@ -9,7 +9,6 @@ interface MarketContextType {
   teams: Team[];
   holdings: Holding[];
   balance: number;
-  prizePool: number;
   userId: string | null;
   isLoading: boolean;
   buyShares: (teamId: string, quantity: number) => Promise<boolean>;
@@ -67,11 +66,6 @@ export function MarketProvider({ children }: { children: ReactNode }) {
     enabled: !!userId,
   });
 
-  // Fetch prize pool
-  const { data: prizePoolData } = useQuery<{ prizePool: number }>({
-    queryKey: ["/api/market/prize-pool"],
-  });
-
   // Buy shares mutation
   const buyMutation = useMutation({
     mutationFn: async ({ teamId, quantity }: { teamId: string; quantity: number }) => {
@@ -91,12 +85,10 @@ export function MarketProvider({ children }: { children: ReactNode }) {
       queryClient.invalidateQueries({ queryKey: ["/api/teams"] });
       queryClient.invalidateQueries({ queryKey: ["/api/users", userId] });
       queryClient.invalidateQueries({ queryKey: ["/api/users", userId, "holdings"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/market/prize-pool"] });
     },
   });
 
   const balance = userData?.balance ?? 100;
-  const prizePool = prizePoolData?.prizePool ?? 0;
 
   const getTeam = (teamId: string) => teams.find((t) => t.id === teamId);
   const getHolding = (teamId: string) => holdings.find((h) => h.teamId === teamId);
@@ -127,7 +119,6 @@ export function MarketProvider({ children }: { children: ReactNode }) {
     queryClient.invalidateQueries({ queryKey: ["/api/teams"] });
     queryClient.invalidateQueries({ queryKey: ["/api/users", userId] });
     queryClient.invalidateQueries({ queryKey: ["/api/users", userId, "holdings"] });
-    queryClient.invalidateQueries({ queryKey: ["/api/market/prize-pool"] });
   };
 
   return (
@@ -136,7 +127,6 @@ export function MarketProvider({ children }: { children: ReactNode }) {
         teams,
         holdings,
         balance,
-        prizePool,
         userId,
         isLoading: teamsLoading,
         buyShares,
