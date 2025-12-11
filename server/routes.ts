@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { buySharesSchema, insertUserSchema, depositRequestSchema } from "@shared/schema";
+import { buySharesSchema, sellSharesSchema, insertUserSchema, depositRequestSchema } from "@shared/schema";
 import { z } from "zod";
 import { 
   validateStellarAddress, 
@@ -146,6 +146,25 @@ export async function registerRoutes(
       }
 
       const result = await storage.buyShares(parsed.data);
+      if (!result.success) {
+        return res.status(400).json({ error: result.error });
+      }
+
+      res.json({ success: true, transaction: result.transaction });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to process trade" });
+    }
+  });
+
+  // Sell shares
+  app.post("/api/trade/sell", async (req, res) => {
+    try {
+      const parsed = sellSharesSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Invalid request", details: parsed.error.errors });
+      }
+
+      const result = await storage.sellShares(parsed.data);
       if (!result.success) {
         return res.status(400).json({ error: result.error });
       }

@@ -8,7 +8,7 @@ import { useMarket } from "@/context/MarketContext";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
-import { Copy, ExternalLink, Wallet, DollarSign, AlertCircle, Link2, Loader2 } from "lucide-react";
+import { Copy, ExternalLink, Wallet, DollarSign, AlertCircle, Link2, Loader2, LogOut } from "lucide-react";
 import { SiStellar } from "react-icons/si";
 import { isConnected, requestAccess, getAddress } from "@stellar/freighter-api";
 
@@ -25,6 +25,12 @@ interface DepositInfo {
   instructions: string;
 }
 
+interface USDCBalanceResponse {
+  address: string;
+  balance: string;
+  asset: string;
+}
+
 export function DepositModal({ open, onOpenChange }: DepositModalProps) {
   const { userId, refetch } = useMarket();
   const { toast } = useToast();
@@ -37,6 +43,19 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
     queryKey: ["/api/users", userId, "deposit-info"],
     enabled: !!userId && open,
   });
+
+  const { data: usdcBalance, isLoading: isLoadingBalance } = useQuery<USDCBalanceResponse>({
+    queryKey: [`/api/stellar/balance/${walletAddress}`],
+    enabled: !!walletAddress && open,
+  });
+
+  const disconnectWallet = () => {
+    setWalletAddress(null);
+    toast({
+      title: "Wallet Disconnected",
+      description: "Your Freighter wallet has been disconnected.",
+    });
+  };
 
   useEffect(() => {
     const checkFreighter = async () => {
@@ -162,11 +181,40 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
                 </Badge>
               </div>
               {walletAddress && (
-                <Badge variant="secondary" className="font-mono text-xs">
-                  {walletAddress.slice(0, 4)}...{walletAddress.slice(-4)}
-                </Badge>
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary" className="font-mono text-xs">
+                    {walletAddress.slice(0, 4)}...{walletAddress.slice(-4)}
+                  </Badge>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    onClick={disconnectWallet}
+                    data-testid="button-disconnect-wallet"
+                  >
+                    <LogOut className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
               )}
             </div>
+
+            {walletAddress && (
+              <div className="mb-4 p-3 rounded-md bg-background border">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-sm">
+                    <p className="text-muted-foreground">USDC Balance</p>
+                    {isLoadingBalance ? (
+                      <p className="font-bold text-lg">Loading...</p>
+                    ) : (
+                      <p className="font-bold text-lg tabular-nums" data-testid="text-usdc-balance">
+                        {usdcBalance?.balance ? `$${parseFloat(usdcBalance.balance).toFixed(2)}` : "$0.00"}
+                      </p>
+                    )}
+                  </div>
+                  <SiStellar className="h-8 w-8 text-muted-foreground" />
+                </div>
+              </div>
+            )}
 
             {isFreighterInstalled === false && (
               <div className="mb-4 p-3 rounded-md bg-background border">

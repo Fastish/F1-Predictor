@@ -5,7 +5,8 @@ import {
   type Holding, type InsertHolding,
   type Transaction, type InsertTransaction,
   type Deposit, type InsertDeposit,
-  type BuySharesRequest
+  type BuySharesRequest,
+  type SellSharesRequest
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, sql } from "drizzle-orm";
@@ -36,8 +37,10 @@ export interface IStorage {
   
   // Market operations
   buyShares(request: BuySharesRequest): Promise<{ success: boolean; error?: string; transaction?: Transaction }>;
+  sellShares(request: SellSharesRequest): Promise<{ success: boolean; error?: string; transaction?: Transaction }>;
   getPrizePool(): Promise<number>;
   getSharesSoldByTeam(): Promise<Map<string, number>>;
+  deleteHolding(userId: string, teamId: string): Promise<void>;
   
   // Deposits
   createDeposit(deposit: InsertDeposit): Promise<Deposit>;
@@ -250,6 +253,72 @@ export class DatabaseStorage implements IStorage {
     });
 
     return { success: true, transaction };
+  }
+
+  async sellShares(request: SellSharesRequest): Promise<{ success: boolean; error?: string; transaction?: Transaction }> {
+    const { teamId, quantity, userId } = request;
+
+    // Get user and team
+    const user = await this.getUser(userId);
+    if (!user) {
+      return { success: false, error: "User not found" };
+    }
+
+    const team = await this.getTeam(teamId);
+    if (!team) {
+      return { success: false, error: "Team not found" };
+    }
+
+    // Get user's holding for this team
+    const holding = await this.getHolding(userId, teamId);
+    if (!holding || holding.shares < quantity) {
+      return { success: false, error: "Insufficient shares" };
+    }
+
+    // Capture current price BEFORE applying market impact
+    const sellPrice = team.price;
+    const totalProceeds = sellPrice * quantity;
+
+    // Update user balance (add proceeds)
+    await this.updateUserBalance(userId, user.balance + totalProceeds);
+
+    // Update team price (slight decrease on selling) - applied AFTER sale
+    const priceDecrease = quantity * 0.000001;
+    await this.updateTeam(teamId, {
+      price: Math.max(0.01, team.price - priceDecrease), // Minimum price floor
+    });
+
+    // Update holding (reduce shares)
+    const newShares = holding.shares - quantity;
+    if (newShares === 0) {
+      // Delete holding if no shares left
+      await this.deleteHolding(userId, teamId);
+    } else {
+      await this.upsertHolding({
+        userId,
+        teamId,
+        shares: newShares,
+        avgPrice: holding.avgPrice, // Keep original avg price for remaining shares
+      });
+    }
+
+    // Create transaction record with the actual sell price (pre-impact)
+    const transaction = await this.createTransaction({
+      userId,
+      teamId,
+      type: "sell",
+      shares: quantity,
+      pricePerShare: sellPrice,
+      totalAmount: totalProceeds,
+    });
+
+    return { success: true, transaction };
+  }
+
+  async deleteHolding(userId: string, teamId: string): Promise<void> {
+    await db
+      .delete(holdings)
+      .where(and(eq(holdings.userId, userId), eq(holdings.teamId, teamId)));
   }
 
   async getPrizePool(): Promise<number> {

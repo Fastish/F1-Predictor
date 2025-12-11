@@ -1,10 +1,16 @@
+import { useState } from "react";
 import { TrendingUp, TrendingDown, Wallet, PiggyBank, BarChart3 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { useMarket } from "@/context/MarketContext";
+import { SellSharesModal } from "./SellSharesModal";
+import type { Team, Holding } from "@shared/schema";
 
 export function PortfolioSection() {
   const { holdings, balance, getTeam, getTotalInvestment, getCurrentValue } = useMarket();
+  const [sellModalOpen, setSellModalOpen] = useState(false);
+  const [selectedHolding, setSelectedHolding] = useState<{ team: Team; holding: Holding } | null>(null);
 
   const totalInvestment = getTotalInvestment();
   const currentValue = getCurrentValue();
@@ -25,6 +31,11 @@ export function PortfolioSection() {
     .sort((a, b) => b!.value - a!.value);
 
   const totalPortfolioValue = currentValue + balance;
+
+  const handleSellClick = (team: Team, holding: Holding) => {
+    setSelectedHolding({ team, holding });
+    setSellModalOpen(true);
+  };
 
   return (
     <section className="py-12">
@@ -127,23 +138,36 @@ export function PortfolioSection() {
                               {holding.team.name}
                             </p>
                             <p className="text-sm text-muted-foreground">
-                              {holding.shares} shares @ ${holding.avgPrice.toFixed(2)} avg
+                              {holding.shares} shares @ ${holding.avgPrice.toFixed(4)} entry
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              Current: ${holding.team.price.toFixed(4)}
                             </p>
                           </div>
                         </div>
-                        <div className="text-right">
-                          <p className="font-bold tabular-nums" data-testid={`text-holding-value-${holding.teamId}`}>
-                            ${holding.value.toFixed(2)}
-                          </p>
-                          <p
-                            className={`text-sm tabular-nums ${
-                              isHoldingPositive
-                                ? "text-green-500 dark:text-green-400"
-                                : "text-red-500 dark:text-red-400"
-                            }`}
+                        <div className="flex items-center gap-4">
+                          <div className="text-right">
+                            <p className="font-bold tabular-nums" data-testid={`text-holding-value-${holding.teamId}`}>
+                              ${holding.value.toFixed(2)}
+                            </p>
+                            <p
+                              className={`text-sm tabular-nums ${
+                                isHoldingPositive
+                                  ? "text-green-500 dark:text-green-400"
+                                  : "text-red-500 dark:text-red-400"
+                              }`}
+                            >
+                              {isHoldingPositive ? "+" : ""}${holding.profit.toFixed(2)}
+                            </p>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleSellClick(holding.team, holding)}
+                            data-testid={`button-sell-${holding.teamId}`}
                           >
-                            {isHoldingPositive ? "+" : ""}${holding.profit.toFixed(2)}
-                          </p>
+                            Sell
+                          </Button>
                         </div>
                       </div>
                       <Progress value={percentOfPortfolio} className="h-2" />
@@ -155,6 +179,15 @@ export function PortfolioSection() {
           </CardContent>
         </Card>
       </div>
+
+      {selectedHolding && (
+        <SellSharesModal
+          open={sellModalOpen}
+          onOpenChange={setSellModalOpen}
+          team={selectedHolding.team}
+          holding={selectedHolding.holding}
+        />
+      )}
     </section>
   );
 }

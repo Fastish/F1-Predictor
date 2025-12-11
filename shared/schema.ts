@@ -126,6 +126,13 @@ export const buySharesSchema = z.object({
   userId: z.string(),
 });
 
+// Sell shares request schema
+export const sellSharesSchema = z.object({
+  teamId: z.string(),
+  quantity: z.number().int().positive(),
+  userId: z.string(),
+});
+
 // Deposit request schema
 export const depositRequestSchema = z.object({
   userId: z.string(),
@@ -144,6 +151,7 @@ export type Holding = typeof holdings.$inferSelect;
 export type InsertTransaction = z.infer<typeof insertTransactionSchema>;
 export type Transaction = typeof transactions.$inferSelect;
 export type BuySharesRequest = z.infer<typeof buySharesSchema>;
+export type SellSharesRequest = z.infer<typeof sellSharesSchema>;
 export type InsertDeposit = z.infer<typeof insertDepositSchema>;
 export type Deposit = typeof deposits.$inferSelect;
 export type DepositRequest = z.infer<typeof depositRequestSchema>;
