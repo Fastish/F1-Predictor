@@ -14,7 +14,9 @@ import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
 import { useMarket } from "@/context/MarketContext";
 import { useWallet } from "@/context/WalletContext";
-import { Trophy, Play, CheckCircle, AlertCircle, DollarSign, Lock } from "lucide-react";
+import { Trophy, Play, CheckCircle, AlertCircle, DollarSign, Lock, Bot, Power, PowerOff } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import type { Payout } from "@shared/schema";
 
 interface SeasonResponse {
@@ -25,6 +27,13 @@ interface SeasonResponse {
   winningTeamId?: string | null;
   prizePool?: number;
   concludedAt?: string | null;
+}
+
+interface MarketMakerStatus {
+  running: boolean;
+  botUserId: string | null;
+  intervalMs: number;
+  lastRunAt: string | null;
 }
 
 export function AdminPanel() {
@@ -52,6 +61,40 @@ export function AdminPanel() {
 
   const { data: season, isLoading: seasonLoading } = useQuery<SeasonResponse>({
     queryKey: ["/api/season"],
+  });
+
+  const { data: marketMakerStatus, refetch: refetchMarketMakerStatus } = useQuery<MarketMakerStatus>({
+    queryKey: ["/api/admin/market-maker/status"],
+    queryFn: async () => adminApiRequest("/api/admin/market-maker/status", "GET"),
+    refetchInterval: 5000,
+  });
+
+  const startMarketMakerMutation = useMutation({
+    mutationFn: async () => {
+      return adminApiRequest("/api/admin/market-maker/start", "POST", { intervalMs: 30000 });
+    },
+    onSuccess: () => {
+      toast({ title: "Market Maker Started", description: "Bot is now providing liquidity." });
+      refetchMarketMakerStatus();
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to start market maker", variant: "destructive" });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/market-maker/status"] });
+    },
+  });
+
+  const stopMarketMakerMutation = useMutation({
+    mutationFn: async () => {
+      return adminApiRequest("/api/admin/market-maker/stop", "POST", {});
+    },
+    onSuccess: () => {
+      toast({ title: "Market Maker Stopped", description: "Bot has stopped providing liquidity." });
+      refetchMarketMakerStatus();
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to stop market maker", variant: "destructive" });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/market-maker/status"] });
+    },
   });
 
   const payoutsQueryKey = season?.id ? `/api/admin/season/${season.id}/payouts` : null;
@@ -155,6 +198,47 @@ export function AdminPanel() {
         )}
       </CardHeader>
       <CardContent className="space-y-4">
+        <div className="border rounded-md p-4 space-y-3">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <Bot className="h-5 w-5 text-muted-foreground" />
+              <div>
+                <p className="font-medium">Market Maker Bot</p>
+                <p className="text-sm text-muted-foreground">
+                  Provides liquidity for trading
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <Badge variant={marketMakerStatus?.running ? "default" : "secondary"}>
+                {marketMakerStatus?.running ? (
+                  <><Power className="h-3 w-3 mr-1" /> Running</>
+                ) : (
+                  <><PowerOff className="h-3 w-3 mr-1" /> Stopped</>
+                )}
+              </Badge>
+              <Switch
+                id="market-maker-toggle"
+                checked={marketMakerStatus?.running ?? false}
+                disabled={startMarketMakerMutation.isPending || stopMarketMakerMutation.isPending}
+                onCheckedChange={(checked) => {
+                  if (checked) {
+                    startMarketMakerMutation.mutate();
+                  } else {
+                    stopMarketMakerMutation.mutate();
+                  }
+                }}
+                data-testid="switch-market-maker"
+              />
+            </div>
+          </div>
+          {marketMakerStatus?.lastRunAt && (
+            <p className="text-xs text-muted-foreground">
+              Last run: {new Date(marketMakerStatus.lastRunAt).toLocaleString()}
+            </p>
+          )}
+        </div>
+
         {!season?.exists && (
           <div className="space-y-4">
             <p className="text-muted-foreground">No active season. Create one to start trading.</p>
