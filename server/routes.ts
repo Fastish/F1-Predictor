@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { buySharesSchema, sellSharesSchema, insertUserSchema, depositRequestSchema } from "@shared/schema";
+import { buySharesSchema, sellSharesSchema, insertUserSchema, depositRequestSchema, placeOrderSchema, cancelOrderSchema } from "@shared/schema";
 import { z } from "zod";
 import { 
   validateStellarAddress, 
@@ -14,6 +14,8 @@ import {
   USE_TESTNET,
   USDC_ISSUER
 } from "./stellar";
+import { matchingEngine } from "./matchingEngine";
+import { marketMaker } from "./marketMaker";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -374,6 +376,94 @@ export async function registerRoutes(
     }
   });
 
+  // ============ CLOB (Central Limit Order Book) Routes ============
+
+  // Get all markets
+  app.get("/api/clob/markets", async (req, res) => {
+    try {
+      const markets = await storage.getMarkets();
+      res.json(markets);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch markets" });
+    }
+  });
+
+  // Get market by ID
+  app.get("/api/clob/markets/:marketId", async (req, res) => {
+    try {
+      const market = await matchingEngine.getMarket(req.params.marketId);
+      if (!market) {
+        return res.status(404).json({ error: "Market not found" });
+      }
+      res.json(market);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch market" });
+    }
+  });
+
+  // Get order book for a market
+  app.get("/api/clob/markets/:marketId/orderbook", async (req, res) => {
+    try {
+      const orderBook = await matchingEngine.getOrderBook(req.params.marketId);
+      res.json(orderBook);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch order book" });
+    }
+  });
+
+  // Place an order
+  app.post("/api/clob/orders", async (req, res) => {
+    try {
+      const parsed = placeOrderSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Invalid order data", details: parsed.error.errors });
+      }
+
+      const { marketId, userId, outcome, side, price, quantity } = parsed.data;
+      const result = await matchingEngine.placeOrder(marketId, userId, outcome, side, price, quantity);
+      res.json(result);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message || "Failed to place order" });
+    }
+  });
+
+  // Cancel an order
+  app.post("/api/clob/orders/cancel", async (req, res) => {
+    try {
+      const parsed = cancelOrderSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Invalid request data" });
+      }
+
+      const { orderId, userId } = parsed.data;
+      const cancelledOrder = await matchingEngine.cancelOrder(orderId, userId);
+      res.json(cancelledOrder);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message || "Failed to cancel order" });
+    }
+  });
+
+  // Get user's orders
+  app.get("/api/clob/users/:userId/orders", async (req, res) => {
+    try {
+      const marketId = req.query.marketId as string | undefined;
+      const orders = await matchingEngine.getUserOrders(req.params.userId, marketId);
+      res.json(orders);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch orders" });
+    }
+  });
+
+  // Get user's positions
+  app.get("/api/clob/users/:userId/positions", async (req, res) => {
+    try {
+      const positions = await matchingEngine.getUserPositions(req.params.userId);
+      res.json(positions);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch positions" });
+    }
+  });
+
   // ============ Admin Authentication ============
 
   // Helper to check if wallet is admin
@@ -433,7 +523,11 @@ export async function registerRoutes(
       }
 
       const season = await storage.createSeason({ year, status: "active" });
-      res.json(season);
+      
+      // Create CLOB markets for each team
+      const markets = await storage.createMarketsForSeason(season.id);
+      
+      res.json({ ...season, markets });
     } catch (error) {
       res.status(500).json({ error: "Failed to create season" });
     }
@@ -638,6 +732,41 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error distributing payouts:", error);
       res.status(500).json({ error: "Failed to distribute payouts" });
+    }
+  });
+
+  // ============ Market Maker Bot Routes ============
+
+  // Start market maker bot (admin)
+  app.post("/api/admin/market-maker/start", requireAdmin, async (req, res) => {
+    try {
+      const intervalMs = req.body.intervalMs || 30000;
+      await marketMaker.start(intervalMs);
+      const status = await marketMaker.getStatus();
+      res.json({ success: true, message: "Market maker started", status });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to start market maker" });
+    }
+  });
+
+  // Stop market maker bot (admin)
+  app.post("/api/admin/market-maker/stop", requireAdmin, async (req, res) => {
+    try {
+      marketMaker.stop();
+      const status = await marketMaker.getStatus();
+      res.json({ success: true, message: "Market maker stopped", status });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to stop market maker" });
+    }
+  });
+
+  // Get market maker status (admin)
+  app.get("/api/admin/market-maker/status", requireAdmin, async (req, res) => {
+    try {
+      const status = await marketMaker.getStatus();
+      res.json(status);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to get market maker status" });
     }
   });
 

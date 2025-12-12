@@ -200,14 +200,127 @@ export const insertPayoutSchema = createInsertSchema(payouts).omit({
   paidAt: true,
 });
 
-// Buy shares request schema
+// =====================================================
+// CLOB (Central Limit Order Book) Tables
+// =====================================================
+
+// Markets - One per team/season, tracks collateral and outstanding pairs
+export const markets = pgTable("markets", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  seasonId: varchar("season_id").notNull().references(() => seasons.id),
+  teamId: varchar("team_id").notNull().references(() => teams.id),
+  outstandingPairs: integer("outstanding_pairs").notNull().default(0),
+  lockedCollateral: real("locked_collateral").notNull().default(0),
+  lastPrice: real("last_price").default(0.5),
+  status: text("status").notNull().default("active"), // 'active', 'halted', 'settled'
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const marketsRelations = relations(markets, ({ one, many }) => ({
+  season: one(seasons, { fields: [markets.seasonId], references: [seasons.id] }),
+  team: one(teams, { fields: [markets.teamId], references: [teams.id] }),
+  orders: many(orders),
+  positions: many(marketPositions),
+}));
+
+// Orders - Limit orders in the order book
+export const orders = pgTable("orders", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  marketId: varchar("market_id").notNull().references(() => markets.id),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  outcome: text("outcome").notNull(), // 'yes' or 'no'
+  side: text("side").notNull(), // 'buy' or 'sell'
+  price: real("price").notNull(), // 0.01 to 0.99
+  quantity: integer("quantity").notNull(),
+  filledQuantity: integer("filled_quantity").notNull().default(0),
+  status: text("status").notNull().default("open"), // 'open', 'filled', 'partial', 'cancelled'
+  collateralLocked: real("collateral_locked").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const ordersRelations = relations(orders, ({ one, many }) => ({
+  market: one(markets, { fields: [orders.marketId], references: [markets.id] }),
+  user: one(users, { fields: [orders.userId], references: [users.id] }),
+  takerFills: many(orderFills, { relationName: "takerOrder" }),
+  makerFills: many(orderFills, { relationName: "makerOrder" }),
+}));
+
+// Order Fills - Records of matched orders
+export const orderFills = pgTable("order_fills", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  marketId: varchar("market_id").notNull().references(() => markets.id),
+  takerOrderId: varchar("taker_order_id").notNull().references(() => orders.id),
+  makerOrderId: varchar("maker_order_id").notNull().references(() => orders.id),
+  takerUserId: varchar("taker_user_id").notNull().references(() => users.id),
+  makerUserId: varchar("maker_user_id").notNull().references(() => users.id),
+  fillType: text("fill_type").notNull(), // 'mint' or 'burn'
+  quantity: integer("quantity").notNull(),
+  yesPrice: real("yes_price").notNull(),
+  noPrice: real("no_price").notNull(),
+  collateralMoved: real("collateral_moved").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const orderFillsRelations = relations(orderFills, ({ one }) => ({
+  market: one(markets, { fields: [orderFills.marketId], references: [markets.id] }),
+  takerOrder: one(orders, { fields: [orderFills.takerOrderId], references: [orders.id], relationName: "takerOrder" }),
+  makerOrder: one(orders, { fields: [orderFills.makerOrderId], references: [orders.id], relationName: "makerOrder" }),
+  takerUser: one(users, { fields: [orderFills.takerUserId], references: [users.id] }),
+  makerUser: one(users, { fields: [orderFills.makerUserId], references: [users.id] }),
+}));
+
+// Market Positions - User's holdings in each market
+export const marketPositions = pgTable("market_positions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  marketId: varchar("market_id").notNull().references(() => markets.id),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  yesShares: integer("yes_shares").notNull().default(0),
+  noShares: integer("no_shares").notNull().default(0),
+  avgYesPrice: real("avg_yes_price").notNull().default(0),
+  avgNoPrice: real("avg_no_price").notNull().default(0),
+  realizedPnl: real("realized_pnl").notNull().default(0),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const marketPositionsRelations = relations(marketPositions, ({ one }) => ({
+  market: one(markets, { fields: [marketPositions.marketId], references: [markets.id] }),
+  user: one(users, { fields: [marketPositions.userId], references: [users.id] }),
+}));
+
+// Collateral Ledger - Tracks all collateral movements for audit
+export const collateralLedger = pgTable("collateral_ledger", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  marketId: varchar("market_id").references(() => markets.id),
+  orderId: varchar("order_id").references(() => orders.id),
+  fillId: varchar("fill_id").references(() => orderFills.id),
+  amount: real("amount").notNull(),
+  reason: text("reason").notNull(), // 'order_lock', 'order_release', 'mint_lock', 'burn_release', 'settlement_payout'
+  balanceBefore: real("balance_before").notNull(),
+  balanceAfter: real("balance_after").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const collateralLedgerRelations = relations(collateralLedger, ({ one }) => ({
+  user: one(users, { fields: [collateralLedger.userId], references: [users.id] }),
+  market: one(markets, { fields: [collateralLedger.marketId], references: [markets.id] }),
+  order: one(orders, { fields: [collateralLedger.orderId], references: [orders.id] }),
+  fill: one(orderFills, { fields: [collateralLedger.fillId], references: [orderFills.id] }),
+}));
+
+// =====================================================
+// Request Schemas
+// =====================================================
+
+// Buy shares request schema (legacy - for backwards compatibility)
 export const buySharesSchema = z.object({
   teamId: z.string(),
   quantity: z.number().int().positive(),
   userId: z.string(),
 });
 
-// Sell shares request schema
+// Sell shares request schema (legacy - for backwards compatibility)
 export const sellSharesSchema = z.object({
   teamId: z.string(),
   quantity: z.number().int().positive(),
@@ -220,6 +333,49 @@ export const depositRequestSchema = z.object({
   stellarTxHash: z.string(),
   amount: z.number().positive(),
   fromAddress: z.string(),
+});
+
+// Place Order request schema
+export const placeOrderSchema = z.object({
+  marketId: z.string(),
+  userId: z.string(),
+  outcome: z.enum(["yes", "no"]),
+  side: z.enum(["buy", "sell"]),
+  price: z.number().min(0.01).max(0.99),
+  quantity: z.number().int().positive(),
+});
+
+// Cancel Order request schema
+export const cancelOrderSchema = z.object({
+  orderId: z.string(),
+  userId: z.string(),
+});
+
+// CLOB Insert Schemas
+export const insertMarketSchema = createInsertSchema(markets).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertOrderSchema = createInsertSchema(orders).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertOrderFillSchema = createInsertSchema(orderFills).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertMarketPositionSchema = createInsertSchema(marketPositions).omit({
+  id: true,
+  updatedAt: true,
+});
+
+export const insertCollateralLedgerSchema = createInsertSchema(collateralLedger).omit({
+  id: true,
+  createdAt: true,
 });
 
 // Types
@@ -242,3 +398,17 @@ export type InsertSeason = z.infer<typeof insertSeasonSchema>;
 export type Season = typeof seasons.$inferSelect;
 export type InsertPayout = z.infer<typeof insertPayoutSchema>;
 export type Payout = typeof payouts.$inferSelect;
+
+// CLOB Types
+export type InsertMarket = z.infer<typeof insertMarketSchema>;
+export type Market = typeof markets.$inferSelect;
+export type InsertOrder = z.infer<typeof insertOrderSchema>;
+export type Order = typeof orders.$inferSelect;
+export type InsertOrderFill = z.infer<typeof insertOrderFillSchema>;
+export type OrderFill = typeof orderFills.$inferSelect;
+export type InsertMarketPosition = z.infer<typeof insertMarketPositionSchema>;
+export type MarketPosition = typeof marketPositions.$inferSelect;
+export type InsertCollateralLedger = z.infer<typeof insertCollateralLedgerSchema>;
+export type CollateralLedger = typeof collateralLedger.$inferSelect;
+export type PlaceOrderRequest = z.infer<typeof placeOrderSchema>;
+export type CancelOrderRequest = z.infer<typeof cancelOrderSchema>;

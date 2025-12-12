@@ -1,4 +1,5 @@
-import { Wallet, TrendingUp, Menu, Plus, Loader2, Briefcase } from "lucide-react";
+import { Wallet, TrendingUp, Menu, Plus, Loader2, Briefcase, BarChart3 } from "lucide-react";
+import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ThemeToggle } from "./ThemeToggle";
@@ -50,6 +51,8 @@ export function Header({ onNavigate, activeSection = "market" }: HeaderProps) {
     { id: "market" as const, label: "Market" },
     { id: "portfolio" as const, label: "Portfolio" },
   ];
+  
+  const [location] = useLocation();
 
   return (
     <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -72,6 +75,16 @@ export function Header({ onNavigate, activeSection = "market" }: HeaderProps) {
                 {item.label}
               </Button>
             ))}
+            <Link href="/markets">
+              <Button
+                variant={location === "/markets" ? "secondary" : "ghost"}
+                size="sm"
+                data-testid="button-nav-order-book"
+              >
+                <BarChart3 className="mr-1 h-4 w-4" />
+                Order Book
+              </Button>
+            </Link>
           </nav>
         </div>
 
@@ -136,6 +149,17 @@ export function Header({ onNavigate, activeSection = "market" }: HeaderProps) {
                     {item.label}
                   </Button>
                 ))}
+                <Link href="/markets">
+                  <Button
+                    variant={location === "/markets" ? "secondary" : "ghost"}
+                    className="justify-start w-full"
+                    onClick={() => setMobileMenuOpen(false)}
+                    data-testid="button-mobile-nav-order-book"
+                  >
+                    <BarChart3 className="mr-2 h-4 w-4" />
+                    Order Book
+                  </Button>
+                </Link>
               </nav>
             </SheetContent>
           </Sheet>

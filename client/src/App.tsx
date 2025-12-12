@@ -8,12 +8,14 @@ import { MarketProvider } from "@/context/MarketContext";
 import { WalletProvider } from "@/context/WalletContext";
 import Home from "@/pages/Home";
 import Admin from "@/pages/Admin";
+import Markets from "@/pages/Markets";
 import NotFound from "@/pages/not-found";
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
+      <Route path="/markets" component={Markets} />
       <Route path="/admin" component={Admin} />
       <Route component={NotFound} />
     </Switch>

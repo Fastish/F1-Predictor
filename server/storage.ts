@@ -1,5 +1,5 @@
 import { 
-  users, teams, holdings, transactions, deposits, priceHistory, seasons, payouts,
+  users, teams, holdings, transactions, deposits, priceHistory, seasons, payouts, markets,
   type User, type InsertUser, 
   type Team, type InsertTeam,
   type Holding, type InsertHolding,
@@ -8,6 +8,7 @@ import {
   type PriceHistory, type InsertPriceHistory,
   type Season, type InsertSeason,
   type Payout, type InsertPayout,
+  type Market, type InsertMarket,
   type BuySharesRequest,
   type SellSharesRequest
 } from "@shared/schema";
@@ -69,6 +70,12 @@ export interface IStorage {
   getPayoutsByUser(userId: string): Promise<Payout[]>;
   updatePayoutStatus(payoutId: string, status: string, stellarTxHash?: string): Promise<Payout | undefined>;
   getHoldersOfTeam(teamId: string): Promise<{ userId: string; shares: number; walletAddress: string | null }[]>;
+  
+  // CLOB Markets
+  getMarkets(): Promise<Market[]>;
+  getMarket(id: string): Promise<Market | undefined>;
+  createMarket(market: InsertMarket): Promise<Market>;
+  createMarketsForSeason(seasonId: string): Promise<Market[]>;
 }
 
 // Initial F1 2026 teams data - all teams start at equal $0.10 price
@@ -526,6 +533,40 @@ export class DatabaseStorage implements IStorage {
       .innerJoin(users, eq(holdings.userId, users.id))
       .where(and(eq(holdings.teamId, teamId), sql`${holdings.shares} > 0`));
     return result;
+  }
+
+  // CLOB Markets
+  async getMarkets(): Promise<Market[]> {
+    return await db.select().from(markets).orderBy(asc(markets.createdAt));
+  }
+
+  async getMarket(id: string): Promise<Market | undefined> {
+    const [market] = await db.select().from(markets).where(eq(markets.id, id));
+    return market || undefined;
+  }
+
+  async createMarket(market: InsertMarket): Promise<Market> {
+    const [newMarket] = await db.insert(markets).values(market).returning();
+    return newMarket;
+  }
+
+  async createMarketsForSeason(seasonId: string): Promise<Market[]> {
+    const allTeams = await this.getTeams();
+    const createdMarkets: Market[] = [];
+    
+    for (const team of allTeams) {
+      const market = await this.createMarket({
+        seasonId,
+        teamId: team.id,
+        outstandingPairs: 0,
+        lockedCollateral: 0,
+        lastPrice: 0.5,
+        status: "active",
+      });
+      createdMarkets.push(market);
+    }
+    
+    return createdMarkets;
   }
 }
 
