@@ -4,34 +4,39 @@ import { useMarket } from "@/context/MarketContext";
 import { useQuery } from "@tanstack/react-query";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 
+interface CLOBMarket {
+  id: string;
+  teamId: string;
+  outstandingPairs: number;
+  lockedCollateral: number;
+  lastPrice: number | null;
+  status: string;
+}
+
 export function MarketStats() {
   const { teams } = useMarket();
 
-  const { data: sharesByTeam = {} } = useQuery<Record<string, number>>({
-    queryKey: ["/api/market/shares-by-team"],
+  const { data: clobMarkets = [] } = useQuery<CLOBMarket[]>({
+    queryKey: ["/api/clob/markets"],
     refetchInterval: 10000,
   });
 
-  const { data: prizePoolData } = useQuery<{ prizePool: number }>({
-    queryKey: ["/api/market/prize-pool"],
-    refetchInterval: 10000,
-  });
+  const totalOutstandingPairs = clobMarkets.reduce((acc, m) => acc + m.outstandingPairs, 0);
+  const totalLockedCollateral = clobMarkets.reduce((acc, m) => acc + m.lockedCollateral, 0);
+  const activeTeams = clobMarkets.filter((m) => m.outstandingPairs > 0).length;
 
-  const prizePool = prizePoolData?.prizePool ?? 0;
-
-  const chartData = teams
-    .map((team) => ({
-      name: team.shortName,
-      value: sharesByTeam[team.id] || 0,
-      color: team.color,
-    }))
+  const chartData = clobMarkets
+    .map((market) => {
+      const team = teams.find((t) => t.id === market.teamId);
+      return {
+        name: team?.shortName || market.teamId,
+        value: market.outstandingPairs,
+        color: team?.color || "#888888",
+      };
+    })
     .filter((d) => d.value > 0)
     .sort((a, b) => b.value - a.value);
 
-  const totalShares = chartData.reduce((acc, d) => acc + d.value, 0);
-  const activeTeams = chartData.length;
-
-  // todo: remove mock functionality - simulated time left
   const seasonStart = new Date("2026-03-15");
   const now = new Date();
   const daysUntil = Math.max(0, Math.ceil((seasonStart.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
@@ -46,16 +51,16 @@ export function MarketStats() {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between gap-4 pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Total Shares Sold
+                  Outstanding Pairs
                 </CardTitle>
                 <TrendingUp className="h-4 w-4 text-primary" />
               </CardHeader>
               <CardContent>
                 <div className="text-3xl font-bold tabular-nums" data-testid="text-stats-total-shares">
-                  {totalShares.toLocaleString()}
+                  {totalOutstandingPairs.toLocaleString()}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Across all {activeTeams} active teams
+                  YES/NO share pairs in circulation
                 </p>
               </CardContent>
             </Card>
@@ -63,7 +68,7 @@ export function MarketStats() {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between gap-4 pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Active Teams
+                  Active Markets
                 </CardTitle>
                 <Users className="h-4 w-4 text-primary" />
               </CardHeader>
@@ -72,7 +77,7 @@ export function MarketStats() {
                   {activeTeams} / {teams.length}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Teams with shares purchased
+                  Markets with trading activity
                 </p>
               </CardContent>
             </Card>
@@ -80,16 +85,16 @@ export function MarketStats() {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between gap-4 pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Prize Pool
+                  Total Collateral Locked
                 </CardTitle>
                 <Trophy className="h-4 w-4 text-primary" />
               </CardHeader>
               <CardContent>
                 <div className="text-3xl font-bold tabular-nums" data-testid="text-stats-prize-pool">
-                  ${prizePool.toFixed(2)}
+                  ${totalLockedCollateral.toFixed(2)}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Total wagered across all teams
+                  USDC backing all positions
                 </p>
               </CardContent>
             </Card>
@@ -115,7 +120,7 @@ export function MarketStats() {
           <Card>
             <CardHeader>
               <CardTitle className="text-sm font-medium text-muted-foreground">
-                Share Distribution
+                Market Distribution
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -137,7 +142,7 @@ export function MarketStats() {
                     </Pie>
                     <Tooltip
                       formatter={(value: number) => [
-                        `${value.toLocaleString()} shares`,
+                        `${value.toLocaleString()} pairs`,
                         "",
                       ]}
                       labelFormatter={(name) => name}
@@ -146,7 +151,7 @@ export function MarketStats() {
                 </ResponsiveContainer>
               ) : (
                 <div className="flex h-[200px] items-center justify-center text-muted-foreground">
-                  No shares purchased yet
+                  No trading activity yet
                 </div>
               )}
               <div className="mt-4 flex flex-wrap justify-center gap-2">
