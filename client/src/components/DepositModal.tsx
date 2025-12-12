@@ -264,9 +264,19 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
                   If you have XLM testnet tokens, you may add USDC as an asset in your wallet and perform a swap to get USDC tokens.
                 </div>
                 <a 
-                  href="#how-it-works" 
+                  href="/#how-it-works" 
                   className="text-sm text-primary hover:underline inline-flex items-center gap-1"
-                  onClick={() => onOpenChange(false)}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    onOpenChange(false);
+                    window.location.href = "/#how-it-works";
+                    setTimeout(() => {
+                      const element = document.getElementById("how-it-works");
+                      if (element) {
+                        element.scrollIntoView({ behavior: "smooth" });
+                      }
+                    }, 100);
+                  }}
                   data-testid="link-how-it-works"
                 >
                   <ExternalLink className="h-3.5 w-3.5" />

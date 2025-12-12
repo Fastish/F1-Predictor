@@ -77,16 +77,15 @@ export function Header({ onNavigate, activeSection = "market" }: HeaderProps) {
                 {item.label}
               </Button>
             ))}
-            <Link href="/markets">
-              <Button
+            <Button
                 variant={location === "/markets" ? "secondary" : "ghost"}
                 size="sm"
+                onClick={() => window.location.href = "/markets"}
                 data-testid="button-nav-order-book"
               >
                 <BarChart3 className="mr-1 h-4 w-4" />
                 Order Book
               </Button>
-            </Link>
           </nav>
         </div>
 
@@ -151,17 +150,18 @@ export function Header({ onNavigate, activeSection = "market" }: HeaderProps) {
                     {item.label}
                   </Button>
                 ))}
-                <Link href="/markets">
-                  <Button
+                <Button
                     variant={location === "/markets" ? "secondary" : "ghost"}
                     className="justify-start w-full"
-                    onClick={() => setMobileMenuOpen(false)}
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      window.location.href = "/markets";
+                    }}
                     data-testid="button-mobile-nav-order-book"
                   >
                     <BarChart3 className="mr-2 h-4 w-4" />
                     Order Book
                   </Button>
-                </Link>
               </nav>
             </SheetContent>
           </Sheet>
