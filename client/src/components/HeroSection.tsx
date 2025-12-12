@@ -1,6 +1,6 @@
 import { TrendingUp, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import heroVideo from "@assets/Screen_Recording_2025-12-12_at_3.17.36_PM_1765581543891.mov";
+import heroVideo from "@assets/hero-video.webm";
 
 interface HeroSectionProps {
   onStartTrading?: () => void;
@@ -17,7 +17,7 @@ export function HeroSection({ onStartTrading }: HeroSectionProps) {
         playsInline
         className="absolute inset-0 h-full w-full object-cover"
       >
-        <source src={heroVideo} type="video/quicktime" />
+        <source src={heroVideo} type="video/webm" />
       </video>
       
       {/* Dark Overlay for text readability */}
