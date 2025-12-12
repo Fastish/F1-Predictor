@@ -29,7 +29,7 @@ export function HeroSection({ onStartTrading }: HeroSectionProps) {
             </h1>
             
             <p className="mb-6 text-lg text-muted-foreground md:text-xl">
-              Buy shares in your favorite teams. Prices rise with demand. 
+              Bet on your favorite teams. Prices rise with demand. 
               Winning team shares convert to $1 at season end.
             </p>
 

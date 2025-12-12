@@ -45,7 +45,8 @@ const pendingTransactions = new Map<string, PendingTransaction>();
 function cleanupExpiredTransactions() {
   const now = Date.now();
   const expirationMs = 5 * 60 * 1000; // 5 minutes
-  for (const [nonce, tx] of pendingTransactions) {
+  const entries = Array.from(pendingTransactions.entries());
+  for (const [nonce, tx] of entries) {
     if (now - tx.createdAt > expirationMs) {
       pendingTransactions.delete(nonce);
     }

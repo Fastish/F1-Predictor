@@ -1,12 +1,12 @@
-import { ShoppingCart, TrendingUp, Trophy } from "lucide-react";
+import { DollarSign, TrendingUp, Trophy } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 
 const steps = [
   {
-    icon: ShoppingCart,
-    title: "Buy Shares",
+    icon: DollarSign,
+    title: "Place Your Bet",
     description:
-      "Purchase shares in any F1 team you believe will win the 2026 championship. Prices reflect market sentiment.",
+      "Bet on any F1 team you believe will win the 2026 championship. Prices reflect market sentiment.",
   },
   {
     icon: TrendingUp,

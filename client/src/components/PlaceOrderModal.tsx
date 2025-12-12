@@ -272,7 +272,7 @@ export function PlaceOrderModal({
               className={side === "buy" ? "bg-green-600 hover:bg-green-700" : ""}
               data-testid="button-buy"
             >
-              Buy
+              Bet
             </Button>
             <Button
               variant={side === "sell" ? "default" : "outline"}
@@ -380,7 +380,7 @@ export function PlaceOrderModal({
               ) : (
                 <>
                   {side === "buy" && <Wallet className="w-4 h-4 mr-1" />}
-                  {side === "buy" ? "Sign & Buy" : "Sell"} {outcome.toUpperCase()}
+                  {side === "buy" ? "Sign & Bet" : "Sell"} {outcome.toUpperCase()}
                 </>
               )}
             </Button>

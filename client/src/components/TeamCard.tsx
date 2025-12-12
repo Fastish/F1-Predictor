@@ -1,4 +1,4 @@
-import { TrendingUp, TrendingDown, ShoppingCart, Lock } from "lucide-react";
+import { TrendingUp, TrendingDown, DollarSign, Lock } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -78,8 +78,8 @@ export function TeamCard({ team, onBuy, owned, tradingLocked }: TeamCardProps) {
               </>
             ) : (
               <>
-                <ShoppingCart className="mr-1 h-3.5 w-3.5" />
-                Buy
+                <DollarSign className="mr-1 h-3.5 w-3.5" />
+                Bet
               </>
             )}
           </Button>
