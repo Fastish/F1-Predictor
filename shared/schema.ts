@@ -437,3 +437,117 @@ export type InsertCollateralLedger = z.infer<typeof insertCollateralLedgerSchema
 export type CollateralLedger = typeof collateralLedger.$inferSelect;
 export type PlaceOrderRequest = z.infer<typeof placeOrderSchema>;
 export type CancelOrderRequest = z.infer<typeof cancelOrderSchema>;
+
+// =====================================================
+// Championship Pool Tables (LMSR-based unified pools)
+// =====================================================
+
+// Championship Pools - One pool per type (team/driver) per season
+export const championshipPools = pgTable("championship_pools", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  seasonId: varchar("season_id").notNull().references(() => seasons.id),
+  type: text("type").notNull(), // "team" | "driver"
+  bParameter: real("b_parameter").notNull().default(100), // LMSR liquidity parameter
+  totalCollateral: real("total_collateral").notNull().default(0),
+  status: text("status").notNull().default("active"), // "active" | "concluded"
+  winningOutcomeId: varchar("winning_outcome_id"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const championshipPoolsRelations = relations(championshipPools, ({ one, many }) => ({
+  season: one(seasons, { fields: [championshipPools.seasonId], references: [seasons.id] }),
+  outcomes: many(championshipOutcomes),
+  trades: many(poolTrades),
+}));
+
+// Championship Outcomes - One per team/driver in each pool
+export const championshipOutcomes = pgTable("championship_outcomes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  poolId: varchar("pool_id").notNull().references(() => championshipPools.id),
+  participantId: varchar("participant_id").notNull(), // teamId or driverId
+  sharesOutstanding: real("shares_outstanding").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const championshipOutcomesRelations = relations(championshipOutcomes, ({ one, many }) => ({
+  pool: one(championshipPools, { fields: [championshipOutcomes.poolId], references: [championshipPools.id] }),
+  trades: many(poolTrades),
+  positions: many(poolPositions),
+}));
+
+// Pool Trades - Ledger of all trades against the pool
+export const poolTrades = pgTable("pool_trades", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  poolId: varchar("pool_id").notNull().references(() => championshipPools.id),
+  outcomeId: varchar("outcome_id").notNull().references(() => championshipOutcomes.id),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  sharesAmount: real("shares_amount").notNull(), // positive=buy, negative=sell
+  collateralCost: real("collateral_cost").notNull(),
+  priceAtTrade: real("price_at_trade").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const poolTradesRelations = relations(poolTrades, ({ one }) => ({
+  pool: one(championshipPools, { fields: [poolTrades.poolId], references: [championshipPools.id] }),
+  outcome: one(championshipOutcomes, { fields: [poolTrades.outcomeId], references: [championshipOutcomes.id] }),
+  user: one(users, { fields: [poolTrades.userId], references: [users.id] }),
+}));
+
+// Pool Positions - User holdings in pool outcomes
+export const poolPositions = pgTable("pool_positions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  poolId: varchar("pool_id").notNull().references(() => championshipPools.id),
+  outcomeId: varchar("outcome_id").notNull().references(() => championshipOutcomes.id),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  sharesOwned: real("shares_owned").notNull().default(0),
+  totalCost: real("total_cost").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const poolPositionsRelations = relations(poolPositions, ({ one }) => ({
+  pool: one(championshipPools, { fields: [poolPositions.poolId], references: [championshipPools.id] }),
+  outcome: one(championshipOutcomes, { fields: [poolPositions.outcomeId], references: [championshipOutcomes.id] }),
+  user: one(users, { fields: [poolPositions.userId], references: [users.id] }),
+}));
+
+// Insert schemas for pool tables
+export const insertChampionshipPoolSchema = createInsertSchema(championshipPools).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertChampionshipOutcomeSchema = createInsertSchema(championshipOutcomes).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertPoolTradeSchema = createInsertSchema(poolTrades).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertPoolPositionSchema = createInsertSchema(poolPositions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+// Pool buy request schema
+export const poolBuySchema = z.object({
+  poolId: z.string(),
+  outcomeId: z.string(),
+  userId: z.string(),
+  shares: z.number().positive(),
+});
+
+// Pool Types
+export type InsertChampionshipPool = z.infer<typeof insertChampionshipPoolSchema>;
+export type ChampionshipPool = typeof championshipPools.$inferSelect;
+export type InsertChampionshipOutcome = z.infer<typeof insertChampionshipOutcomeSchema>;
+export type ChampionshipOutcome = typeof championshipOutcomes.$inferSelect;
+export type InsertPoolTrade = z.infer<typeof insertPoolTradeSchema>;
+export type PoolTrade = typeof poolTrades.$inferSelect;
+export type InsertPoolPosition = z.infer<typeof insertPoolPositionSchema>;
+export type PoolPosition = typeof poolPositions.$inferSelect;
+export type PoolBuyRequest = z.infer<typeof poolBuySchema>;
