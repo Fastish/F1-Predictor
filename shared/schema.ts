@@ -511,6 +511,21 @@ export const poolPositionsRelations = relations(poolPositions, ({ one }) => ({
   user: one(users, { fields: [poolPositions.userId], references: [users.id] }),
 }));
 
+// Pool Price History - tracks LMSR outcome prices over time for charts
+export const poolPriceHistory = pgTable("pool_price_history", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  poolId: varchar("pool_id").notNull().references(() => championshipPools.id),
+  outcomeId: varchar("outcome_id").notNull().references(() => championshipOutcomes.id),
+  participantId: varchar("participant_id").notNull(),
+  price: real("price").notNull(),
+  recordedAt: timestamp("recorded_at").notNull().defaultNow(),
+});
+
+export const poolPriceHistoryRelations = relations(poolPriceHistory, ({ one }) => ({
+  pool: one(championshipPools, { fields: [poolPriceHistory.poolId], references: [championshipPools.id] }),
+  outcome: one(championshipOutcomes, { fields: [poolPriceHistory.outcomeId], references: [championshipOutcomes.id] }),
+}));
+
 // Insert schemas for pool tables
 export const insertChampionshipPoolSchema = createInsertSchema(championshipPools).omit({
   id: true,
@@ -531,6 +546,11 @@ export const insertPoolPositionSchema = createInsertSchema(poolPositions).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
+});
+
+export const insertPoolPriceHistorySchema = createInsertSchema(poolPriceHistory).omit({
+  id: true,
+  recordedAt: true,
 });
 
 // Pool buy request schema
@@ -582,6 +602,8 @@ export type PoolPosition = typeof poolPositions.$inferSelect;
 export type PoolBuyRequest = z.infer<typeof poolBuySchema>;
 export type InsertPoolPayout = z.infer<typeof insertPoolPayoutSchema>;
 export type PoolPayout = typeof poolPayouts.$inferSelect;
+export type InsertPoolPriceHistory = z.infer<typeof insertPoolPriceHistorySchema>;
+export type PoolPriceHistory = typeof poolPriceHistory.$inferSelect;
 
 // =====================================================
 // zkTLS / TLSNotary Proof Tables

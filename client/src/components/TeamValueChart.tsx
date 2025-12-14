@@ -23,6 +23,15 @@ interface PriceHistoryRecord {
   recordedAt: string;
 }
 
+interface PoolPriceHistoryRecord {
+  id: string;
+  poolId: string;
+  outcomeId: string;
+  participantId: string;
+  price: number;
+  recordedAt: string;
+}
+
 interface PoolOutcome {
   id: string;
   poolId: string;
@@ -59,11 +68,18 @@ interface TeamValueChartProps {
 export function TeamValueChart({ type = "teams" }: TeamValueChartProps) {
   const { teams } = useMarket();
 
-  // Fetch team price history for teams tab
-  const { data: priceHistory = [], isLoading: teamLoading } = useQuery<PriceHistoryRecord[]>({
-    queryKey: ["/api/clob/price-history"],
-    refetchInterval: 30000,
+  // Fetch team pool for teams tab
+  const { data: teamPool, isLoading: teamPoolLoading } = useQuery<ChampionshipPool>({
+    queryKey: ["/api/pools/type/team"],
+    refetchInterval: 5000,
     enabled: type === "teams",
+  });
+
+  // Fetch pool price history for teams tab
+  const { data: poolPriceHistory = [], isLoading: priceHistoryLoading } = useQuery<PoolPriceHistoryRecord[]>({
+    queryKey: ["/api/pools", teamPool?.id, "price-history"],
+    refetchInterval: 30000,
+    enabled: type === "teams" && !!teamPool?.id,
   });
 
   // Fetch driver pool for drivers tab
@@ -82,7 +98,8 @@ export function TeamValueChart({ type = "teams" }: TeamValueChartProps) {
     return <DriverPriceChart driverPool={driverPool} drivers={driversFromAPI} isLoading={driverPoolLoading} />;
   }
 
-  const chartData = processChartData(priceHistory, teams);
+  const teamLoading = teamPoolLoading || priceHistoryLoading;
+  const chartData = processPoolChartData(poolPriceHistory, teams);
 
   if (teamLoading) {
     return (
@@ -115,7 +132,7 @@ export function TeamValueChart({ type = "teams" }: TeamValueChartProps) {
   }
 
   const teamsWithHistory = teams.filter((team) =>
-    priceHistory.some((record) => record.teamId === team.id)
+    poolPriceHistory.some((record) => record.participantId === team.id)
   );
 
   return (
@@ -289,8 +306,8 @@ function DriverPriceChart({
   );
 }
 
-function processChartData(
-  priceHistory: PriceHistoryRecord[],
+function processPoolChartData(
+  priceHistory: PoolPriceHistoryRecord[],
   teams: { id: string; shortName: string }[]
 ): Record<string, number | string>[] {
   if (priceHistory.length === 0) return [];
@@ -300,7 +317,7 @@ function processChartData(
 
   for (const record of priceHistory) {
     const timeKey = record.recordedAt;
-    const shortName = teamMap.get(record.teamId);
+    const shortName = teamMap.get(record.participantId);
     if (!shortName) continue;
 
     if (!timeMap.has(timeKey)) {

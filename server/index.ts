@@ -2,6 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
+import { storage } from "./storage";
 
 const app = express();
 const httpServer = createServer(app);
@@ -93,6 +94,22 @@ app.use((req, res, next) => {
     },
     () => {
       log(`serving on port ${port}`);
+      
+      // Start pool price recording job (every 60 seconds)
+      setInterval(async () => {
+        try {
+          const pools = await storage.getChampionshipPools();
+          for (const pool of pools) {
+            if (pool.status === "active") {
+              await storage.recordPoolPrices(pool.id);
+            }
+          }
+        } catch (error) {
+          console.error("Error recording pool prices:", error);
+        }
+      }, 60 * 1000);
+      
+      log("Pool price recording job started (60s interval)");
     },
   );
 })();

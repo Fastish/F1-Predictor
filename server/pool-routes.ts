@@ -648,6 +648,24 @@ export function registerPoolRoutes(app: Express): void {
     }
   });
 
+  // Get pool price history for charts
+  app.get("/api/pools/:poolId/price-history", async (req, res) => {
+    try {
+      const { poolId } = req.params;
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
+      
+      const pool = await storage.getChampionshipPool(poolId);
+      if (!pool) {
+        return res.status(404).json({ error: "Pool not found" });
+      }
+      
+      const history = await storage.getPoolPriceHistory(poolId, limit);
+      res.json(history);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch price history" });
+    }
+  });
+
   // Initialize pools for a season (admin endpoint)
   app.post("/api/pools/initialize/:seasonId", async (req, res) => {
     try {

@@ -1,6 +1,6 @@
 import { 
   users, teams, drivers, holdings, transactions, deposits, priceHistory, seasons, payouts, markets, orderFills,
-  championshipPools, championshipOutcomes, poolTrades, poolPositions, poolPayouts, zkProofs,
+  championshipPools, championshipOutcomes, poolTrades, poolPositions, poolPayouts, zkProofs, poolPriceHistory,
   type User, type InsertUser, 
   type Team, type InsertTeam,
   type Driver, type InsertDriver,
@@ -17,6 +17,7 @@ import {
   type PoolPosition, type InsertPoolPosition,
   type PoolPayout, type InsertPoolPayout,
   type ZkProof, type InsertZkProof,
+  type PoolPriceHistory, type InsertPoolPriceHistory,
   type BuySharesRequest,
   type SellSharesRequest
 } from "@shared/schema";
@@ -141,6 +142,10 @@ export interface IStorage {
   getZkProof(id: string): Promise<ZkProof | undefined>;
   getZkProofsByPool(poolId: string): Promise<ZkProof[]>;
   updateZkProofStatus(proofId: string, status: string, winnerId?: string, winnerName?: string, rejectionReason?: string): Promise<ZkProof | undefined>;
+  
+  // Pool Price History
+  recordPoolPrices(poolId: string): Promise<void>;
+  getPoolPriceHistory(poolId: string, limit?: number): Promise<PoolPriceHistory[]>;
 }
 
 // Initial F1 2026 teams data - all teams start at equal $0.10 price
@@ -1052,6 +1057,45 @@ export class DatabaseStorage implements IStorage {
       .where(eq(zkProofs.id, proofId))
       .returning();
     return updated || undefined;
+  }
+
+  // ============ Pool Price History ============
+  
+  async recordPoolPrices(poolId: string): Promise<void> {
+    const pool = await this.getChampionshipPool(poolId);
+    if (!pool || pool.status !== "active") return;
+    
+    const outcomes = await this.getChampionshipOutcomes(poolId);
+    if (outcomes.length === 0) return;
+    
+    // Calculate LMSR prices
+    const shares = outcomes.map(o => o.sharesOutstanding);
+    const b = pool.bParameter;
+    const expSum = shares.reduce((sum, s) => sum + Math.exp(s / b), 0);
+    
+    const priceRecords: InsertPoolPriceHistory[] = outcomes.map((outcome, i) => ({
+      poolId,
+      outcomeId: outcome.id,
+      participantId: outcome.participantId,
+      price: Math.exp(shares[i] / b) / expSum,
+    }));
+    
+    if (priceRecords.length > 0) {
+      await db.insert(poolPriceHistory).values(priceRecords);
+    }
+  }
+
+  async getPoolPriceHistory(poolId: string, limit?: number): Promise<PoolPriceHistory[]> {
+    let query = db
+      .select()
+      .from(poolPriceHistory)
+      .where(eq(poolPriceHistory.poolId, poolId))
+      .orderBy(desc(poolPriceHistory.recordedAt));
+    
+    if (limit) {
+      return await query.limit(limit);
+    }
+    return await query;
   }
 }
 
