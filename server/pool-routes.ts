@@ -384,6 +384,101 @@ export function registerPoolRoutes(app: Express): void {
     }
   });
 
+  // Demo buy endpoint - allows purchasing shares using demo credits (no real USDC required)
+  app.post("/api/pools/:poolId/demo-buy", async (req, res) => {
+    try {
+      const { poolId } = req.params;
+      const { outcomeId, userId, shares } = req.body;
+
+      if (!outcomeId || !userId || !shares || shares <= 0) {
+        return res.status(400).json({ error: "Missing or invalid required fields" });
+      }
+
+      const pool = await storage.getChampionshipPool(poolId);
+      if (!pool) {
+        return res.status(404).json({ error: "Pool not found" });
+      }
+
+      if (pool.status !== "active") {
+        return res.status(403).json({ error: "Pool is not active" });
+      }
+
+      // Get user and check demo credit balance
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      // Get outcomes and calculate cost
+      const outcomes = await storage.getChampionshipOutcomes(pool.id);
+      const outcomeIndex = outcomes.findIndex(o => o.id === outcomeId);
+      
+      if (outcomeIndex === -1) {
+        return res.status(404).json({ error: "Outcome not found" });
+      }
+
+      const currentShares = outcomes.map(o => o.sharesOutstanding);
+      const cost = getCostForShares(currentShares, pool.bParameter, outcomeIndex, shares);
+
+      if (cost <= 0) {
+        return res.status(400).json({ error: "Invalid share amount" });
+      }
+
+      // Check if user has enough demo credits (stored in balance field)
+      if (user.balance < cost) {
+        return res.status(400).json({ 
+          error: `Insufficient demo credits. Need $${cost.toFixed(2)}, have $${user.balance.toFixed(2)}` 
+        });
+      }
+
+      // Deduct demo credits from user balance
+      await storage.updateUserBalance(userId, user.balance - cost);
+
+      // Update outcome shares outstanding (pass delta, not total)
+      await storage.updateOutcomeShares(outcomeId, shares);
+
+      // Update pool total collateral (pass delta, not total)
+      await storage.updatePoolCollateral(poolId, cost);
+
+      // Get updated price after purchase
+      const newShares = [...currentShares];
+      newShares[outcomeIndex] += shares;
+      const priceAtTrade = getPrice(newShares, pool.bParameter, outcomeIndex);
+
+      // Record the trade
+      const trade = await storage.createPoolTrade({
+        poolId,
+        outcomeId,
+        userId,
+        sharesAmount: shares,
+        collateralCost: cost,
+        priceAtTrade,
+      });
+
+      // Update user's position
+      await storage.upsertPoolPosition({
+        poolId,
+        outcomeId,
+        userId,
+        sharesOwned: shares,
+        totalCost: cost,
+      });
+
+      res.json({
+        success: true,
+        trade,
+        shares,
+        cost,
+        priceAtTrade,
+        newBalance: user.balance - cost,
+        message: "Demo shares purchased successfully"
+      });
+    } catch (error: any) {
+      console.error("Demo buy error:", error);
+      res.status(400).json({ error: error.message || "Failed to complete demo purchase" });
+    }
+  });
+
   // Get user's pool positions
   app.get("/api/pools/positions/:userId", async (req, res) => {
     try {

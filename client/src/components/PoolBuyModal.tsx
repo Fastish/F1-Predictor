@@ -55,6 +55,13 @@ interface USDCBalanceResponse {
   asset: string;
 }
 
+interface UserResponse {
+  id: string;
+  username: string;
+  balance: number;
+  walletAddress: string | null;
+}
+
 export function PoolBuyModal({
   open,
   onClose,
@@ -69,12 +76,18 @@ export function PoolBuyModal({
   
   const [shares, setShares] = useState(10);
   const [isSigningTransaction, setIsSigningTransaction] = useState(false);
+  const [isDemoBuying, setIsDemoBuying] = useState(false);
 
   const outcome = pool?.outcomes?.find(o => o.participantId === participantId);
 
   const { data: usdcBalance } = useQuery<USDCBalanceResponse>({
     queryKey: ["/api/stellar/balance", walletAddress],
     enabled: !!walletAddress && open,
+  });
+
+  const { data: user } = useQuery<UserResponse>({
+    queryKey: ["/api/users", userId],
+    enabled: !!userId && open,
   });
 
   const { data: quote, isLoading: quoteLoading } = useQuery<QuoteResponse>({
@@ -97,12 +110,62 @@ export function PoolBuyModal({
 
   const maxShares = currentPrice > 0 ? Math.floor(walletUsdcBalance / currentPrice) : 0;
 
+  // Demo credits (stored in user.balance)
+  const demoCreditsBalance = user?.balance || 0;
+  const canAffordDemo = totalCost <= demoCreditsBalance && shares > 0 && !!pool && !!outcome;
+  const maxDemoShares = currentPrice > 0 ? Math.floor(demoCreditsBalance / currentPrice) : 0;
+
   const invalidateQueries = () => {
     queryClient.invalidateQueries({ queryKey: ["/api/pools/type/team"] });
     queryClient.invalidateQueries({ queryKey: ["/api/pools/type/driver"] });
     queryClient.invalidateQueries({ queryKey: ["/api/pools/positions", userId] });
+    queryClient.invalidateQueries({ queryKey: ["/api/pools/trades", userId] });
+    queryClient.invalidateQueries({ queryKey: ["/api/users", userId] });
     queryClient.invalidateQueries({ queryKey: ["/api/stellar/balance", walletAddress] });
     queryClient.invalidateQueries({ queryKey: ["/api/pools", pool?.id] });
+  };
+
+  const handleDemoBuy = async () => {
+    if (!pool || !outcome) return;
+    
+    setIsDemoBuying(true);
+    
+    try {
+      const response = await fetch(`/api/pools/${pool.id}/demo-buy`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          outcomeId: outcome.id,
+          userId,
+          shares,
+        }),
+      });
+      
+      const result = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to complete demo purchase");
+      }
+      
+      toast({
+        title: "Demo Purchase Successful",
+        description: `Bought ${shares} shares of ${participantName} for $${result.cost.toFixed(2)} demo credits`,
+      });
+      
+      invalidateQueries();
+      onClose();
+      setShares(10);
+      
+    } catch (error: any) {
+      console.error("Demo buy error:", error);
+      toast({
+        title: "Purchase Failed",
+        description: error.message || "Failed to complete demo purchase",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDemoBuying(false);
+    }
   };
 
   const handleBuy = async () => {
@@ -252,21 +315,19 @@ export function PoolBuyModal({
               <Button
                 size="icon"
                 variant="outline"
-                onClick={() => setShares(Math.min(maxShares, shares + 10))}
-                disabled={shares >= maxShares}
+                onClick={() => setShares(shares + 10)}
                 data-testid="button-increase-shares"
               >
                 <Plus className="h-4 w-4" />
               </Button>
             </div>
-            <div className="flex justify-center gap-2">
+            <div className="flex justify-center gap-2 flex-wrap">
               {[10, 50, 100, 500].map((preset) => (
                 <Button
                   key={preset}
                   size="sm"
                   variant="secondary"
-                  onClick={() => setShares(Math.min(preset, maxShares))}
-                  disabled={preset > maxShares}
+                  onClick={() => setShares(preset)}
                   data-testid={`button-preset-${preset}`}
                 >
                   {preset}
@@ -309,6 +370,12 @@ export function PoolBuyModal({
                 ${walletUsdcBalance.toFixed(2)} USDC
               </span>
             </div>
+            <div className="pt-2 border-t flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Demo Credits</span>
+              <span className="tabular-nums" data-testid="text-demo-balance">
+                ${demoCreditsBalance.toFixed(2)}
+              </span>
+            </div>
           </div>
 
           {!canAfford && walletAddress && (
@@ -330,9 +397,24 @@ export function PoolBuyModal({
           </div>
         </div>
 
-        <DialogFooter className="gap-2 sm:gap-0">
+        <DialogFooter className="flex-col gap-2 sm:flex-row">
           <Button variant="outline" onClick={handleClose} data-testid="button-cancel-purchase">
             Cancel
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={handleDemoBuy}
+            disabled={!canAffordDemo || isDemoBuying}
+            data-testid="button-demo-purchase"
+          >
+            {isDemoBuying ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin mr-1" />
+                Buying...
+              </>
+            ) : (
+              `Demo Buy ${shares}`
+            )}
           </Button>
           <Button
             onClick={handleBuy}
