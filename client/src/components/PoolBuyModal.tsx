@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
-import { Loader2, Wallet, Minus, Plus, AlertCircle, TrendingUp, TrendingDown } from "lucide-react";
+import { Loader2, Wallet, Minus, Plus, AlertCircle, TrendingUp } from "lucide-react";
 import { useWallet } from "@/context/WalletContext";
 import { StellarWalletsKit } from "@creit-tech/stellar-wallets-kit";
 
@@ -77,7 +77,6 @@ export function PoolBuyModal({
   
   const [shares, setShares] = useState(10);
   const [sharesInput, setSharesInput] = useState("10");
-  const [betDirection, setBetDirection] = useState<"yes" | "no">("yes");
   const [isSigningTransaction, setIsSigningTransaction] = useState(false);
   const [isDemoBuying, setIsDemoBuying] = useState(false);
 
@@ -183,7 +182,6 @@ export function PoolBuyModal({
       onClose();
       setShares(10);
       setSharesInput("10");
-      setBetDirection("yes");
       
     } catch (error: any) {
       console.error("Demo buy error:", error);
@@ -265,7 +263,6 @@ export function PoolBuyModal({
       onClose();
       setShares(10);
       setSharesInput("10");
-      setBetDirection("yes");
       
     } catch (error: any) {
       console.error("Pool buy error:", error);
@@ -283,7 +280,6 @@ export function PoolBuyModal({
     onClose();
     setShares(10);
     setSharesInput("10");
-    setBetDirection("yes");
   };
 
   if (!pool || !outcome) return null;
@@ -307,31 +303,6 @@ export function PoolBuyModal({
         </DialogHeader>
 
         <div className="space-y-6 py-4">
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Prediction</label>
-            <div className="flex gap-2">
-              <Button
-                variant={betDirection === "yes" ? "default" : "outline"}
-                className={`flex-1 ${betDirection === "yes" ? "bg-green-600 text-white" : ""}`}
-                onClick={() => setBetDirection("yes")}
-                data-testid="button-bet-yes"
-              >
-                <TrendingUp className="h-4 w-4 mr-2" />
-                Yes (Will Win)
-              </Button>
-              <Button
-                variant="outline"
-                className="flex-1 opacity-50 cursor-not-allowed"
-                disabled
-                data-testid="button-bet-no"
-                title="No betting coming soon"
-              >
-                <TrendingDown className="h-4 w-4 mr-2" />
-                No (Coming Soon)
-              </Button>
-            </div>
-          </div>
-
           <div className="flex items-center justify-between gap-4 flex-wrap">
             <div>
               <span className="text-muted-foreground text-sm">Current Odds</span>
