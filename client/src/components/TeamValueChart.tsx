@@ -10,9 +10,6 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
-  BarChart,
-  Bar,
-  Cell,
 } from "recharts";
 import { format } from "date-fns";
 
@@ -89,13 +86,27 @@ export function TeamValueChart({ type = "teams" }: TeamValueChartProps) {
     enabled: type === "drivers",
   });
 
+  // Fetch pool price history for drivers tab
+  const { data: driverPriceHistory = [], isLoading: driverHistoryLoading } = useQuery<PoolPriceHistoryRecord[]>({
+    queryKey: ["/api/pools", driverPool?.id, "price-history"],
+    refetchInterval: 30000,
+    enabled: type === "drivers" && !!driverPool?.id,
+  });
+
   const { data: driversFromAPI = [] } = useQuery<DriverFromAPI[]>({
     queryKey: ["/api/drivers"],
     enabled: type === "drivers",
   });
 
   if (type === "drivers") {
-    return <DriverPriceChart driverPool={driverPool} drivers={driversFromAPI} isLoading={driverPoolLoading} />;
+    return (
+      <DriverPriceChart 
+        driverPool={driverPool} 
+        drivers={driversFromAPI} 
+        priceHistory={driverPriceHistory}
+        isLoading={driverPoolLoading || driverHistoryLoading} 
+      />
+    );
   }
 
   const teamLoading = teamPoolLoading || priceHistoryLoading;
@@ -197,18 +208,20 @@ export function TeamValueChart({ type = "teams" }: TeamValueChartProps) {
 
 function DriverPriceChart({ 
   driverPool, 
-  drivers, 
+  drivers,
+  priceHistory,
   isLoading 
 }: { 
   driverPool?: ChampionshipPool; 
-  drivers: DriverFromAPI[]; 
+  drivers: DriverFromAPI[];
+  priceHistory: PoolPriceHistoryRecord[];
   isLoading: boolean;
 }) {
   if (isLoading) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Driver Championship Odds</CardTitle>
+          <CardTitle className="text-lg">Driver Value Over Time</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex h-[300px] items-center justify-center text-muted-foreground">
@@ -223,7 +236,7 @@ function DriverPriceChart({
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Driver Championship Odds</CardTitle>
+          <CardTitle className="text-lg">Driver Value Over Time</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex h-[300px] items-center justify-center text-muted-foreground">
@@ -234,42 +247,59 @@ function DriverPriceChart({
     );
   }
 
-  // Create chart data from driver pool outcomes
-  const chartData = driverPool.outcomes
-    .map((outcome) => {
-      const driver = drivers.find((d) => d.id === outcome.participantId);
-      return {
-        name: driver?.shortName || outcome.participantName.split(" ").pop() || outcome.participantName,
-        price: outcome.price,
-        probability: outcome.probability * 100,
-        color: driver?.color || "#888888",
-        fullName: outcome.participantName,
-      };
+  // Map drivers to the format expected by processPoolChartData
+  const driverMappings = drivers.map((d) => ({
+    id: d.id,
+    shortName: d.shortName,
+    color: d.color,
+  }));
+
+  const chartData = processPoolChartData(priceHistory, driverMappings);
+
+  if (chartData.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Driver Value Over Time</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex h-[300px] items-center justify-center text-muted-foreground">
+            No trading activity yet. Prices will appear here as trades occur.
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Filter to drivers with history, sorted by current price
+  const driversWithHistory = drivers
+    .filter((driver) => priceHistory.some((record) => record.participantId === driver.id))
+    .map((driver) => {
+      const outcome = driverPool.outcomes.find((o) => o.participantId === driver.id);
+      return { ...driver, currentPrice: outcome?.price ?? 0 };
     })
-    .sort((a, b) => b.price - a.price)
-    .slice(0, 10); // Show top 10 drivers
+    .sort((a, b) => b.currentPrice - a.currentPrice)
+    .slice(0, 10); // Show top 10 drivers for readability
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-lg" data-testid="text-driver-chart-title">Driver Championship Odds (Top 10)</CardTitle>
+        <CardTitle className="text-lg" data-testid="text-driver-chart-title">Driver Value Over Time</CardTitle>
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={chartData} layout="vertical" margin={{ top: 5, right: 30, left: 60, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" className="stroke-muted" horizontal={false} />
+          <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
             <XAxis
-              type="number"
+              dataKey="time"
               tick={{ fontSize: 12 }}
-              tickFormatter={(value) => `${(value * 100).toFixed(0)}%`}
-              domain={[0, "auto"]}
+              tickFormatter={(value) => format(new Date(value), "HH:mm")}
               className="text-muted-foreground"
             />
             <YAxis
-              type="category"
-              dataKey="name"
               tick={{ fontSize: 12 }}
-              width={55}
+              tickFormatter={(value) => `$${value.toFixed(2)}`}
+              domain={["auto", "auto"]}
               className="text-muted-foreground"
             />
             <Tooltip
@@ -278,26 +308,31 @@ function DriverPriceChart({
                 border: "1px solid hsl(var(--border))",
                 borderRadius: "6px",
               }}
-              formatter={(value: number) => [`${(value * 100).toFixed(1)}%`, "Win Probability"]}
-              labelFormatter={(_, payload) => payload?.[0]?.payload?.fullName || ""}
+              labelFormatter={(value) => format(new Date(value), "MMM d, HH:mm:ss")}
+              formatter={(value: number, name: string) => [`$${value.toFixed(6)}`, name]}
             />
-            <Bar dataKey="price" radius={[0, 4, 4, 0]}>
-              {chartData.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={entry.color} />
-              ))}
-            </Bar>
-          </BarChart>
+            <Legend />
+            {driversWithHistory.map((driver) => (
+              <Line
+                key={driver.id}
+                type="monotone"
+                dataKey={driver.shortName}
+                stroke={driver.color}
+                strokeWidth={2}
+                dot={false}
+                connectNulls
+              />
+            ))}
+          </LineChart>
         </ResponsiveContainer>
         <div className="mt-4 flex flex-wrap justify-center gap-3">
-          {chartData.slice(0, 5).map((driver) => (
-            <div key={driver.name} className="flex items-center gap-1.5">
+          {driversWithHistory.map((driver) => (
+            <div key={driver.id} className="flex items-center gap-1.5">
               <div
                 className="h-3 w-3 rounded-full"
                 style={{ backgroundColor: driver.color }}
               />
-              <span className="text-xs text-muted-foreground">
-                {driver.name}: {(driver.price * 100).toFixed(1)}%
-              </span>
+              <span className="text-xs text-muted-foreground">{driver.shortName}</span>
             </div>
           ))}
         </div>
