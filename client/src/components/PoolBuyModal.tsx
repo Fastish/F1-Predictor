@@ -3,9 +3,10 @@ import { useQuery } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
-import { Loader2, Wallet, Minus, Plus, AlertCircle, TrendingUp } from "lucide-react";
+import { Loader2, Wallet, Minus, Plus, AlertCircle, TrendingUp, TrendingDown } from "lucide-react";
 import { useWallet } from "@/context/WalletContext";
 import { StellarWalletsKit } from "@creit-tech/stellar-wallets-kit";
 
@@ -75,10 +76,36 @@ export function PoolBuyModal({
   const { walletAddress } = useWallet();
   
   const [shares, setShares] = useState(10);
+  const [sharesInput, setSharesInput] = useState("10");
+  const [betDirection, setBetDirection] = useState<"yes" | "no">("yes");
   const [isSigningTransaction, setIsSigningTransaction] = useState(false);
   const [isDemoBuying, setIsDemoBuying] = useState(false);
 
   const outcome = pool?.outcomes?.find(o => o.participantId === participantId);
+  
+  const handleSharesInputChange = (value: string) => {
+    setSharesInput(value);
+    const numValue = parseInt(value, 10);
+    if (!isNaN(numValue) && numValue > 0) {
+      setShares(numValue);
+    }
+  };
+
+  const handleSharesInputBlur = () => {
+    const numValue = parseInt(sharesInput, 10);
+    if (isNaN(numValue) || numValue <= 0) {
+      setShares(1);
+      setSharesInput("1");
+    } else {
+      setSharesInput(numValue.toString());
+    }
+  };
+
+  const handleSharesButtonChange = (newValue: number) => {
+    const validValue = Math.max(1, newValue);
+    setShares(validValue);
+    setSharesInput(validValue.toString());
+  };
 
   const { data: usdcBalance } = useQuery<USDCBalanceResponse>({
     queryKey: ["/api/stellar/balance", walletAddress],
@@ -155,6 +182,8 @@ export function PoolBuyModal({
       invalidateQueries();
       onClose();
       setShares(10);
+      setSharesInput("10");
+      setBetDirection("yes");
       
     } catch (error: any) {
       console.error("Demo buy error:", error);
@@ -235,6 +264,8 @@ export function PoolBuyModal({
       invalidateQueries();
       onClose();
       setShares(10);
+      setSharesInput("10");
+      setBetDirection("yes");
       
     } catch (error: any) {
       console.error("Pool buy error:", error);
@@ -251,6 +282,8 @@ export function PoolBuyModal({
   const handleClose = () => {
     onClose();
     setShares(10);
+    setSharesInput("10");
+    setBetDirection("yes");
   };
 
   if (!pool || !outcome) return null;
@@ -274,6 +307,31 @@ export function PoolBuyModal({
         </DialogHeader>
 
         <div className="space-y-6 py-4">
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Prediction</label>
+            <div className="flex gap-2">
+              <Button
+                variant={betDirection === "yes" ? "default" : "outline"}
+                className={`flex-1 ${betDirection === "yes" ? "bg-green-600 text-white" : ""}`}
+                onClick={() => setBetDirection("yes")}
+                data-testid="button-bet-yes"
+              >
+                <TrendingUp className="h-4 w-4 mr-2" />
+                Yes (Will Win)
+              </Button>
+              <Button
+                variant="outline"
+                className="flex-1 opacity-50 cursor-not-allowed"
+                disabled
+                data-testid="button-bet-no"
+                title="No betting coming soon"
+              >
+                <TrendingDown className="h-4 w-4 mr-2" />
+                No (Coming Soon)
+              </Button>
+            </div>
+          </div>
+
           <div className="flex items-center justify-between gap-4 flex-wrap">
             <div>
               <span className="text-muted-foreground text-sm">Current Odds</span>
@@ -303,19 +361,25 @@ export function PoolBuyModal({
               <Button
                 size="icon"
                 variant="outline"
-                onClick={() => setShares(Math.max(1, shares - 10))}
+                onClick={() => handleSharesButtonChange(shares - 10)}
                 disabled={shares <= 1}
                 data-testid="button-decrease-shares"
               >
                 <Minus className="h-4 w-4" />
               </Button>
-              <span className="w-20 text-center text-2xl font-bold tabular-nums" data-testid="text-shares">
-                {shares}
-              </span>
+              <Input
+                type="number"
+                min="1"
+                value={sharesInput}
+                onChange={(e) => handleSharesInputChange(e.target.value)}
+                onBlur={handleSharesInputBlur}
+                className="w-24 text-center text-2xl font-bold tabular-nums"
+                data-testid="input-shares"
+              />
               <Button
                 size="icon"
                 variant="outline"
-                onClick={() => setShares(shares + 10)}
+                onClick={() => handleSharesButtonChange(shares + 10)}
                 data-testid="button-increase-shares"
               >
                 <Plus className="h-4 w-4" />
@@ -327,7 +391,7 @@ export function PoolBuyModal({
                   key={preset}
                   size="sm"
                   variant="secondary"
-                  onClick={() => setShares(preset)}
+                  onClick={() => handleSharesButtonChange(preset)}
                   data-testid={`button-preset-${preset}`}
                 >
                   {preset}
@@ -393,7 +457,7 @@ export function PoolBuyModal({
           )}
 
           <div className="bg-blue-500/10 rounded-lg p-3 text-sm text-blue-700 dark:text-blue-300">
-            <p>You will be asked to sign a Stellar transaction to transfer ${totalCost.toFixed(2)} USDC. If this team wins, each share pays out $1.</p>
+            <p>You will be asked to sign a Stellar transaction to transfer ${totalCost.toFixed(2)} USDC. If {participantName} wins, each share pays out $1.</p>
           </div>
         </div>
 
