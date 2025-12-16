@@ -254,11 +254,11 @@ export function PoolBuyModal({
               </div>
             </div>
             <div className="text-right">
-              <span className="text-muted-foreground text-sm">Potential Win</span>
+              <span className="text-muted-foreground text-sm">Potential Profit</span>
               <div className="flex items-center gap-1 text-green-600">
                 <TrendingUp className="h-4 w-4" />
                 <span className="text-xl font-bold tabular-nums">
-                  ${shares.toFixed(2)}
+                  ${(shares - totalCost).toFixed(2)}
                 </span>
               </div>
             </div>
