@@ -222,16 +222,28 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         } else if (savedType === "external" && savedAddress) {
           const ethProvider = getEthereumProvider();
           if (ethProvider) {
-            const accounts = await ethProvider.request({ method: "eth_accounts" });
-            if (accounts && accounts.length > 0 && accounts[0].toLowerCase() === savedAddress.toLowerCase()) {
-              setWalletAddress(accounts[0]);
-              setWalletType("external");
-              
-              const externalProvider = new ethers.BrowserProvider(ethProvider);
-              setProvider(externalProvider);
-              const externalSigner = await externalProvider.getSigner();
-              setSigner(externalSigner);
-            } else {
+            try {
+              const accounts = await ethProvider.request({ method: "eth_accounts" });
+              if (accounts && accounts.length > 0 && accounts[0].toLowerCase() === savedAddress.toLowerCase()) {
+                setWalletAddress(accounts[0]);
+                setWalletType("external");
+                
+                const externalProvider = new ethers.BrowserProvider(ethProvider);
+                setProvider(externalProvider);
+                try {
+                  const externalSigner = await externalProvider.getSigner();
+                  setSigner(externalSigner);
+                } catch (signerError) {
+                  // Signer may fail if wallet requires re-authorization
+                  // User will need to connect again to get signing capability
+                  console.log("Could not get signer, user may need to re-connect:", signerError);
+                }
+              } else {
+                localStorage.removeItem("polygon_wallet_type");
+                localStorage.removeItem("polygon_wallet_address");
+              }
+            } catch (error) {
+              console.log("Could not restore external wallet session:", error);
               localStorage.removeItem("polygon_wallet_type");
               localStorage.removeItem("polygon_wallet_address");
             }
