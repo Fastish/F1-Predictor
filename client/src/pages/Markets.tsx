@@ -79,7 +79,7 @@ export default function Markets() {
     queryKey: ["polygon-usdc-balance", walletAddress],
     queryFn: async () => {
       if (!walletAddress) return "0";
-      const { getUsdcBalance } = await import("@/context/WalletContext");
+      const { getUsdcBalance } = await import("@/lib/polygon");
       return await getUsdcBalance(walletAddress);
     },
     enabled: !!walletAddress,
