@@ -260,21 +260,27 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    // Only set up listeners when wallet is actually connected
+    if (walletType !== "external" || !walletAddress) {
+      return;
+    }
+    
     const ethProvider = getEthereumProvider();
     if (ethProvider) {
       const handleAccountsChanged = (accounts: string[]) => {
-        if (walletType === "external") {
-          if (accounts.length === 0) {
-            disconnectWallet();
-          } else {
-            setWalletAddress(accounts[0]);
-            localStorage.setItem("polygon_wallet_address", accounts[0]);
-          }
+        if (accounts.length === 0) {
+          disconnectWallet();
+        } else {
+          setWalletAddress(accounts[0]);
+          localStorage.setItem("polygon_wallet_address", accounts[0]);
         }
       };
 
       const handleChainChanged = () => {
-        window.location.reload();
+        // Only reload if wallet is connected - prevents reload loop on initial page load
+        if (walletAddress) {
+          window.location.reload();
+        }
       };
 
       ethProvider.on("accountsChanged", handleAccountsChanged);
@@ -285,7 +291,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         ethProvider.removeListener?.("chainChanged", handleChainChanged);
       };
     }
-  }, [walletType]);
+  }, [walletType, walletAddress]);
 
   const connectWithMagic = useCallback(async (email: string): Promise<boolean> => {
     setIsConnecting(true);
