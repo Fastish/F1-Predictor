@@ -11,6 +11,42 @@ interface ApiCredentials {
   passphrase: string;
 }
 
+interface BuilderHeaders {
+  POLY_BUILDER_API_KEY: string;
+  POLY_BUILDER_PASSPHRASE: string;
+  POLY_BUILDER_SIGNATURE: string;
+  POLY_BUILDER_TIMESTAMP: string;
+}
+
+async function fetchBuilderHeaders(
+  method: string,
+  path: string,
+  body: string = ""
+): Promise<BuilderHeaders | null> {
+  try {
+    const response = await fetch("/api/polymarket/builder-sign", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ method, path, body }),
+    });
+    
+    if (!response.ok) {
+      console.warn("Builder signing not available");
+      return null;
+    }
+    
+    const data = await response.json();
+    if (!data.available || !data.headers) {
+      return null;
+    }
+    
+    return data.headers;
+  } catch (error) {
+    console.warn("Failed to fetch builder headers:", error);
+    return null;
+  }
+}
+
 interface OrderParams {
   tokenId: string;
   price: number;
@@ -201,17 +237,28 @@ export function usePolymarketTrading() {
           body
         );
 
+        const builderHeaders = await fetchBuilderHeaders(method, path, body);
+
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+          "POLY_ADDRESS": walletAddress,
+          "POLY_SIGNATURE": hmacSignature,
+          "POLY_TIMESTAMP": timestamp,
+          "POLY_NONCE": timestamp,
+          "POLY_API_KEY": creds.apiKey,
+          "POLY_PASSPHRASE": creds.passphrase,
+        };
+
+        if (builderHeaders) {
+          headers["POLY_BUILDER_API_KEY"] = builderHeaders.POLY_BUILDER_API_KEY;
+          headers["POLY_BUILDER_PASSPHRASE"] = builderHeaders.POLY_BUILDER_PASSPHRASE;
+          headers["POLY_BUILDER_SIGNATURE"] = builderHeaders.POLY_BUILDER_SIGNATURE;
+          headers["POLY_BUILDER_TIMESTAMP"] = builderHeaders.POLY_BUILDER_TIMESTAMP;
+        }
+
         const response = await fetch(`${CLOB_API_URL}${path}`, {
           method,
-          headers: {
-            "Content-Type": "application/json",
-            "POLY_ADDRESS": walletAddress,
-            "POLY_SIGNATURE": hmacSignature,
-            "POLY_TIMESTAMP": timestamp,
-            "POLY_NONCE": timestamp,
-            "POLY_API_KEY": creds.apiKey,
-            "POLY_PASSPHRASE": creds.passphrase,
-          },
+          headers,
           body,
         });
 
@@ -259,17 +306,28 @@ export function usePolymarketTrading() {
           path
         );
 
+        const builderHeaders = await fetchBuilderHeaders(method, path);
+
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+          "POLY_ADDRESS": walletAddress,
+          "POLY_SIGNATURE": hmacSignature,
+          "POLY_TIMESTAMP": timestamp,
+          "POLY_NONCE": timestamp,
+          "POLY_API_KEY": creds.apiKey,
+          "POLY_PASSPHRASE": creds.passphrase,
+        };
+
+        if (builderHeaders) {
+          headers["POLY_BUILDER_API_KEY"] = builderHeaders.POLY_BUILDER_API_KEY;
+          headers["POLY_BUILDER_PASSPHRASE"] = builderHeaders.POLY_BUILDER_PASSPHRASE;
+          headers["POLY_BUILDER_SIGNATURE"] = builderHeaders.POLY_BUILDER_SIGNATURE;
+          headers["POLY_BUILDER_TIMESTAMP"] = builderHeaders.POLY_BUILDER_TIMESTAMP;
+        }
+
         const response = await fetch(`${CLOB_API_URL}${path}`, {
           method,
-          headers: {
-            "Content-Type": "application/json",
-            "POLY_ADDRESS": walletAddress,
-            "POLY_SIGNATURE": hmacSignature,
-            "POLY_TIMESTAMP": timestamp,
-            "POLY_NONCE": timestamp,
-            "POLY_API_KEY": creds.apiKey,
-            "POLY_PASSPHRASE": creds.passphrase,
-          },
+          headers,
         });
 
         if (!response.ok) {

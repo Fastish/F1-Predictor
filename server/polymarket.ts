@@ -1,5 +1,52 @@
+import { createHmac } from "crypto";
+
 const GAMMA_API_URL = "https://gamma-api.polymarket.com";
 const CLOB_API_URL = "https://clob.polymarket.com";
+
+export interface BuilderSignatureHeaders {
+  POLY_BUILDER_API_KEY: string;
+  POLY_BUILDER_PASSPHRASE: string;
+  POLY_BUILDER_SIGNATURE: string;
+  POLY_BUILDER_TIMESTAMP: string;
+}
+
+export function generateBuilderSignature(
+  method: string,
+  path: string,
+  body: string = ""
+): BuilderSignatureHeaders | null {
+  const apiKey = process.env.POLY_BUILDER_API_KEY;
+  const secret = process.env.POLY_BUILDER_SECRET;
+  const passphrase = process.env.POLY_BUILDER_PASSPHRASE;
+
+  if (!apiKey || !secret || !passphrase) {
+    console.warn("Builder credentials not configured");
+    return null;
+  }
+
+  const timestamp = String(Date.now());
+  const message = timestamp + method.toUpperCase() + path + body;
+  
+  const secretBuffer = Buffer.from(secret, "base64");
+  const signature = createHmac("sha256", secretBuffer)
+    .update(message)
+    .digest("hex");
+
+  return {
+    POLY_BUILDER_API_KEY: apiKey,
+    POLY_BUILDER_PASSPHRASE: passphrase,
+    POLY_BUILDER_SIGNATURE: signature,
+    POLY_BUILDER_TIMESTAMP: timestamp,
+  };
+}
+
+export function hasBuilderCredentials(): boolean {
+  return !!(
+    process.env.POLY_BUILDER_API_KEY &&
+    process.env.POLY_BUILDER_SECRET &&
+    process.env.POLY_BUILDER_PASSPHRASE
+  );
+}
 
 export interface PolymarketMarket {
   id: string;

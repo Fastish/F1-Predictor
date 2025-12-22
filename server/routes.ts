@@ -533,6 +533,50 @@ export async function registerRoutes(
     }
   });
 
+  // Generate builder signature for order attribution (server-side to protect credentials)
+  app.post("/api/polymarket/builder-sign", async (req, res) => {
+    try {
+      const { method, path, body } = req.body;
+      
+      if (!method || !path) {
+        return res.status(400).json({ error: "method and path are required" });
+      }
+
+      const { generateBuilderSignature, hasBuilderCredentials } = await import("./polymarket");
+      
+      if (!hasBuilderCredentials()) {
+        return res.status(503).json({ 
+          error: "Builder credentials not configured",
+          available: false 
+        });
+      }
+
+      const headers = generateBuilderSignature(method, path, body || "");
+      
+      if (!headers) {
+        return res.status(500).json({ error: "Failed to generate builder signature" });
+      }
+
+      res.json({ 
+        available: true,
+        headers 
+      });
+    } catch (error) {
+      console.error("Failed to generate builder signature:", error);
+      res.status(500).json({ error: "Failed to generate builder signature" });
+    }
+  });
+
+  // Check if builder credentials are configured
+  app.get("/api/polymarket/builder-status", async (req, res) => {
+    try {
+      const { hasBuilderCredentials } = await import("./polymarket");
+      res.json({ available: hasBuilderCredentials() });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to check builder status" });
+    }
+  });
+
   // ============ CLOB (Central Limit Order Book) Routes ============
   // @deprecated - CLOB system is legacy. Use /api/pools/* endpoints instead.
   // The LMSR pool system (pool-routes.ts) is the active trading system.
