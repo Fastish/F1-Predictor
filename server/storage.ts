@@ -84,7 +84,7 @@ export interface IStorage {
   createPayout(payout: InsertPayout): Promise<Payout>;
   getPayoutsBySeason(seasonId: string): Promise<Payout[]>;
   getPayoutsByUser(userId: string): Promise<Payout[]>;
-  updatePayoutStatus(payoutId: string, status: string, stellarTxHash?: string): Promise<Payout | undefined>;
+  updatePayoutStatus(payoutId: string, status: string, polygonTxHash?: string): Promise<Payout | undefined>;
   getHoldersOfTeam(teamId: string): Promise<{ userId: string; shares: number; walletAddress: string | null }[]>;
   
   // CLOB Markets
@@ -135,7 +135,7 @@ export interface IStorage {
   createPoolPayout(payout: InsertPoolPayout): Promise<PoolPayout>;
   getPoolPayoutsByPool(poolId: string): Promise<PoolPayout[]>;
   getPoolPayoutsByUser(userId: string): Promise<PoolPayout[]>;
-  updatePoolPayoutStatus(payoutId: string, status: string, stellarTxHash?: string): Promise<PoolPayout | undefined>;
+  updatePoolPayoutStatus(payoutId: string, status: string, polygonTxHash?: string): Promise<PoolPayout | undefined>;
   
   // ZK Proofs (TLSNotary)
   createZkProof(proof: InsertZkProof): Promise<ZkProof>;
@@ -512,7 +512,7 @@ export class DatabaseStorage implements IStorage {
     const [deposit] = await db
       .select()
       .from(deposits)
-      .where(eq(deposits.stellarTxHash, txHash));
+      .where(eq(deposits.polygonTxHash, txHash));
     return deposit || undefined;
   }
 
@@ -642,10 +642,10 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(payouts.createdAt));
   }
 
-  async updatePayoutStatus(payoutId: string, status: string, stellarTxHash?: string): Promise<Payout | undefined> {
+  async updatePayoutStatus(payoutId: string, status: string, polygonTxHash?: string): Promise<Payout | undefined> {
     const updates: Partial<Payout> = { status };
-    if (stellarTxHash) {
-      updates.stellarTxHash = stellarTxHash;
+    if (polygonTxHash) {
+      updates.polygonTxHash = polygonTxHash;
     }
     if (status === "sent") {
       updates.paidAt = new Date();
@@ -1006,10 +1006,10 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(poolPayouts).where(eq(poolPayouts.userId, userId)).orderBy(desc(poolPayouts.createdAt));
   }
 
-  async updatePoolPayoutStatus(payoutId: string, status: string, stellarTxHash?: string): Promise<PoolPayout | undefined> {
+  async updatePoolPayoutStatus(payoutId: string, status: string, polygonTxHash?: string): Promise<PoolPayout | undefined> {
     const updateData: any = { status };
-    if (stellarTxHash) {
-      updateData.stellarTxHash = stellarTxHash;
+    if (polygonTxHash) {
+      updateData.polygonTxHash = polygonTxHash;
     }
     if (status === "sent") {
       updateData.paidAt = new Date();

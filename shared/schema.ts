@@ -85,11 +85,11 @@ export const transactions = pgTable("transactions", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-// Deposits - tracks USDC deposits from Stellar network
+// Deposits - tracks USDC deposits from Polygon network
 export const deposits = pgTable("deposits", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id),
-  stellarTxHash: text("stellar_tx_hash").unique(),
+  polygonTxHash: text("polygon_tx_hash").unique(),
   amount: real("amount").notNull(),
   status: text("status").notNull().default("pending"), // 'pending', 'confirmed', 'failed'
   fromAddress: text("from_address"),
@@ -132,7 +132,7 @@ export const payouts = pgTable("payouts", {
   sharesHeld: integer("shares_held").notNull(),
   sharePercentage: real("share_percentage").notNull(),
   payoutAmount: real("payout_amount").notNull(),
-  stellarTxHash: text("stellar_tx_hash"),
+  polygonTxHash: text("polygon_tx_hash"),
   status: text("status").notNull().default("pending"), // 'pending', 'sent', 'failed'
   createdAt: timestamp("created_at").notNull().defaultNow(),
   paidAt: timestamp("paid_at"),
@@ -231,6 +231,8 @@ export const markets = pgTable("markets", {
   teamId: varchar("team_id").references(() => teams.id),
   driverId: varchar("driver_id").references(() => drivers.id),
   marketType: text("market_type").notNull().default("team"), // 'team' or 'driver'
+  polymarketConditionId: text("polymarket_condition_id"), // Polymarket market condition ID for integration
+  polymarketTokenId: text("polymarket_token_id"), // Polymarket token ID for trading
   outstandingPairs: integer("outstanding_pairs").notNull().default(0),
   lockedCollateral: real("locked_collateral").notNull().default(0),
   lastPrice: real("last_price").default(0.5),
@@ -353,7 +355,7 @@ export const sellSharesSchema = z.object({
 // Deposit request schema
 export const depositRequestSchema = z.object({
   userId: z.string(),
-  stellarTxHash: z.string(),
+  polygonTxHash: z.string(),
   amount: z.number().positive(),
   fromAddress: z.string(),
 });
@@ -570,7 +572,7 @@ export const poolPayouts = pgTable("pool_payouts", {
   sharesHeld: real("shares_held").notNull(),
   sharePercentage: real("share_percentage").notNull(),
   payoutAmount: real("payout_amount").notNull(),
-  stellarTxHash: text("stellar_tx_hash"),
+  polygonTxHash: text("polygon_tx_hash"),
   status: text("status").notNull().default("pending"), // 'pending', 'sent', 'failed'
   createdAt: timestamp("created_at").notNull().defaultNow(),
   paidAt: timestamp("paid_at"),

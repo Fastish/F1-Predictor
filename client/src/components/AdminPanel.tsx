@@ -14,7 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
 import { useMarket } from "@/context/MarketContext";
 import { useWallet } from "@/context/WalletContext";
-import { Trophy, Play, CheckCircle, AlertCircle, DollarSign, Lock, Bot, Power, PowerOff, Users, FileCode, Upload, Shield, XCircle, ArrowRight } from "lucide-react";
+import { Trophy, Play, CheckCircle, AlertCircle, DollarSign, Lock, Bot, Power, PowerOff, Users, FileCode, Upload, Shield, XCircle, ArrowRight, RefreshCw, Link2 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -54,6 +54,19 @@ interface ProofPreview {
   transcriptPreview: string;
   cryptoVerification: string;
   error?: string;
+}
+
+interface PolymarketF1Market {
+  id: string;
+  question: string;
+  conditionId: string;
+  slug: string;
+  endDate: string;
+  outcomes: string[];
+  outcomePrices: string[];
+  volume: string;
+  liquidity: string;
+  active: boolean;
 }
 
 export function AdminPanel() {
@@ -145,6 +158,15 @@ export function AdminPanel() {
 
   const { data: pools = [] } = useQuery<ChampionshipPool[]>({
     queryKey: ["/api/pools"],
+  });
+
+  const { data: polymarketF1Markets = [], refetch: refetchPolymarketMarkets, isLoading: polymarketLoading } = useQuery<PolymarketF1Market[]>({
+    queryKey: ["/api/polymarket/f1-markets"],
+    queryFn: async () => {
+      const res = await fetch("/api/polymarket/f1-markets");
+      if (!res.ok) return [];
+      return res.json();
+    },
   });
 
   const { data: zkProofs = [], refetch: refetchProofs } = useQuery<ZkProof[]>({
@@ -438,6 +460,67 @@ export function AdminPanel() {
                   )}
                 </div>
               </div>
+            </div>
+            
+            <div className="border rounded-md p-4 space-y-3">
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-2">
+                  <Link2 className="h-5 w-5 text-muted-foreground" />
+                  <div>
+                    <p className="font-medium">Polymarket F1 Markets</p>
+                    <p className="text-sm text-muted-foreground">
+                      {polymarketLoading ? "Loading..." : 
+                        polymarketF1Markets.length > 0 
+                          ? `${polymarketF1Markets.length} F1 markets available on Polymarket`
+                          : "No F1 markets found on Polymarket"}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Badge variant={polymarketF1Markets.length > 0 ? "default" : "secondary"}>
+                    {polymarketF1Markets.length > 0 ? (
+                      <><CheckCircle className="h-3 w-3 mr-1" /> Connected</>
+                    ) : (
+                      "No Markets"
+                    )}
+                  </Badge>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => refetchPolymarketMarkets()}
+                    disabled={polymarketLoading}
+                    data-testid="button-refresh-polymarket"
+                  >
+                    <RefreshCw className={`h-4 w-4 ${polymarketLoading ? 'animate-spin' : ''}`} />
+                  </Button>
+                </div>
+              </div>
+              {polymarketF1Markets.length > 0 && (
+                <div className="mt-3 space-y-2 max-h-48 overflow-y-auto">
+                  {polymarketF1Markets.slice(0, 5).map((market) => (
+                    <div
+                      key={market.id}
+                      className="flex items-center justify-between gap-2 text-sm p-2 rounded bg-muted/50"
+                      data-testid={`polymarket-row-${market.id}`}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="truncate font-medium">{market.question}</p>
+                        <p className="text-xs text-muted-foreground">
+                          Volume: ${parseFloat(market.volume || "0").toLocaleString()}
+                        </p>
+                      </div>
+                      <Badge variant={market.active ? "default" : "secondary"} className="shrink-0">
+                        {market.active ? "Active" : "Closed"}
+                      </Badge>
+                    </div>
+                  ))}
+                  {polymarketF1Markets.length > 5 && (
+                    <p className="text-xs text-muted-foreground text-center">
+                      +{polymarketF1Markets.length - 5} more markets
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
             
             <div className="border rounded-md p-4 space-y-3">

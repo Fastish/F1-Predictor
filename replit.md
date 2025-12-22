@@ -30,7 +30,7 @@ Preferred communication style: Simple, everyday language.
 - **Migrations**: Drizzle Kit with `db:push` command
 
 ### Key Data Models
-- **Users**: Account with balance (deprecated - using wallet USDC), optional walletAddress for Freighter wallet linking
+- **Users**: Account with balance (deprecated - using wallet USDC), optional walletAddress for Polygon wallet linking
 - **Teams**: 11 F1 teams for 2026 season (Red Bull, Ferrari, Mercedes, McLaren, Aston Martin, Alpine, Williams, RB, Audi, Haas, Cadillac)
 - **Drivers**: 22 F1 drivers for 2026 season with team associations
 - **ChampionshipPools**: LMSR-based prediction pools (team championship, driver championship)
@@ -54,8 +54,8 @@ Legacy CLOB (Central Limit Order Book) system exists in `server/routes.ts` at `/
 ### Application Flow
 1. Guest users are auto-created on first visit (stored in localStorage)
 2. Users browse team market with real-time prices
-3. Users must connect a Stellar wallet (Freighter, xBull, Albedo, Lobstr, etc.) before purchasing shares
-4. Wallet linking validates: address format, account existence on Stellar, USDC trustline
+3. Users connect wallet via Magic Labs (email) or external wallet (MetaMask, Rainbow)
+4. Wallet linking creates/connects to Polygon address with USDC balance
 5. Purchase shares through modal interface (wallet required)
 6. Portfolio tracks holdings, P&L, and total value
 7. Prize pool accumulates from all share purchases
@@ -67,7 +67,7 @@ Legacy CLOB (Central Limit Order Book) system exists in `server/routes.ts` at `/
 3. Admin concludes season and declares winning team
 4. Trading is locked when season concludes
 5. Admin calculates payouts (distributes prize pool by share percentage)
-6. Admin distributes payouts - USDC sent to winners' Stellar wallets
+6. Admin distributes payouts - USDC sent to winners' Polygon wallets
 7. Winners receive USDC proportional to their shareholding in the winning team
 
 ## External Dependencies
@@ -81,20 +81,28 @@ Legacy CLOB (Central Limit Order Book) system exists in `server/routes.ts` at `/
 - Recharts (for market statistics visualization)
 - Embla Carousel, react-day-picker, input-otp, vaul (drawer), react-resizable-panels
 
-### Stellar/USDC Integration
-- @stellar/stellar-sdk for Stellar network operations
-- @creit-tech/stellar-wallets-kit for multi-wallet support (Freighter, xBull, Albedo, Lobstr, Rabet, Hana, Klever)
-- STELLAR_SECRET_KEY environment variable for testnet master wallet
-- Memo-based deposit tracking using user UUID (first 28 characters)
-- Demo credits with $5000 lifetime limit per user for testing
+### Polygon/USDC Integration
+- ethers.js for Polygon network operations
+- Magic Labs SDK for email-based wallet authentication
+- External wallet support (MetaMask, Rainbow, etc.) via window.ethereum
+- USDC contract on Polygon: 0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359
+- Chain ID: 137 (Polygon mainnet)
+- VITE_MAGIC_API_KEY environment variable for Magic Labs integration
 
-### Wallet Integration (Stellar Wallet Kit)
-The app uses Stellar Wallet Kit for multi-wallet support:
+### Wallet Integration (Magic Labs + External Wallets)
+The app uses a dual-wallet system:
 - **WalletContext**: Manages wallet state, connection, disconnection, and transaction signing
-- **Supported Wallets**: xBull, Albedo, Freighter, Rabet, Lobstr, Hana, Klever
-- **Initialization**: Uses `defaultModules()` from `@creit-tech/stellar-wallets-kit/modules/utils`
-- **State Persistence**: Wallet address saved to localStorage, restored on page load
-- **Event Handling**: Listens to `KitEventType.STATE_UPDATED` for connection/disconnection events
+- **Magic Labs**: Passwordless email login for non-crypto users (creates Polygon wallet)
+- **External Wallets**: MetaMask, Rainbow, and other browser extension wallets
+- **State Persistence**: Wallet type and address saved to localStorage
+- **Balance Queries**: Client-side USDC balance fetching via ethers.js
+
+### Polymarket Integration
+- Gamma API for fetching F1 prediction markets
+- CLOB API for order placement with HMAC-SHA256 signing
+- EIP-712 signatures for credential derivation
+- API credentials cached in-memory (not localStorage) for security
+- Admin panel section for viewing/syncing Polymarket F1 markets
 
 ### Secure Buy Order Flow (Nonce-Based Verification)
 @deprecated - This flow is for the legacy CLOB system. The active pool system uses demo credits for trading.
