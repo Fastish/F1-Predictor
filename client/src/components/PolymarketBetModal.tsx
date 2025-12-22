@@ -146,7 +146,7 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance }: Poly
           <div className="rounded-md bg-muted/50 p-3">
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm text-muted-foreground">Current Price</span>
-              <Badge variant="outline">{(currentPrice * 100).toFixed(1)}c</Badge>
+              <Badge variant="outline">{(yesPrice * 100).toFixed(1)}c</Badge>
             </div>
             {orderBookLoading ? (
               <div className="flex items-center justify-center py-2">
