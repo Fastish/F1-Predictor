@@ -80,9 +80,10 @@ export default function Markets() {
     queryFn: async () => {
       if (!walletAddress) return "0";
       const { getUsdcBalance } = await import("@/context/WalletContext");
-      return getUsdcBalance(walletAddress);
+      return await getUsdcBalance(walletAddress);
     },
     enabled: !!walletAddress,
+    staleTime: 30000,
   });
 
   const walletUsdcBalance = parseFloat(usdcBalance || "0");
