@@ -3,40 +3,30 @@ import { useQuery } from "@tanstack/react-query";
 import { TeamCard } from "./TeamCard";
 import { DriverCard, type Driver } from "./DriverCard";
 import { TeamValueChart } from "./TeamValueChart";
+import { PolymarketBetModal } from "./PolymarketBetModal";
 import { useMarket, type F1Team } from "@/context/MarketContext";
+import { useWallet } from "@/context/WalletContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
-import { Car, User, Trophy, DollarSign } from "lucide-react";
+import { Car, User, Trophy, DollarSign, ExternalLink, Loader2 } from "lucide-react";
 
 interface MarketOverviewProps {
   onBuyTeam?: (team: F1Team) => void;
   onBuyDriver?: (driver: Driver) => void;
 }
 
-interface SeasonResponse {
-  exists: boolean;
-  status?: string;
-}
-
-interface PoolOutcome {
+interface PolymarketOutcome {
   id: string;
-  poolId: string;
-  participantId: string;
-  participantName: string;
-  sharesOutstanding: number;
+  name: string;
+  tokenId: string;
+  yesTokenId?: string;
+  noTokenId?: string;
   price: number;
-  probability: number;
-  priceChange: number;
-}
-
-interface ChampionshipPool {
-  id: string;
-  seasonId: string;
-  type: "team" | "driver";
-  status: string;
-  bParameter: number;
-  totalCollateral: number;
-  outcomes: PoolOutcome[];
+  noPrice?: number;
+  volume: string;
+  conditionId: string;
+  questionId: string;
+  image?: string;
 }
 
 interface DriverFromAPI {
@@ -48,57 +38,124 @@ interface DriverFromAPI {
   color: string;
 }
 
+// Team colors mapping for Polymarket teams
+const teamColors: Record<string, string> = {
+  "McLaren": "#FF8700",
+  "Red Bull Racing": "#1E41FF",
+  "Ferrari": "#DC0000",
+  "Mercedes": "#00D2BE",
+  "Aston Martin": "#006F62",
+  "Williams": "#005AFF",
+  "Audi": "#FF0000",
+  "Alpine": "#0090FF",
+  "Cadillac": "#C4A747",
+  "Haas": "#B6BABD",
+  "Racing Bulls": "#2B4562",
+  "Other": "#888888",
+};
+
+// Driver team color mapping
+const driverTeamColors: Record<string, string> = {
+  "Max Verstappen": "#1E41FF",
+  "Lando Norris": "#FF8700",
+  "Lewis Hamilton": "#DC0000",
+  "George Russell": "#00D2BE",
+  "Charles Leclerc": "#DC0000",
+  "Oscar Piastri": "#FF8700",
+  "Kimi Antonelli": "#00D2BE",
+  "Fernando Alonso": "#006F62",
+  "Carlos Sainz": "#005AFF",
+  "Liam Lawson": "#1E41FF",
+  "Pierre Gasly": "#0090FF",
+  "Yuki Tsunoda": "#2B4562",
+  "Alex Albon": "#005AFF",
+  "Lance Stroll": "#006F62",
+  "Nico Hulkenberg": "#FF0000",
+  "Esteban Ocon": "#B6BABD",
+  "Oliver Bearman": "#B6BABD",
+  "Jack Doohan": "#0090FF",
+  "Isack Hadjar": "#2B4562",
+  "Gabriel Bortoleto": "#FF0000",
+};
+
 export function MarketOverview({ onBuyTeam, onBuyDriver }: MarketOverviewProps) {
-  const { teams, getHolding } = useMarket();
+  const { getHolding } = useMarket();
+  const { walletAddress, getUsdcBalance } = useWallet();
   const [activeTab, setActiveTab] = useState<"teams" | "drivers">("teams");
+  const [selectedOutcome, setSelectedOutcome] = useState<PolymarketOutcome | null>(null);
+  const [betModalOpen, setBetModalOpen] = useState(false);
 
-  const { data: season } = useQuery<SeasonResponse>({
-    queryKey: ["/api/season"],
+  // Fetch USDC balance
+  const { data: usdcBalance = "0" } = useQuery({
+    queryKey: ["usdc-balance", walletAddress],
+    queryFn: () => getUsdcBalance(),
+    enabled: !!walletAddress,
+    refetchInterval: 30000,
   });
 
-  // Fetch pool pricing from LMSR pools
-  const { data: teamPool } = useQuery<ChampionshipPool>({
-    queryKey: ["/api/pools/type/team"],
-    refetchInterval: 5000,
+  // Fetch Polymarket constructors data
+  const { data: constructors = [], isLoading: loadingConstructors } = useQuery<PolymarketOutcome[]>({
+    queryKey: ["/api/polymarket/constructors"],
+    refetchInterval: 30000, // Refresh every 30 seconds
   });
 
-  const { data: driverPool } = useQuery<ChampionshipPool>({
-    queryKey: ["/api/pools/type/driver"],
-    refetchInterval: 5000,
+  // Fetch Polymarket drivers data
+  const { data: drivers = [], isLoading: loadingDrivers } = useQuery<PolymarketOutcome[]>({
+    queryKey: ["/api/polymarket/drivers"],
+    refetchInterval: 30000,
   });
 
-  const { data: driversFromAPI = [] } = useQuery<DriverFromAPI[]>({
-    queryKey: ["/api/drivers"],
-  });
+  // Calculate total volume for display
+  const constructorVolume = constructors.reduce((sum, c) => sum + parseFloat(c.volume || "0"), 0);
+  const driverVolume = drivers.reduce((sum, d) => sum + parseFloat(d.volume || "0"), 0);
 
-  const isTradingLocked = season?.exists && season.status === "concluded";
+  // Map Polymarket outcomes to F1Team format for TeamCard
+  const teamsFromPolymarket: F1Team[] = constructors.map((outcome) => ({
+    id: outcome.id,
+    name: outcome.name,
+    shortName: outcome.name.substring(0, 3).toUpperCase(),
+    color: teamColors[outcome.name] || "#888888",
+    price: outcome.price,
+    priceChange: 0, // Would need historical data
+    totalShares: 10000,
+    availableShares: 10000,
+  }));
 
-  // Merge pool prices into teams (LMSR pricing)
-  const teamsWithPoolPrices = teams.map((team) => {
-    const outcome = teamPool?.outcomes?.find((o) => o.participantId === team.id);
+  // Map Polymarket outcomes to Driver format for DriverCard
+  const driversFromPolymarket: Driver[] = drivers.map((outcome, index) => ({
+    id: outcome.id,
+    name: outcome.name,
+    shortName: outcome.name.split(" ").pop()?.substring(0, 3).toUpperCase() || "DRV",
+    teamId: "polymarket",
+    number: index + 1,
+    color: driverTeamColors[outcome.name] || "#888888",
+    price: outcome.price,
+    priceChange: 0,
+  }));
+
+  const sortedTeams = [...teamsFromPolymarket].sort((a, b) => b.price - a.price);
+  const sortedDrivers = [...driversFromPolymarket].sort((a, b) => b.price - a.price);
+
+  const handleBuyTeam = (team: F1Team) => {
+    const outcome = constructors.find((c) => c.id === team.id);
     if (outcome) {
-      return {
-        ...team,
-        price: outcome.price,
-        priceChange: outcome.priceChange ?? 0,
-      };
+      setSelectedOutcome(outcome);
+      setBetModalOpen(true);
     }
-    return team;
-  });
+  };
 
-  const sortedTeams = [...teamsWithPoolPrices].sort((a, b) => b.price - a.price);
+  const handleBuyDriver = (driver: Driver) => {
+    const outcome = drivers.find((d) => d.id === driver.id);
+    if (outcome) {
+      setSelectedOutcome(outcome);
+      setBetModalOpen(true);
+    }
+  };
 
-  // Merge pool prices into drivers (LMSR pricing)
-  const driversWithPrices: Driver[] = driversFromAPI.map((driver) => {
-    const outcome = driverPool?.outcomes?.find((o) => o.participantId === driver.id);
-    return {
-      ...driver,
-      price: outcome?.price ?? 0.10,
-      priceChange: outcome?.priceChange ?? 0,
-    };
-  });
-
-  const sortedDrivers = [...driversWithPrices].sort((a, b) => b.price - a.price);
+  const handleCloseModal = () => {
+    setBetModalOpen(false);
+    setSelectedOutcome(null);
+  };
 
   return (
     <section className="py-12">
@@ -107,9 +164,18 @@ export function MarketOverview({ onBuyTeam, onBuyDriver }: MarketOverviewProps) 
           <div>
             <h2 className="text-2xl font-bold" data-testid="text-market-title">F1 2026 Championship</h2>
             <p className="text-muted-foreground">
-              Bet on teams or drivers to win the championship
+              Live odds from Polymarket prediction markets
             </p>
           </div>
+          <a
+            href="https://polymarket.com/event/f1-constructors-champion"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1 text-sm text-primary hover:underline"
+          >
+            <ExternalLink className="h-4 w-4" />
+            View on Polymarket
+          </a>
         </div>
 
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "teams" | "drivers")} className="w-full">
@@ -135,30 +201,36 @@ export function MarketOverview({ onBuyTeam, onBuyDriver }: MarketOverviewProps) 
                     </div>
                     <div>
                       <p className="text-sm text-muted-foreground">Constructors Championship</p>
-                      <p className="font-semibold" data-testid="text-team-pool-name">Prize Pool</p>
+                      <p className="font-semibold" data-testid="text-team-pool-name">Total Volume</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <DollarSign className="h-5 w-5 text-green-500" />
                     <span className="text-2xl font-bold" data-testid="text-team-prize-pool">
-                      ${teamPool?.totalCollateral?.toFixed(2) || "0.00"}
+                      ${constructorVolume.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                     </span>
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-              {sortedTeams.map((team) => (
-                <TeamCard
-                  key={team.id}
-                  team={team}
-                  onBuy={onBuyTeam}
-                  owned={getHolding(team.id)?.shares}
-                  tradingLocked={isTradingLocked}
-                />
-              ))}
-            </div>
+            {loadingConstructors ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {sortedTeams.map((team) => (
+                  <TeamCard
+                    key={team.id}
+                    team={team}
+                    onBuy={handleBuyTeam}
+                    owned={getHolding(team.id)?.shares}
+                    tradingLocked={false}
+                  />
+                ))}
+              </div>
+            )}
 
             {/* Chart for Teams */}
             <div className="mt-8">
@@ -177,24 +249,37 @@ export function MarketOverview({ onBuyTeam, onBuyDriver }: MarketOverviewProps) 
                     </div>
                     <div>
                       <p className="text-sm text-muted-foreground">Drivers Championship</p>
-                      <p className="font-semibold" data-testid="text-driver-pool-name">Prize Pool</p>
+                      <p className="font-semibold" data-testid="text-driver-pool-name">Total Volume</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <DollarSign className="h-5 w-5 text-green-500" />
                     <span className="text-2xl font-bold" data-testid="text-driver-prize-pool">
-                      ${driverPool?.totalCollateral?.toFixed(2) || "0.00"}
+                      ${driverVolume.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                     </span>
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            {sortedDrivers.length === 0 ? (
+            {loadingDrivers ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              </div>
+            ) : sortedDrivers.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
                 <User className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>Driver markets are not yet available.</p>
-                <p className="text-sm">Check back when the admin creates driver markets.</p>
+                <p>Driver markets are not yet available on Polymarket.</p>
+                <p className="text-sm mt-2">
+                  <a
+                    href="https://polymarket.com/event/2026-f1-drivers-champion"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary hover:underline"
+                  >
+                    Check Polymarket for updates
+                  </a>
+                </p>
               </div>
             ) : (
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -202,8 +287,8 @@ export function MarketOverview({ onBuyTeam, onBuyDriver }: MarketOverviewProps) 
                   <DriverCard
                     key={driver.id}
                     driver={driver}
-                    onBuy={onBuyDriver}
-                    tradingLocked={isTradingLocked}
+                    onBuy={handleBuyDriver}
+                    tradingLocked={false}
                   />
                 ))}
               </div>
@@ -216,6 +301,16 @@ export function MarketOverview({ onBuyTeam, onBuyDriver }: MarketOverviewProps) 
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Polymarket Betting Modal */}
+      {selectedOutcome && (
+        <PolymarketBetModal
+          open={betModalOpen}
+          onClose={handleCloseModal}
+          outcome={selectedOutcome}
+          userBalance={parseFloat(usdcBalance || "0")}
+        />
+      )}
     </section>
   );
 }

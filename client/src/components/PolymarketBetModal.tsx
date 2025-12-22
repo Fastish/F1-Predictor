@@ -19,7 +19,10 @@ interface PolymarketOutcome {
   id: string;
   name: string;
   tokenId: string;
+  yesTokenId?: string;
+  noTokenId?: string;
   price: number;
+  noPrice?: number;
   volume: string;
   conditionId: string;
   questionId: string;
@@ -59,11 +62,13 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance }: Poly
     refetchInterval: 5000,
   });
 
-  const currentPrice = midpoint?.mid ?? outcome.price;
-  const yesPrice = currentPrice;
-  const noPrice = 1 - currentPrice;
+  const yesPrice = midpoint?.mid ?? outcome.price;
+  const noPrice = outcome.noPrice ?? (1 - yesPrice);
 
   const selectedPrice = side === "YES" ? yesPrice : noPrice;
+  const selectedTokenId = side === "YES" 
+    ? (outcome.yesTokenId || outcome.tokenId) 
+    : (outcome.noTokenId || outcome.tokenId);
   const parsedAmount = parseFloat(amount) || 0;
   const shares = parsedAmount > 0 && selectedPrice > 0 ? parsedAmount / selectedPrice : 0;
   const potentialPayout = shares * 1; // Each share pays $1 if wins
@@ -117,7 +122,7 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance }: Poly
     }
 
     placeBetMutation.mutate({
-      tokenId: outcome.tokenId,
+      tokenId: selectedTokenId,
       side: "BUY",
       outcome: side,
       price: selectedPrice,

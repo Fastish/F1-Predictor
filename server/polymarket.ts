@@ -329,7 +329,10 @@ export interface NormalizedOutcome {
   id: string;
   name: string;
   tokenId: string;
+  yesTokenId: string;
+  noTokenId: string;
   price: number;
+  noPrice: number;
   volume: string;
   conditionId: string;
   questionId: string;
@@ -338,93 +341,163 @@ export interface NormalizedOutcome {
 
 // Fallback F1 Constructors data based on current Polymarket markets
 const fallbackConstructors: NormalizedOutcome[] = [
-  { id: "mercedes", name: "Mercedes", tokenId: "mercedes-yes", price: 0.33, volume: "116671", conditionId: "mercedes", questionId: "mercedes" },
-  { id: "mclaren", name: "McLaren", tokenId: "mclaren-yes", price: 0.29, volume: "570288", conditionId: "mclaren", questionId: "mclaren" },
-  { id: "redbull", name: "Red Bull Racing", tokenId: "redbull-yes", price: 0.15, volume: "5256", conditionId: "redbull", questionId: "redbull" },
-  { id: "ferrari", name: "Ferrari", tokenId: "ferrari-yes", price: 0.12, volume: "6709", conditionId: "ferrari", questionId: "ferrari" },
-  { id: "astonmartin", name: "Aston Martin", tokenId: "astonmartin-yes", price: 0.08, volume: "3159", conditionId: "astonmartin", questionId: "astonmartin" },
-  { id: "williams", name: "Williams", tokenId: "williams-yes", price: 0.03, volume: "1995", conditionId: "williams", questionId: "williams" },
-  { id: "audi", name: "Audi", tokenId: "audi-yes", price: 0.036, volume: "1564", conditionId: "audi", questionId: "audi" },
-  { id: "alpine", name: "Alpine", tokenId: "alpine-yes", price: 0.025, volume: "2101", conditionId: "alpine", questionId: "alpine" },
-  { id: "cadillac", name: "Cadillac", tokenId: "cadillac-yes", price: 0.024, volume: "2784", conditionId: "cadillac", questionId: "cadillac" },
-  { id: "haas", name: "Haas", tokenId: "haas-yes", price: 0.004, volume: "1552", conditionId: "haas", questionId: "haas" },
-  { id: "rb", name: "Racing Bulls", tokenId: "rb-yes", price: 0.003, volume: "1700", conditionId: "rb", questionId: "rb" },
+  { id: "mercedes", name: "Mercedes", tokenId: "mercedes-yes", yesTokenId: "mercedes-yes", noTokenId: "mercedes-no", price: 0.33, noPrice: 0.67, volume: "116671", conditionId: "mercedes", questionId: "mercedes" },
+  { id: "mclaren", name: "McLaren", tokenId: "mclaren-yes", yesTokenId: "mclaren-yes", noTokenId: "mclaren-no", price: 0.29, noPrice: 0.71, volume: "570288", conditionId: "mclaren", questionId: "mclaren" },
+  { id: "redbull", name: "Red Bull Racing", tokenId: "redbull-yes", yesTokenId: "redbull-yes", noTokenId: "redbull-no", price: 0.15, noPrice: 0.85, volume: "5256", conditionId: "redbull", questionId: "redbull" },
+  { id: "ferrari", name: "Ferrari", tokenId: "ferrari-yes", yesTokenId: "ferrari-yes", noTokenId: "ferrari-no", price: 0.12, noPrice: 0.88, volume: "6709", conditionId: "ferrari", questionId: "ferrari" },
+  { id: "astonmartin", name: "Aston Martin", tokenId: "astonmartin-yes", yesTokenId: "astonmartin-yes", noTokenId: "astonmartin-no", price: 0.08, noPrice: 0.92, volume: "3159", conditionId: "astonmartin", questionId: "astonmartin" },
+  { id: "williams", name: "Williams", tokenId: "williams-yes", yesTokenId: "williams-yes", noTokenId: "williams-no", price: 0.03, noPrice: 0.97, volume: "1995", conditionId: "williams", questionId: "williams" },
+  { id: "audi", name: "Audi", tokenId: "audi-yes", yesTokenId: "audi-yes", noTokenId: "audi-no", price: 0.036, noPrice: 0.964, volume: "1564", conditionId: "audi", questionId: "audi" },
+  { id: "alpine", name: "Alpine", tokenId: "alpine-yes", yesTokenId: "alpine-yes", noTokenId: "alpine-no", price: 0.025, noPrice: 0.975, volume: "2101", conditionId: "alpine", questionId: "alpine" },
+  { id: "cadillac", name: "Cadillac", tokenId: "cadillac-yes", yesTokenId: "cadillac-yes", noTokenId: "cadillac-no", price: 0.024, noPrice: 0.976, volume: "2784", conditionId: "cadillac", questionId: "cadillac" },
+  { id: "haas", name: "Haas", tokenId: "haas-yes", yesTokenId: "haas-yes", noTokenId: "haas-no", price: 0.004, noPrice: 0.996, volume: "1552", conditionId: "haas", questionId: "haas" },
+  { id: "rb", name: "Racing Bulls", tokenId: "rb-yes", yesTokenId: "rb-yes", noTokenId: "rb-no", price: 0.003, noPrice: 0.997, volume: "1700", conditionId: "rb", questionId: "rb" },
 ];
 
 export async function getConstructorsMarket(): Promise<NormalizedOutcome[]> {
-  const event = await getEventBySlug("f1-constructors-champion");
-  
-  if (!event || !event.markets || event.markets.length === 0) {
-    // Return fallback data when API fails
-    console.log("Using fallback constructors data - Polymarket API not responding");
-    return fallbackConstructors;
-  }
-
-  const outcomes: NormalizedOutcome[] = [];
-  
-  for (const market of event.markets) {
-    const prices = market.outcomePrices || [];
+  try {
+    // Fetch directly from Gamma API with proper format
+    const response = await fetch(`${GAMMA_API_URL}/events?slug=f1-constructors-champion`, {
+      headers: {
+        "Accept": "application/json",
+        "User-Agent": "Mozilla/5.0",
+      },
+    });
     
-    if (market.tokens && market.tokens.length > 0) {
-      const yesToken = market.tokens.find(t => t.outcome === "Yes") || market.tokens[0];
+    if (!response.ok) {
+      console.log("Polymarket API error, using fallback data");
+      return fallbackConstructors;
+    }
+    
+    const data = await response.json();
+    if (!data || data.length === 0 || !data[0]?.markets) {
+      console.log("No data from Polymarket API, using fallback");
+      return fallbackConstructors;
+    }
+    
+    const event = data[0];
+    const outcomes: NormalizedOutcome[] = [];
+    
+    for (const market of event.markets) {
+      // Parse the JSON strings from the API
+      const outcomePrices = typeof market.outcomePrices === "string" 
+        ? JSON.parse(market.outcomePrices) 
+        : market.outcomePrices || [];
+      const clobTokenIds = typeof market.clobTokenIds === "string"
+        ? JSON.parse(market.clobTokenIds)
+        : market.clobTokenIds || [];
+      
+      // Get the YES/NO prices and token IDs
+      const yesPrice = parseFloat(outcomePrices[0] || "0");
+      const noPrice = parseFloat(outcomePrices[1] || "0");
+      const yesTokenId = clobTokenIds[0] || "";
+      const noTokenId = clobTokenIds[1] || "";
+      
+      // Extract team name from groupItemTitle or question
+      const teamName = market.groupItemTitle || 
+        market.question?.replace("Will ", "").replace(" be the 2026 F1 Constructors' Champion?", "").trim() || 
+        "Unknown";
+      
       outcomes.push({
         id: market.id,
-        name: market.question.replace("Will ", "").replace(" win the 2026 F1 Constructors Championship?", "").replace(" win the 2025 F1 Constructors Championship?", "").replace(" be the 2026 F1 Constructors' Champion?", "").trim(),
-        tokenId: yesToken.token_id,
-        price: yesToken.price || parseFloat(prices[0] || "0"),
-        volume: market.volume,
+        name: teamName,
+        tokenId: yesTokenId,
+        yesTokenId: yesTokenId,
+        noTokenId: noTokenId,
+        price: yesPrice,
+        noPrice: noPrice,
+        volume: market.volume || "0",
         conditionId: market.conditionId,
-        questionId: market.questionId,
+        questionId: market.questionID || market.questionId,
         image: market.image,
       });
     }
+    
+    console.log(`Fetched ${outcomes.length} constructor markets from Polymarket`);
+    return outcomes.length > 0 ? outcomes : fallbackConstructors;
+  } catch (error) {
+    console.error("Error fetching constructors from Polymarket:", error);
+    return fallbackConstructors;
   }
-
-  return outcomes.length > 0 ? outcomes : fallbackConstructors;
 }
 
 // Fallback F1 Drivers data based on current Polymarket markets
 const fallbackDrivers: NormalizedOutcome[] = [
-  { id: "verstappen", name: "Max Verstappen", tokenId: "verstappen-yes", price: 0.24, volume: "50000", conditionId: "verstappen", questionId: "verstappen" },
-  { id: "norris", name: "Lando Norris", tokenId: "norris-yes", price: 0.22, volume: "45000", conditionId: "norris", questionId: "norris" },
-  { id: "hamilton", name: "Lewis Hamilton", tokenId: "hamilton-yes", price: 0.18, volume: "40000", conditionId: "hamilton", questionId: "hamilton" },
-  { id: "russell", name: "George Russell", tokenId: "russell-yes", price: 0.12, volume: "25000", conditionId: "russell", questionId: "russell" },
-  { id: "leclerc", name: "Charles Leclerc", tokenId: "leclerc-yes", price: 0.08, volume: "20000", conditionId: "leclerc", questionId: "leclerc" },
-  { id: "piastri", name: "Oscar Piastri", tokenId: "piastri-yes", price: 0.06, volume: "15000", conditionId: "piastri", questionId: "piastri" },
-  { id: "antonelli", name: "Kimi Antonelli", tokenId: "antonelli-yes", price: 0.04, volume: "10000", conditionId: "antonelli", questionId: "antonelli" },
-  { id: "alonso", name: "Fernando Alonso", tokenId: "alonso-yes", price: 0.02, volume: "8000", conditionId: "alonso", questionId: "alonso" },
-  { id: "sainz", name: "Carlos Sainz", tokenId: "sainz-yes", price: 0.015, volume: "5000", conditionId: "sainz", questionId: "sainz" },
-  { id: "lawson", name: "Liam Lawson", tokenId: "lawson-yes", price: 0.01, volume: "3000", conditionId: "lawson", questionId: "lawson" },
+  { id: "verstappen", name: "Max Verstappen", tokenId: "verstappen-yes", yesTokenId: "verstappen-yes", noTokenId: "verstappen-no", price: 0.24, noPrice: 0.76, volume: "50000", conditionId: "verstappen", questionId: "verstappen" },
+  { id: "norris", name: "Lando Norris", tokenId: "norris-yes", yesTokenId: "norris-yes", noTokenId: "norris-no", price: 0.22, noPrice: 0.78, volume: "45000", conditionId: "norris", questionId: "norris" },
+  { id: "hamilton", name: "Lewis Hamilton", tokenId: "hamilton-yes", yesTokenId: "hamilton-yes", noTokenId: "hamilton-no", price: 0.18, noPrice: 0.82, volume: "40000", conditionId: "hamilton", questionId: "hamilton" },
+  { id: "russell", name: "George Russell", tokenId: "russell-yes", yesTokenId: "russell-yes", noTokenId: "russell-no", price: 0.12, noPrice: 0.88, volume: "25000", conditionId: "russell", questionId: "russell" },
+  { id: "leclerc", name: "Charles Leclerc", tokenId: "leclerc-yes", yesTokenId: "leclerc-yes", noTokenId: "leclerc-no", price: 0.08, noPrice: 0.92, volume: "20000", conditionId: "leclerc", questionId: "leclerc" },
+  { id: "piastri", name: "Oscar Piastri", tokenId: "piastri-yes", yesTokenId: "piastri-yes", noTokenId: "piastri-no", price: 0.06, noPrice: 0.94, volume: "15000", conditionId: "piastri", questionId: "piastri" },
+  { id: "antonelli", name: "Kimi Antonelli", tokenId: "antonelli-yes", yesTokenId: "antonelli-yes", noTokenId: "antonelli-no", price: 0.04, noPrice: 0.96, volume: "10000", conditionId: "antonelli", questionId: "antonelli" },
+  { id: "alonso", name: "Fernando Alonso", tokenId: "alonso-yes", yesTokenId: "alonso-yes", noTokenId: "alonso-no", price: 0.02, noPrice: 0.98, volume: "8000", conditionId: "alonso", questionId: "alonso" },
+  { id: "sainz", name: "Carlos Sainz", tokenId: "sainz-yes", yesTokenId: "sainz-yes", noTokenId: "sainz-no", price: 0.015, noPrice: 0.985, volume: "5000", conditionId: "sainz", questionId: "sainz" },
+  { id: "lawson", name: "Liam Lawson", tokenId: "lawson-yes", yesTokenId: "lawson-yes", noTokenId: "lawson-no", price: 0.01, noPrice: 0.99, volume: "3000", conditionId: "lawson", questionId: "lawson" },
 ];
 
 export async function getDriversMarket(): Promise<NormalizedOutcome[]> {
-  const event = await getEventBySlug("2026-f1-drivers-champion");
-  
-  if (!event || !event.markets || event.markets.length === 0) {
-    // Return fallback data when API fails
-    console.log("Using fallback drivers data - Polymarket API not responding");
-    return fallbackDrivers;
-  }
-
-  const outcomes: NormalizedOutcome[] = [];
-  
-  for (const market of event.markets) {
-    const prices = market.outcomePrices || [];
+  try {
+    // Fetch directly from Gamma API with proper format
+    const response = await fetch(`${GAMMA_API_URL}/events?slug=2026-f1-drivers-champion`, {
+      headers: {
+        "Accept": "application/json",
+        "User-Agent": "Mozilla/5.0",
+      },
+    });
     
-    if (market.tokens && market.tokens.length > 0) {
-      const yesToken = market.tokens.find(t => t.outcome === "Yes") || market.tokens[0];
+    if (!response.ok) {
+      console.log("Polymarket API error for drivers, using fallback data");
+      return fallbackDrivers;
+    }
+    
+    const data = await response.json();
+    if (!data || data.length === 0 || !data[0]?.markets) {
+      console.log("No driver data from Polymarket API, using fallback");
+      return fallbackDrivers;
+    }
+    
+    const event = data[0];
+    const outcomes: NormalizedOutcome[] = [];
+    
+    for (const market of event.markets) {
+      // Parse the JSON strings from the API
+      const outcomePrices = typeof market.outcomePrices === "string" 
+        ? JSON.parse(market.outcomePrices) 
+        : market.outcomePrices || [];
+      const clobTokenIds = typeof market.clobTokenIds === "string"
+        ? JSON.parse(market.clobTokenIds)
+        : market.clobTokenIds || [];
+      
+      // Get the YES/NO prices and token IDs
+      const yesPrice = parseFloat(outcomePrices[0] || "0");
+      const noPrice = parseFloat(outcomePrices[1] || "0");
+      const yesTokenId = clobTokenIds[0] || "";
+      const noTokenId = clobTokenIds[1] || "";
+      
+      // Extract driver name from groupItemTitle or question
+      const driverName = market.groupItemTitle || 
+        market.question?.replace("Will ", "").replace(" be the 2026 F1 Drivers' Champion?", "").trim() || 
+        "Unknown";
+      
       outcomes.push({
         id: market.id,
-        name: market.question.replace("Will ", "").replace(" win the 2026 F1 Drivers Championship?", "").replace(" win the 2025 F1 Drivers Championship?", "").replace(" be the 2026 F1 Drivers' Champion?", "").trim(),
-        tokenId: yesToken.token_id,
-        price: yesToken.price || parseFloat(prices[0] || "0"),
-        volume: market.volume,
+        name: driverName,
+        tokenId: yesTokenId,
+        yesTokenId: yesTokenId,
+        noTokenId: noTokenId,
+        price: yesPrice,
+        noPrice: noPrice,
+        volume: market.volume || "0",
         conditionId: market.conditionId,
-        questionId: market.questionId,
+        questionId: market.questionID || market.questionId,
         image: market.image,
       });
     }
+    
+    console.log(`Fetched ${outcomes.length} driver markets from Polymarket`);
+    return outcomes.length > 0 ? outcomes : fallbackDrivers;
+  } catch (error) {
+    console.error("Error fetching drivers from Polymarket:", error);
+    return fallbackDrivers;
   }
-
-  return outcomes.length > 0 ? outcomes : fallbackDrivers;
 }
