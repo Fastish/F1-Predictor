@@ -1,8 +1,7 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useMemo } from "react";
+import { useQueries } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   LineChart,
   Line,
@@ -10,10 +9,10 @@ import {
   YAxis,
   Tooltip,
   ResponsiveContainer,
-  ReferenceLine,
+  Legend,
 } from "recharts";
 import { format } from "date-fns";
-import { TrendingUp, TrendingDown, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 interface PolymarketOutcome {
   id: string;
@@ -78,43 +77,58 @@ const timeRanges: { key: TimeRange; label: string; interval: string; fidelity: s
 export function PolymarketPriceChart({ 
   outcomes, 
   type,
-  selectedOutcome,
   onSelectOutcome 
 }: PolymarketPriceChartProps) {
   const [timeRange, setTimeRange] = useState<TimeRange>("1W");
-  const [hoveredOutcome, setHoveredOutcome] = useState<PolymarketOutcome | null>(null);
+  const colorKey = type === "constructors" ? teamColors : driverColors;
 
-  const activeOutcome = hoveredOutcome || selectedOutcome || (outcomes.length > 0 ? outcomes[0] : null);
-  const tokenId = activeOutcome?.yesTokenId || activeOutcome?.tokenId;
-  
-  const rangeConfig = timeRanges.find(r => r.key === timeRange) || timeRanges[3];
+  const topOutcomes = useMemo(() => 
+    [...outcomes]
+      .filter(o => o.name !== "Other")
+      .sort((a, b) => b.price - a.price)
+      .slice(0, 5),
+    [outcomes]
+  );
 
-  const { data: priceHistory, isLoading } = useQuery<PriceHistoryResponse>({
-    queryKey: ["/api/polymarket/price-history", tokenId, rangeConfig.interval, rangeConfig.fidelity],
-    queryFn: async () => {
-      const res = await fetch(
-        `/api/polymarket/price-history/${tokenId}?interval=${rangeConfig.interval}&fidelity=${rangeConfig.fidelity}`
-      );
-      if (!res.ok) throw new Error("Failed to fetch price history");
-      return res.json();
-    },
-    enabled: !!tokenId,
-    refetchInterval: 30000,
+  const rangeConfig = timeRanges.find(r => r.key === timeRange) || timeRanges[1];
+
+  const priceHistoryQueries = useQueries({
+    queries: topOutcomes.map(outcome => ({
+      queryKey: ["/api/polymarket/price-history", outcome.yesTokenId || outcome.tokenId, rangeConfig.interval],
+      queryFn: async (): Promise<{ name: string; history: PriceHistoryResponse["history"] }> => {
+        const tokenId = outcome.yesTokenId || outcome.tokenId;
+        const res = await fetch(
+          `/api/polymarket/price-history/${tokenId}?interval=${rangeConfig.interval}&fidelity=${rangeConfig.fidelity}`
+        );
+        if (!res.ok) throw new Error("Failed to fetch price history");
+        const data: PriceHistoryResponse = await res.json();
+        return { name: outcome.name, history: data.history || [] };
+      },
+      enabled: !!outcome.yesTokenId || !!outcome.tokenId,
+      refetchInterval: 60000,
+      staleTime: 30000,
+    })),
   });
 
-  const chartData = priceHistory?.history?.map(point => ({
-    timestamp: point.t * 1000,
-    price: point.p * 100,
-  })) || [];
+  const isLoading = priceHistoryQueries.some(q => q.isLoading);
+  const hasData = priceHistoryQueries.some(q => q.data?.history?.length);
 
-  const currentPrice = activeOutcome?.price || 0;
-  const firstPrice = chartData.length > 0 ? chartData[0].price / 100 : currentPrice;
-  const priceChange = currentPrice - firstPrice;
-  const priceChangePercent = firstPrice > 0 ? (priceChange / firstPrice) * 100 : 0;
-  const isPositive = priceChange >= 0;
+  const chartData = useMemo(() => {
+    const timestampMap = new Map<number, Record<string, number>>();
 
-  const colorKey = type === "constructors" ? teamColors : driverColors;
-  const lineColor = activeOutcome ? (colorKey[activeOutcome.name] || "#8884d8") : "#8884d8";
+    priceHistoryQueries.forEach(query => {
+      if (query.data?.history) {
+        query.data.history.forEach(point => {
+          const existing = timestampMap.get(point.t) || { timestamp: point.t * 1000 };
+          existing[query.data!.name] = point.p * 100;
+          timestampMap.set(point.t, existing);
+        });
+      }
+    });
+
+    return Array.from(timestampMap.values())
+      .sort((a, b) => (a.timestamp as number) - (b.timestamp as number));
+  }, [priceHistoryQueries]);
 
   const formatXAxis = (timestamp: number) => {
     if (timeRange === "1D") {
@@ -126,137 +140,140 @@ export function PolymarketPriceChart({
     }
   };
 
-  const CustomTooltip = ({ active, payload }: { active?: boolean; payload?: Array<{ value: number; payload: { timestamp: number } }> }) => {
-    if (active && payload && payload.length) {
-      const value = payload[0].value;
-      const timestamp = payload[0].payload.timestamp;
+  const CustomTooltip = ({ active, payload, label }: { 
+    active?: boolean; 
+    payload?: Array<{ name: string; value: number; color: string }>; 
+    label?: number 
+  }) => {
+    if (active && payload && payload.length && label) {
       return (
         <div className="bg-popover border rounded-md px-3 py-2 shadow-lg">
-          <p className="text-sm font-medium">{(value).toFixed(1)}c</p>
-          <p className="text-xs text-muted-foreground">
-            {format(new Date(timestamp), "MMM d, yyyy HH:mm")}
+          <p className="text-xs text-muted-foreground mb-1">
+            {format(new Date(label), "MMM d, yyyy HH:mm")}
           </p>
+          <div className="space-y-1">
+            {payload
+              .sort((a, b) => b.value - a.value)
+              .map(entry => (
+                <div key={entry.name} className="flex items-center justify-between gap-4 text-sm">
+                  <div className="flex items-center gap-2">
+                    <div 
+                      className="w-2 h-2 rounded-full" 
+                      style={{ backgroundColor: entry.color }}
+                    />
+                    <span>{entry.name}</span>
+                  </div>
+                  <span className="font-medium">{entry.value.toFixed(1)}c</span>
+                </div>
+              ))}
+          </div>
         </div>
       );
     }
     return null;
   };
 
-  const topOutcomes = [...outcomes]
-    .filter(o => o.name !== "Other")
-    .sort((a, b) => b.price - a.price)
-    .slice(0, 5);
-
   return (
     <Card className="mb-6">
       <CardContent className="pt-4">
-        <div className="flex flex-col lg:flex-row gap-4">
-          <div className="flex-1">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                {activeOutcome && (
-                  <>
-                    <span className="font-semibold text-lg">{activeOutcome.name}</span>
-                    <Badge variant="outline" className="text-lg font-bold">
-                      {(currentPrice * 100).toFixed(1)}c
-                    </Badge>
-                    <div className={`flex items-center gap-1 text-sm ${isPositive ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
-                      {isPositive ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
-                      <span>{isPositive ? "+" : ""}{(priceChange * 100).toFixed(1)}c</span>
-                      <span className="text-muted-foreground">({isPositive ? "+" : ""}{priceChangePercent.toFixed(1)}%)</span>
-                    </div>
-                  </>
-                )}
-              </div>
-              <div className="flex gap-1">
-                {timeRanges.map(range => (
-                  <Button
-                    key={range.key}
-                    variant={timeRange === range.key ? "secondary" : "ghost"}
-                    size="sm"
-                    onClick={() => setTimeRange(range.key)}
-                    data-testid={`button-range-${range.key.toLowerCase()}`}
-                  >
-                    {range.label}
-                  </Button>
-                ))}
-              </div>
-            </div>
-
-            <div className="h-[200px]">
-              {isLoading ? (
-                <div className="flex items-center justify-center h-full">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                </div>
-              ) : chartData.length === 0 ? (
-                <div className="flex items-center justify-center h-full text-muted-foreground">
-                  No price history available
-                </div>
-              ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 5 }}>
-                    <XAxis 
-                      dataKey="timestamp" 
-                      tickFormatter={formatXAxis}
-                      tick={{ fontSize: 11 }}
-                      tickLine={false}
-                      axisLine={false}
-                      minTickGap={40}
-                    />
-                    <YAxis 
-                      domain={['auto', 'auto']}
-                      tickFormatter={(v) => `${v.toFixed(0)}c`}
-                      tick={{ fontSize: 11 }}
-                      tickLine={false}
-                      axisLine={false}
-                      width={45}
-                    />
-                    <Tooltip content={<CustomTooltip />} />
-                    <ReferenceLine y={currentPrice * 100} stroke="#888" strokeDasharray="3 3" />
-                    <Line 
-                      type="monotone" 
-                      dataKey="price" 
-                      stroke={lineColor}
-                      strokeWidth={2}
-                      dot={false}
-                      activeDot={{ r: 4, fill: lineColor }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              )}
-            </div>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-semibold text-lg">
+            {type === "constructors" ? "Constructors" : "Drivers"} Championship Odds
+          </h3>
+          <div className="flex gap-1">
+            {timeRanges.map(range => (
+              <Button
+                key={range.key}
+                variant={timeRange === range.key ? "secondary" : "ghost"}
+                size="sm"
+                onClick={() => setTimeRange(range.key)}
+                data-testid={`button-range-${range.key.toLowerCase()}`}
+              >
+                {range.label}
+              </Button>
+            ))}
           </div>
+        </div>
 
-          <div className="lg:w-48 lg:border-l lg:pl-4">
-            <p className="text-sm text-muted-foreground mb-2">Top {type === "constructors" ? "Teams" : "Drivers"}</p>
-            <div className="space-y-1">
-              {topOutcomes.map(outcome => {
-                const isActive = activeOutcome?.id === outcome.id;
-                const color = colorKey[outcome.name] || "#888";
-                return (
-                  <button
+        <div className="h-[250px]">
+          {isLoading ? (
+            <div className="flex items-center justify-center h-full">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : !hasData ? (
+            <div className="flex items-center justify-center h-full text-muted-foreground">
+              No price history available
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 5 }}>
+                <XAxis 
+                  dataKey="timestamp" 
+                  tickFormatter={formatXAxis}
+                  tick={{ fontSize: 11 }}
+                  tickLine={false}
+                  axisLine={false}
+                  minTickGap={40}
+                />
+                <YAxis 
+                  domain={[0, 'auto']}
+                  tickFormatter={(v) => `${v.toFixed(0)}c`}
+                  tick={{ fontSize: 11 }}
+                  tickLine={false}
+                  axisLine={false}
+                  width={45}
+                />
+                <Tooltip content={<CustomTooltip />} />
+                <Legend 
+                  verticalAlign="bottom"
+                  height={36}
+                  iconType="circle"
+                  iconSize={8}
+                  formatter={(value) => <span className="text-sm">{value}</span>}
+                  onClick={(e) => {
+                    const outcome = topOutcomes.find(o => o.name === e.value);
+                    if (outcome && onSelectOutcome) {
+                      onSelectOutcome(outcome);
+                    }
+                  }}
+                  wrapperStyle={{ cursor: 'pointer' }}
+                />
+                {topOutcomes.map(outcome => (
+                  <Line 
                     key={outcome.id}
-                    className={`w-full flex items-center justify-between p-2 rounded-md text-left text-sm transition-colors hover-elevate ${
-                      isActive ? "bg-muted" : ""
-                    }`}
-                    onMouseEnter={() => setHoveredOutcome(outcome)}
-                    onMouseLeave={() => setHoveredOutcome(null)}
-                    onClick={() => onSelectOutcome?.(outcome)}
-                    data-testid={`chart-select-${outcome.id}`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <div 
-                        className="w-2 h-2 rounded-full" 
-                        style={{ backgroundColor: color }}
-                      />
-                      <span className="truncate">{outcome.name}</span>
-                    </div>
-                    <span className="font-medium">{(outcome.price * 100).toFixed(1)}c</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+                    type="monotone" 
+                    dataKey={outcome.name}
+                    stroke={colorKey[outcome.name] || "#888"}
+                    strokeWidth={2}
+                    dot={false}
+                    activeDot={{ r: 4 }}
+                    connectNulls
+                  />
+                ))}
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+
+        <div className="mt-4 flex flex-wrap gap-3 justify-center">
+          {topOutcomes.map(outcome => {
+            const color = colorKey[outcome.name] || "#888";
+            return (
+              <button
+                key={outcome.id}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm hover-elevate"
+                onClick={() => onSelectOutcome?.(outcome)}
+                data-testid={`chart-select-${outcome.id}`}
+              >
+                <div 
+                  className="w-3 h-3 rounded-full" 
+                  style={{ backgroundColor: color }}
+                />
+                <span className="font-medium">{outcome.name}</span>
+                <span className="text-muted-foreground">{(outcome.price * 100).toFixed(1)}c</span>
+              </button>
+            );
+          })}
         </div>
       </CardContent>
     </Card>
