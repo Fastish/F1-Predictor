@@ -276,19 +276,13 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         }
       };
 
-      const handleChainChanged = () => {
-        // Only reload if wallet is connected - prevents reload loop on initial page load
-        if (walletAddress) {
-          window.location.reload();
-        }
-      };
+      // Note: We intentionally don't auto-reload on chainChanged to prevent
+      // reload loops. Users should manually refresh if they switch networks.
 
       ethProvider.on("accountsChanged", handleAccountsChanged);
-      ethProvider.on("chainChanged", handleChainChanged);
 
       return () => {
         ethProvider.removeListener?.("accountsChanged", handleAccountsChanged);
-        ethProvider.removeListener?.("chainChanged", handleChainChanged);
       };
     }
   }, [walletType, walletAddress]);
