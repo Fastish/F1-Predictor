@@ -99,40 +99,49 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
   };
 
   const handleExternalWalletConnect = async () => {
-    const success = await connectExternalWallet();
-    if (success) {
-      if (userId) {
-        try {
-          const res = await fetch(`/api/users/${userId}/link-wallet`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ walletAddress }),
-          });
-          if (!res.ok) {
-            const error = await res.json();
-            if (res.status === 404 && error.error === "User not found") {
-              resetUser();
-              onOpenChange(false);
-              toast({
-                title: "Session Reset",
-                description: "Your session was reset. Please try connecting again.",
-              });
-              return;
+    try {
+      const success = await connectExternalWallet();
+      if (success) {
+        if (userId) {
+          try {
+            const res = await fetch(`/api/users/${userId}/link-wallet`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ walletAddress }),
+            });
+            if (!res.ok) {
+              const error = await res.json();
+              if (res.status === 404 && error.error === "User not found") {
+                resetUser();
+                onOpenChange(false);
+                toast({
+                  title: "Session Reset",
+                  description: "Your session was reset. Please try connecting again.",
+                });
+                return;
+              }
             }
+          } catch (e) {
+            console.error("Failed to link wallet:", e);
           }
-        } catch (e) {
-          console.error("Failed to link wallet:", e);
         }
+        toast({
+          title: "Wallet Connected",
+          description: "Your external wallet has been connected to Polygon.",
+        });
+        refetchBalance();
+      } else {
+        toast({
+          title: "Connection Failed",
+          description: "Wallet connection was cancelled or failed. Please try again.",
+          variant: "destructive",
+        });
       }
-      toast({
-        title: "Wallet Connected",
-        description: "Your external wallet has been connected to Polygon.",
-      });
-      refetchBalance();
-    } else {
+    } catch (error: any) {
+      console.error("Wallet connection error:", error);
       toast({
         title: "Connection Failed",
-        description: "No compatible wallet found. Please install MetaMask, Phantom, or another Polygon wallet and make sure it's unlocked.",
+        description: error.message || "No compatible wallet found. Please install MetaMask or Phantom and refresh the page.",
         variant: "destructive",
       });
     }

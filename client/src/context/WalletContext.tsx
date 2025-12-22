@@ -69,16 +69,102 @@ function getEthereumProvider(): EthereumProvider | null {
   return null;
 }
 
-// Wait for provider to be injected (some wallets inject after page load)
-async function waitForProvider(maxAttempts = 10, delayMs = 100): Promise<EthereumProvider | null> {
-  for (let i = 0; i < maxAttempts; i++) {
-    const provider = getEthereumProvider();
+// Wait for provider to be injected using multiple strategies
+async function waitForProvider(): Promise<EthereumProvider | null> {
+  console.log("Starting provider detection...");
+  console.log("Document readyState:", document.readyState);
+  
+  // Strategy 1: Check immediately
+  let provider = getEthereumProvider();
+  if (provider) {
+    console.log("Provider found immediately");
+    return provider;
+  }
+  
+  // Strategy 2: Wait for DOMContentLoaded if not ready
+  if (document.readyState !== 'complete') {
+    console.log("Waiting for document to be ready...");
+    await new Promise<void>(resolve => {
+      if (document.readyState === 'complete') {
+        resolve();
+      } else {
+        window.addEventListener('load', () => resolve(), { once: true });
+      }
+    });
+    provider = getEthereumProvider();
     if (provider) {
+      console.log("Provider found after document ready");
       return provider;
     }
-    await new Promise(resolve => setTimeout(resolve, delayMs));
   }
+  
+  // Strategy 3: Listen for eip6963:announceProvider event (modern standard)
+  // This runs in the background while we also poll
+  let eip6963Provider: EthereumProvider | null = null;
+  const eip6963Handler = (event: any) => {
+    console.log("EIP-6963 provider announced:", event.detail);
+    if (event.detail?.provider) {
+      eip6963Provider = event.detail.provider;
+    }
+  };
+  window.addEventListener('eip6963:announceProvider', eip6963Handler);
+  window.dispatchEvent(new Event('eip6963:requestProvider'));
+  
+  // Strategy 4: Poll with increasing delays (total ~5.5 seconds)
+  const delays = [100, 200, 300, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500];
+  for (const delay of delays) {
+    await new Promise(r => setTimeout(r, delay));
+    
+    // Check if EIP-6963 found a provider
+    if (eip6963Provider) {
+      console.log("Provider found via EIP-6963");
+      window.removeEventListener('eip6963:announceProvider', eip6963Handler);
+      return eip6963Provider;
+    }
+    
+    // Check standard provider locations
+    const p = getEthereumProvider();
+    if (p) {
+      console.log(`Provider found after ${delay}ms poll`);
+      window.removeEventListener('eip6963:announceProvider', eip6963Handler);
+      return p;
+    }
+  }
+  
+  // Cleanup EIP-6963 listener
+  window.removeEventListener('eip6963:announceProvider', eip6963Handler);
+  
+  // Final checks
+  if (eip6963Provider) {
+    console.log("Provider found via EIP-6963 (final check)");
+    return eip6963Provider;
+  }
+  
+  provider = getEthereumProvider();
+  if (provider) {
+    console.log("Provider found on final check");
+    return provider;
+  }
+  
+  console.log("No provider detected after all strategies (~5.5s wait)");
   return null;
+}
+
+// Get diagnostic info about what providers are available
+function getProviderDiagnostics(): string {
+  const diagnostics: string[] = [];
+  if (window.phantom) {
+    diagnostics.push("Phantom extension detected");
+    if (window.phantom.ethereum) {
+      diagnostics.push("Phantom Ethereum provider available");
+    }
+  }
+  if (window.ethereum) {
+    diagnostics.push("window.ethereum available");
+    if (window.ethereum.isPhantom) diagnostics.push("(isPhantom)");
+    if (window.ethereum.isMetaMask) diagnostics.push("(isMetaMask)");
+  }
+  return diagnostics.length > 0 ? diagnostics.join(", ") : "No providers detected";
 }
 
 let magicInstance: Magic | null = null;
@@ -227,20 +313,18 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     setIsConnecting(true);
     try {
       console.log("Attempting to connect external wallet...");
-      console.log("window.phantom:", window.phantom);
-      console.log("window.phantom?.ethereum:", window.phantom?.ethereum);
-      console.log("window.ethereum:", window.ethereum);
-      console.log("window.ethereum?.isPhantom:", window.ethereum?.isPhantom);
+      console.log("Initial diagnostics:", getProviderDiagnostics());
       
       // Wait for provider with retry logic (handles late injection)
-      const ethProvider = await waitForProvider(15, 200);
+      const ethProvider = await waitForProvider();
       
       if (!ethProvider) {
-        console.error("No Ethereum provider detected after waiting");
-        throw new Error("No wallet detected. Please install MetaMask, Phantom, or another Polygon-compatible wallet.");
+        const diagnostics = getProviderDiagnostics();
+        console.error("No Ethereum provider detected after waiting. Diagnostics:", diagnostics);
+        throw new Error(`No wallet detected. ${diagnostics}. Please make sure your wallet extension is installed, unlocked, and refresh the page.`);
       }
       
-      console.log("Provider found:", ethProvider);
+      console.log("Provider connected successfully");
       console.log("Provider isPhantom:", ethProvider.isPhantom);
       console.log("Provider isMetaMask:", ethProvider.isMetaMask);
 
@@ -291,7 +375,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       return false;
     } catch (error: any) {
       console.error("External wallet connection error:", error);
-      return false;
+      // Re-throw so caller can display specific error message
+      throw error;
     } finally {
       setIsConnecting(false);
     }
