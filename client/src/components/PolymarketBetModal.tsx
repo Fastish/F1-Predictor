@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import {
   Dialog,
   DialogContent,
@@ -16,7 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useMarket } from "@/context/MarketContext";
 import { useWallet } from "@/context/WalletContext";
-import { placePolymarketOrder, type ApiCredentials } from "@/lib/polymarketClient";
+import { usePolymarketTrading } from "@/hooks/usePolymarketTrading";
 import { PolymarketDepositWizard } from "./PolymarketDepositWizard";
 
 interface PolymarketOutcome {
@@ -53,11 +53,11 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance }: Poly
   const [side, setSide] = useState<"YES" | "NO">("YES");
   const [amount, setAmount] = useState("");
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
-  const [cachedCredentials, setCachedCredentials] = useState<ApiCredentials | null>(null);
   const [showDepositWizard, setShowDepositWizard] = useState(false);
   const { toast } = useToast();
   const { userId } = useMarket();
   const { signer, walletAddress, walletType } = useWallet();
+  const { placeOrder } = usePolymarketTrading();
 
   const { data: orderBook, isLoading: orderBookLoading } = useQuery<OrderBook>({
     queryKey: ["/api/polymarket/orderbook", outcome.tokenId],
@@ -128,17 +128,12 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance }: Poly
         description: "Please sign the order in your wallet...",
       });
 
-      const result = await placePolymarketOrder(
-        signer,
-        walletAddress,
-        {
-          tokenId: selectedTokenId,
-          price: selectedPrice,
-          size: shares,
-          side: "BUY",
-        },
-        cachedCredentials
-      );
+      const result = await placeOrder({
+        tokenId: selectedTokenId,
+        price: selectedPrice,
+        size: shares,
+        side: "BUY",
+      });
 
       if (result.success) {
         await apiRequest("POST", "/api/polymarket/record-order", {
@@ -151,7 +146,7 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance }: Poly
           size: shares,
           totalCost: parsedAmount,
           polymarketOrderId: result.orderId,
-          status: result.status || "open",
+          status: "open",
         });
 
         toast({
