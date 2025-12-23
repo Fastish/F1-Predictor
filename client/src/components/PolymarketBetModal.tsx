@@ -274,11 +274,17 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance }: Poly
             </div>
           )}
 
-          <div className="flex items-start gap-2 rounded-md bg-amber-500/10 p-3 text-sm">
-            <AlertCircle className="h-4 w-4 text-amber-500 mt-0.5 flex-shrink-0" />
-            <p className="text-muted-foreground">
-              Orders are signed with your wallet and placed directly on Polymarket. Trading involves risk.
-            </p>
+          <div className="flex items-start gap-2 rounded-md bg-red-500/10 p-3 text-sm">
+            <AlertCircle className="h-4 w-4 text-red-500 mt-0.5 flex-shrink-0" />
+            <div className="text-muted-foreground space-y-1">
+              <p className="font-medium text-red-600 dark:text-red-400">
+                Order placement temporarily unavailable
+              </p>
+              <p>
+                Polymarket's security system is currently blocking orders from this server. 
+                To trade, please use the Polymarket website directly.
+              </p>
+            </div>
           </div>
 
           {!walletAddress && (
@@ -305,36 +311,23 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance }: Poly
 
           <div className="flex gap-2">
             <Button variant="outline" onClick={onClose} className="flex-1" data-testid="button-cancel-bet">
-              Cancel
+              Close
             </Button>
             <Button
-              onClick={handlePlaceBet}
-              disabled={parsedAmount <= 0 || parsedAmount > userBalance || isPlacingOrder || !walletAddress}
+              asChild
               className="flex-1"
-              data-testid="button-confirm-bet"
+              data-testid="button-trade-on-polymarket"
             >
-              {isPlacingOrder ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Signing...
-                </>
-              ) : !walletAddress ? (
-                "Connect Wallet"
-              ) : (
-                `Bet $${parsedAmount.toFixed(2)} on ${side}`
-              )}
+              <a
+                href="https://polymarket.com/event/f1-constructors-champion"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <ExternalLink className="mr-2 h-4 w-4" />
+                Trade on Polymarket
+              </a>
             </Button>
           </div>
-
-          <a
-            href="https://polymarket.com/event/f1-constructors-champion"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center justify-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-          >
-            <ExternalLink className="h-3 w-3" />
-            View market on Polymarket
-          </a>
         </div>
       </DialogContent>
 

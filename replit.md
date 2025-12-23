@@ -111,6 +111,13 @@ The app uses a dual-wallet system:
 - **Status Normalization**: CLOB statuses (OPEN/LIVE/MATCHED/CANCELED/EXPIRED) mapped to schema vocabulary (open/filled/partial/cancelled/expired/pending)
 - Admin panel section for viewing/syncing Polymarket F1 markets
 
+**Known Infrastructure Limitation:**
+- Polymarket's CLOB API (clob.polymarket.com) blocks order submissions from Replit servers via Cloudflare
+- Market data fetching (gamma-api.polymarket.com) works without issues
+- This is an IP reputation/infrastructure-level block, not an auth or code issue
+- To resolve: Deploy order submission proxy on trusted infrastructure (AWS/Vercel) and request Polymarket builder allowlist
+- Current workaround: UI directs users to trade directly on Polymarket website
+
 ### Polymarket Relayer Client (Gasless Transactions)
 The app integrates with Polymarket's Builder Relayer for gasless transactions:
 
