@@ -11,10 +11,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, TrendingUp, TrendingDown, AlertCircle, ExternalLink } from "lucide-react";
+import { Loader2, TrendingUp, TrendingDown, AlertCircle, ExternalLink, Wallet } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useMarket } from "@/context/MarketContext";
+import { useWallet } from "@/context/WalletContext";
+import { placePolymarketOrder, type ApiCredentials } from "@/lib/polymarketClient";
 
 interface PolymarketOutcome {
   id: string;
@@ -49,8 +51,11 @@ interface PolymarketBetModalProps {
 export function PolymarketBetModal({ open, onClose, outcome, userBalance }: PolymarketBetModalProps) {
   const [side, setSide] = useState<"YES" | "NO">("YES");
   const [amount, setAmount] = useState("");
+  const [isPlacingOrder, setIsPlacingOrder] = useState(false);
+  const [cachedCredentials, setCachedCredentials] = useState<ApiCredentials | null>(null);
   const { toast } = useToast();
   const { userId } = useMarket();
+  const { signer, walletAddress, walletType } = useWallet();
 
   const { data: orderBook, isLoading: orderBookLoading } = useQuery<OrderBook>({
     queryKey: ["/api/polymarket/orderbook", outcome.tokenId],
@@ -76,44 +81,20 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance }: Poly
   const potentialPayout = shares * 1; // Each share pays $1 if wins
   const potentialProfit = potentialPayout - parsedAmount;
 
-  const placeBetMutation = useMutation({
-    mutationFn: async (orderData: {
-      userId: string;
-      tokenId: string;
-      side: "BUY";
-      outcome: "YES" | "NO";
-      price: number;
-      size: number;
-      marketName: string;
-    }) => {
-      const response = await apiRequest("POST", "/api/polymarket/place-order", orderData);
-      return response.json();
-    },
-    onSuccess: () => {
-      toast({
-        title: "Order Submitted",
-        description: "Your bet has been submitted to Polymarket",
-      });
-      queryClient.invalidateQueries({ queryKey: ["/api/polymarket"] });
-      if (userId) {
-        queryClient.invalidateQueries({ queryKey: ["/api/polymarket/orders", userId] });
-      }
-      onClose();
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Order Failed",
-        description: error.message || "Failed to place order",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const handlePlaceBet = () => {
+  const handlePlaceBet = async () => {
     if (!userId) {
       toast({
         title: "Not Logged In",
         description: "Please connect your account to place bets",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!signer || !walletAddress) {
+      toast({
+        title: "Wallet Not Connected",
+        description: "Please connect your wallet to place bets on Polymarket",
         variant: "destructive",
       });
       return;
@@ -137,15 +118,67 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance }: Poly
       return;
     }
 
-    placeBetMutation.mutate({
-      userId,
-      tokenId: selectedTokenId,
-      side: "BUY",
-      outcome: side,
-      price: selectedPrice,
-      size: shares,
-      marketName: outcome.name,
-    });
+    setIsPlacingOrder(true);
+
+    try {
+      toast({
+        title: "Signing Order",
+        description: "Please sign the order in your wallet...",
+      });
+
+      const result = await placePolymarketOrder(
+        signer,
+        walletAddress,
+        {
+          tokenId: selectedTokenId,
+          price: selectedPrice,
+          size: shares,
+          side: "BUY",
+        },
+        cachedCredentials
+      );
+
+      if (result.success) {
+        await apiRequest("POST", "/api/polymarket/record-order", {
+          userId,
+          tokenId: selectedTokenId,
+          marketName: outcome.name,
+          outcome: side,
+          side: "BUY",
+          price: selectedPrice,
+          size: shares,
+          totalCost: parsedAmount,
+          polymarketOrderId: result.orderId,
+          status: result.status || "open",
+        });
+
+        toast({
+          title: "Order Placed",
+          description: "Your bet has been submitted to Polymarket",
+        });
+
+        queryClient.invalidateQueries({ queryKey: ["/api/polymarket"] });
+        if (userId) {
+          queryClient.invalidateQueries({ queryKey: ["/api/polymarket/orders", userId] });
+        }
+        onClose();
+      } else {
+        toast({
+          title: "Order Failed",
+          description: result.error || "Failed to place order on Polymarket",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Error placing bet:", error);
+      toast({
+        title: "Order Failed",
+        description: error instanceof Error ? error.message : "Failed to place order",
+        variant: "destructive",
+      });
+    } finally {
+      setIsPlacingOrder(false);
+    }
   };
 
   const bestBid = orderBook?.bids?.[0];
@@ -243,9 +276,18 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance }: Poly
           <div className="flex items-start gap-2 rounded-md bg-amber-500/10 p-3 text-sm">
             <AlertCircle className="h-4 w-4 text-amber-500 mt-0.5 flex-shrink-0" />
             <p className="text-muted-foreground">
-              Orders are placed on Polymarket via the builder API. Trading involves risk.
+              Orders are signed with your wallet and placed directly on Polymarket. Trading involves risk.
             </p>
           </div>
+
+          {!walletAddress && (
+            <div className="flex items-center gap-2 rounded-md bg-blue-500/10 p-3 text-sm">
+              <Wallet className="h-4 w-4 text-blue-500 flex-shrink-0" />
+              <p className="text-muted-foreground">
+                Connect your wallet to place bets on Polymarket
+              </p>
+            </div>
+          )}
 
           <div className="flex gap-2">
             <Button variant="outline" onClick={onClose} className="flex-1" data-testid="button-cancel-bet">
@@ -253,15 +295,17 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance }: Poly
             </Button>
             <Button
               onClick={handlePlaceBet}
-              disabled={parsedAmount <= 0 || parsedAmount > userBalance || placeBetMutation.isPending}
+              disabled={parsedAmount <= 0 || parsedAmount > userBalance || isPlacingOrder || !walletAddress}
               className="flex-1"
               data-testid="button-confirm-bet"
             >
-              {placeBetMutation.isPending ? (
+              {isPlacingOrder ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Placing...
+                  Signing...
                 </>
+              ) : !walletAddress ? (
+                "Connect Wallet"
               ) : (
                 `Bet $${parsedAmount.toFixed(2)} on ${side}`
               )}

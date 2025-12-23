@@ -767,6 +767,50 @@ export async function registerRoutes(
     }
   });
 
+  // Record a client-submitted Polymarket order (for client-side signing flow)
+  app.post("/api/polymarket/record-order", async (req, res) => {
+    try {
+      const { userId, tokenId, marketName, outcome, side, price, size, totalCost, polymarketOrderId, status } = req.body;
+      
+      if (!userId || !tokenId || !outcome || !side || price === undefined || size === undefined) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      const savedOrder = await storage.createPolymarketOrder({
+        userId,
+        tokenId,
+        marketName: marketName || null,
+        outcome,
+        side,
+        price,
+        size,
+        filledSize: 0,
+        status: status || "open",
+        totalCost: totalCost || (price * size),
+        polymarketOrderId: polymarketOrderId || null,
+      });
+
+      console.log("Client-submitted Polymarket order recorded:", {
+        orderId: savedOrder.id,
+        polymarketOrderId,
+        tokenId,
+        side,
+        outcome,
+        price,
+        size,
+        timestamp: new Date().toISOString()
+      });
+
+      res.json({
+        success: true,
+        order: savedOrder
+      });
+    } catch (error) {
+      console.error("Failed to record Polymarket order:", error);
+      res.status(500).json({ error: "Failed to record order" });
+    }
+  });
+
   // Get user's Polymarket orders
   app.get("/api/polymarket/orders/:userId", async (req, res) => {
     try {

@@ -4,6 +4,13 @@ import { ethers } from "ethers";
 
 type WalletType = "magic" | "external" | null;
 
+export interface PolymarketCredentials {
+  apiKey: string;
+  secret: string;
+  passphrase: string;
+  derivedAt: number;
+}
+
 interface WalletContextType {
   walletAddress: string | null;
   walletType: WalletType;
@@ -12,6 +19,8 @@ interface WalletContextType {
   userEmail: string | null;
   provider: ethers.BrowserProvider | null;
   signer: ethers.Signer | null;
+  polymarketCredentials: PolymarketCredentials | null;
+  setPolymarketCredentials: (creds: PolymarketCredentials | null) => void;
   connectWallet: () => Promise<boolean>;
   connectWithMagic: (email: string) => Promise<boolean>;
   connectExternalWallet: () => Promise<boolean>;
@@ -193,6 +202,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [provider, setProvider] = useState<ethers.BrowserProvider | null>(null);
   const [signer, setSigner] = useState<ethers.Signer | null>(null);
+  const [polymarketCredentials, setPolymarketCredentials] = useState<PolymarketCredentials | null>(null);
 
   useEffect(() => {
     const checkExistingSession = async () => {
