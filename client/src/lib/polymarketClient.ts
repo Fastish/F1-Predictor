@@ -96,39 +96,75 @@ async function createHmacSignature(secret: string, timestamp: string, method: st
   const messageData = encoder.encode(message);
   const signature = await crypto.subtle.sign("HMAC", cryptoKey, messageData);
   
-  return btoa(String.fromCharCode(...new Uint8Array(signature)));
+  return btoa(String.fromCharCode.apply(null, Array.from(new Uint8Array(signature))));
 }
+
+const CLOB_AUTH_DOMAIN = {
+  name: "ClobAuthDomain",
+  version: "1",
+  chainId: POLYGON_CHAIN_ID,
+};
+
+const CLOB_AUTH_TYPES = {
+  ClobAuth: [
+    { name: "address", type: "address" },
+    { name: "timestamp", type: "string" },
+    { name: "nonce", type: "uint256" },
+    { name: "message", type: "string" },
+  ],
+};
 
 export async function deriveApiCredentials(
   signer: ethers.Signer,
   walletAddress: string
 ): Promise<ApiCredentials | null> {
   try {
-    const timestamp = Math.floor(Date.now() / 1000);
-    const nonce = generateNonce();
+    const timestamp = Math.floor(Date.now() / 1000).toString();
+    const nonce = 0;
+    const message = "This message attests that I control the given wallet";
     
-    const message = `This message attests that I control the given wallet\nAddress: ${walletAddress}\nTimestamp: ${timestamp}\nNonce: ${nonce}`;
+    const authValue = {
+      address: walletAddress,
+      timestamp: timestamp,
+      nonce: nonce,
+      message: message,
+    };
     
-    const signature = await signer.signMessage(message);
+    console.log("Signing ClobAuth EIP-712 message:", authValue);
+    
+    const signature = await signer.signTypedData(
+      CLOB_AUTH_DOMAIN,
+      CLOB_AUTH_TYPES,
+      authValue
+    );
+    
+    console.log("ClobAuth signature obtained, calling derive-api-key...");
     
     const response = await fetch(`${CLOB_API_URL}/auth/derive-api-key`, {
-      method: "POST",
-      headers: BROWSER_HEADERS,
-      body: JSON.stringify({
-        message,
-        signature,
-        timestamp,
-        nonce,
-      }),
+      method: "GET",
+      headers: {
+        ...BROWSER_HEADERS,
+        "POLY_ADDRESS": walletAddress,
+        "POLY_SIGNATURE": signature,
+        "POLY_TIMESTAMP": timestamp,
+        "POLY_NONCE": nonce.toString(),
+      },
     });
     
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Failed to derive API credentials:", errorText);
+    const responseText = await response.text();
+    console.log("derive-api-key response:", response.status, responseText.substring(0, 500));
+    
+    if (responseText.includes("<!DOCTYPE html>") || responseText.includes("Cloudflare")) {
+      console.error("Cloudflare blocked the credential derivation request");
       return null;
     }
     
-    const data = await response.json();
+    if (!response.ok) {
+      console.error("Failed to derive API credentials:", responseText);
+      return null;
+    }
+    
+    const data = JSON.parse(responseText);
     return {
       apiKey: data.apiKey,
       secret: data.secret,
