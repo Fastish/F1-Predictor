@@ -1,4 +1,4 @@
-import { Wallet, TrendingUp, Menu, Plus, Loader2, Briefcase } from "lucide-react";
+import { Wallet, TrendingUp, Menu, Plus, Loader2, Briefcase, Flag } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -42,6 +42,16 @@ export function Header() {
           </Link>
           
           <nav className="hidden items-center gap-1 md:flex">
+            <Link href="/races">
+              <Button
+                variant={location === "/races" || location.startsWith("/races/") ? "secondary" : "ghost"}
+                size="sm"
+                data-testid="button-nav-races"
+              >
+                <Flag className="mr-1 h-4 w-4" />
+                Races
+              </Button>
+            </Link>
             <Link href="/positions">
               <Button
                 variant={location === "/positions" ? "secondary" : "ghost"}
@@ -94,6 +104,17 @@ export function Header() {
             </SheetTrigger>
             <SheetContent side="right" className="w-64">
               <nav className="mt-8 flex flex-col gap-2">
+                <Link href="/races">
+                  <Button
+                    variant={location === "/races" || location.startsWith("/races/") ? "secondary" : "ghost"}
+                    className="justify-start w-full"
+                    onClick={() => setMobileMenuOpen(false)}
+                    data-testid="button-mobile-nav-races"
+                  >
+                    <Flag className="mr-2 h-4 w-4" />
+                    Races
+                  </Button>
+                </Link>
                 <Link href="/positions">
                   <Button
                     variant={location === "/positions" ? "secondary" : "ghost"}

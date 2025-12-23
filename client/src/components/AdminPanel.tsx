@@ -1,8 +1,10 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -10,19 +12,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
 import { useMarket } from "@/context/MarketContext";
 import { useWallet } from "@/context/WalletContext";
-import { Trophy, Play, CheckCircle, AlertCircle, DollarSign, Lock, Bot, Power, PowerOff, Users, FileCode, Upload, Shield, XCircle, ArrowRight, RefreshCw, Link2 } from "lucide-react";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import type { Payout, ZkProof, ChampionshipPool } from "@shared/schema";
+import { Trophy, Play, CheckCircle, AlertCircle, DollarSign, Lock, RefreshCw, Link2, Plus, Flag, Trash2, Eye, EyeOff, MapPin, Calendar, Users, Settings, Save } from "lucide-react";
+import type { Payout, RaceMarket, RaceMarketOutcome, Driver } from "@shared/schema";
 
-interface DriverMarketsStatus {
-  exists: boolean;
-  count: number;
+interface EnrichedOutcome extends RaceMarketOutcome {
+  driver: Driver | null;
 }
 
 interface SeasonResponse {
@@ -33,27 +39,6 @@ interface SeasonResponse {
   winningTeamId?: string | null;
   prizePool?: number;
   concludedAt?: string | null;
-}
-
-interface MarketMakerStatus {
-  running: boolean;
-  botUserId: string | null;
-  intervalMs: number;
-  lastRunAt: string | null;
-}
-
-interface ProofPreview {
-  valid: boolean;
-  serverDomain: string;
-  notaryPublicKey: string;
-  extractedWinner: {
-    id: string | null;
-    name: string | null;
-    isTeamResult: boolean;
-  };
-  transcriptPreview: string;
-  cryptoVerification: string;
-  error?: string;
 }
 
 interface PolymarketF1Market {
@@ -74,10 +59,18 @@ export function AdminPanel() {
   const { walletAddress } = useWallet();
   const { toast } = useToast();
   const [selectedTeamId, setSelectedTeamId] = useState<string>("");
-  const [proofJson, setProofJson] = useState<string>("");
-  const [proofPreview, setProofPreview] = useState<ProofPreview | null>(null);
-  const [selectedPoolId, setSelectedPoolId] = useState<string>("");
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [showAddRaceDialog, setShowAddRaceDialog] = useState(false);
+  const [showOutcomesDialog, setShowOutcomesDialog] = useState(false);
+  const [selectedRaceForOutcomes, setSelectedRaceForOutcomes] = useState<RaceMarket | null>(null);
+  const [outcomeEdits, setOutcomeEdits] = useState<Record<string, { tokenId: string; price: string }>>({});
+  const [newRace, setNewRace] = useState({
+    name: "",
+    shortName: "",
+    location: "",
+    raceDate: "",
+    polymarketConditionId: "",
+    polymarketSlug: "",
+  });
 
   const adminApiRequest = async (url: string, method: string, data?: unknown) => {
     const res = await fetch(url, {
@@ -100,40 +93,6 @@ export function AdminPanel() {
     queryKey: ["/api/season"],
   });
 
-  const { data: marketMakerStatus, refetch: refetchMarketMakerStatus } = useQuery<MarketMakerStatus>({
-    queryKey: ["/api/admin/market-maker/status"],
-    queryFn: async () => adminApiRequest("/api/admin/market-maker/status", "GET"),
-    refetchInterval: 5000,
-  });
-
-  const startMarketMakerMutation = useMutation({
-    mutationFn: async () => {
-      return adminApiRequest("/api/admin/market-maker/start", "POST", { intervalMs: 30000 });
-    },
-    onSuccess: () => {
-      toast({ title: "Market Maker Started", description: "Bot is now providing liquidity." });
-      refetchMarketMakerStatus();
-    },
-    onError: (error: any) => {
-      toast({ title: "Error", description: error.message || "Failed to start market maker", variant: "destructive" });
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/market-maker/status"] });
-    },
-  });
-
-  const stopMarketMakerMutation = useMutation({
-    mutationFn: async () => {
-      return adminApiRequest("/api/admin/market-maker/stop", "POST", {});
-    },
-    onSuccess: () => {
-      toast({ title: "Market Maker Stopped", description: "Bot has stopped providing liquidity." });
-      refetchMarketMakerStatus();
-    },
-    onError: (error: any) => {
-      toast({ title: "Error", description: error.message || "Failed to stop market maker", variant: "destructive" });
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/market-maker/status"] });
-    },
-  });
-
   const payoutsQueryKey = season?.id ? `/api/admin/season/${season.id}/payouts` : null;
   
   const { data: payouts = [] } = useQuery<Payout[]>({
@@ -145,21 +104,6 @@ export function AdminPanel() {
     enabled: !!payoutsQueryKey && season?.status === "concluded",
   });
 
-  const { data: driverMarketsStatus } = useQuery<DriverMarketsStatus>({
-    queryKey: ["/api/clob/driver-markets"],
-    queryFn: async () => {
-      const res = await fetch("/api/clob/driver-markets");
-      if (!res.ok) return { exists: false, count: 0 };
-      const markets = await res.json();
-      return { exists: markets.length > 0, count: markets.length };
-    },
-    enabled: !!season?.exists && season.status === "active",
-  });
-
-  const { data: pools = [] } = useQuery<ChampionshipPool[]>({
-    queryKey: ["/api/pools"],
-  });
-
   const { data: polymarketF1Markets = [], refetch: refetchPolymarketMarkets, isLoading: polymarketLoading } = useQuery<PolymarketF1Market[]>({
     queryKey: ["/api/polymarket/f1-markets"],
     queryFn: async () => {
@@ -169,112 +113,9 @@ export function AdminPanel() {
     },
   });
 
-  const { data: zkProofs = [], refetch: refetchProofs } = useQuery<ZkProof[]>({
-    queryKey: ["/api/proofs/pool", selectedPoolId],
-    queryFn: async () => {
-      if (!selectedPoolId) return [];
-      return adminApiRequest(`/api/proofs/pool/${selectedPoolId}`, "GET");
-    },
-    enabled: !!selectedPoolId,
-  });
-
-  const previewProofMutation = useMutation({
-    mutationFn: async (json: string) => {
-      return adminApiRequest("/api/proofs/preview", "POST", { proofJson: json });
-    },
-    onSuccess: (data: ProofPreview) => {
-      setProofPreview(data);
-    },
-    onError: (error: any) => {
-      setProofPreview({ 
-        valid: false, 
-        serverDomain: "", 
-        notaryPublicKey: "", 
-        extractedWinner: { id: null, name: null, isTeamResult: false },
-        transcriptPreview: "",
-        cryptoVerification: "failed",
-        error: error.message 
-      });
-    },
-  });
-
-  const submitProofMutation = useMutation({
-    mutationFn: async ({ poolId, json }: { poolId: string; json: string }) => {
-      return adminApiRequest("/api/proofs/submit", "POST", { 
-        poolId, 
-        userId: "admin", 
-        proofJson: json 
-      });
-    },
-    onSuccess: () => {
-      toast({ title: "Proof Submitted", description: "zkTLS proof has been submitted for verification." });
-      setProofJson("");
-      setProofPreview(null);
-      refetchProofs();
-    },
-    onError: (error: any) => {
-      toast({ title: "Submission Failed", description: error.message, variant: "destructive" });
-    },
-  });
-
-  const verifyProofMutation = useMutation({
-    mutationFn: async (proofId: string) => {
-      return adminApiRequest(`/api/proofs/${proofId}/verify`, "POST", {});
-    },
-    onSuccess: (data: any) => {
-      if (data.success) {
-        toast({ title: "Proof Verified", description: `Winner extracted: ${data.extractedWinner?.name || data.extractedWinner?.id}` });
-      } else {
-        toast({ title: "Verification Failed", description: data.reason, variant: "destructive" });
-      }
-      refetchProofs();
-    },
-    onError: (error: any) => {
-      toast({ title: "Verification Error", description: error.message, variant: "destructive" });
-    },
-  });
-
-  const resolvePoolMutation = useMutation({
-    mutationFn: async (proofId: string) => {
-      return adminApiRequest(`/api/proofs/${proofId}/resolve-pool`, "POST", {});
-    },
-    onSuccess: (data: any) => {
-      toast({ title: "Pool Resolved", description: data.message });
-      queryClient.invalidateQueries({ queryKey: ["/api/pools"] });
-      refetchProofs();
-    },
-    onError: (error: any) => {
-      toast({ title: "Resolution Failed", description: error.message, variant: "destructive" });
-    },
-  });
-
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const content = e.target?.result as string;
-        setProofJson(content);
-        previewProofMutation.mutate(content);
-      };
-      reader.readAsText(file);
-    }
-  };
-
-  const createDriverMarketsMutation = useMutation({
-    mutationFn: async () => {
-      return adminApiRequest("/api/admin/driver-markets/create", "POST", {});
-    },
-    onSuccess: (data: any) => {
-      toast({ 
-        title: "Driver Markets Created", 
-        description: `Created ${data.markets?.length || 0} driver markets for ${data.season?.year || 2026} season.` 
-      });
-      queryClient.invalidateQueries({ queryKey: ["/api/clob/driver-markets"] });
-    },
-    onError: (error: any) => {
-      toast({ title: "Error", description: error.message || "Failed to create driver markets", variant: "destructive" });
-    },
+  const { data: raceMarkets = [], refetch: refetchRaceMarkets, isLoading: raceMarketsLoading } = useQuery<RaceMarket[]>({
+    queryKey: ["/api/admin/race-markets"],
+    queryFn: async () => adminApiRequest("/api/admin/race-markets", "GET"),
   });
 
   const createSeasonMutation = useMutation({
@@ -339,6 +180,111 @@ export function AdminPanel() {
     },
   });
 
+  const createRaceMarketMutation = useMutation({
+    mutationFn: async (raceData: typeof newRace) => {
+      return adminApiRequest("/api/admin/race-markets", "POST", raceData);
+    },
+    onSuccess: () => {
+      toast({ title: "Race Market Created", description: "New race market has been added." });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/race-markets"] });
+      setShowAddRaceDialog(false);
+      setNewRace({ name: "", shortName: "", location: "", raceDate: "", polymarketConditionId: "", polymarketSlug: "" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to create race market", variant: "destructive" });
+    },
+  });
+
+  const toggleRaceVisibilityMutation = useMutation({
+    mutationFn: async ({ id, isVisible }: { id: string; isVisible: boolean }) => {
+      return adminApiRequest(`/api/admin/race-markets/${id}`, "PATCH", { isVisible });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/race-markets"] });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to update visibility", variant: "destructive" });
+    },
+  });
+
+  const deleteRaceMarketMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return adminApiRequest(`/api/admin/race-markets/${id}`, "DELETE");
+    },
+    onSuccess: () => {
+      toast({ title: "Race Market Deleted" });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/race-markets"] });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to delete race market", variant: "destructive" });
+    },
+  });
+
+  const populateDriversMutation = useMutation({
+    mutationFn: async (raceId: string) => {
+      return adminApiRequest(`/api/admin/race-markets/${raceId}/populate-drivers`, "POST");
+    },
+    onSuccess: (data: { addedCount: number; totalOutcomes: number }) => {
+      toast({ 
+        title: "Drivers Added", 
+        description: `Added ${data.addedCount} drivers. Total: ${data.totalOutcomes} outcomes.` 
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/race-markets"] });
+      if (selectedRaceForOutcomes) {
+        queryClient.invalidateQueries({ queryKey: ["/api/admin/race-markets", selectedRaceForOutcomes.id, "outcomes"] });
+      }
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to populate drivers", variant: "destructive" });
+    },
+  });
+
+  const { data: raceOutcomes = [], isLoading: outcomesLoading, refetch: refetchOutcomes } = useQuery<EnrichedOutcome[]>({
+    queryKey: ["/api/admin/race-markets", selectedRaceForOutcomes?.id, "outcomes"],
+    queryFn: async () => {
+      if (!selectedRaceForOutcomes) return [];
+      return adminApiRequest(`/api/admin/race-markets/${selectedRaceForOutcomes.id}/outcomes`, "GET");
+    },
+    enabled: !!selectedRaceForOutcomes && showOutcomesDialog,
+  });
+
+  const updateOutcomeMutation = useMutation({
+    mutationFn: async ({ outcomeId, polymarketTokenId, currentPrice }: { outcomeId: string; polymarketTokenId: string; currentPrice: number }) => {
+      return adminApiRequest(`/api/admin/race-market-outcomes/${outcomeId}`, "PATCH", { polymarketTokenId, currentPrice });
+    },
+    onSuccess: () => {
+      toast({ title: "Outcome Updated" });
+      if (selectedRaceForOutcomes) {
+        queryClient.invalidateQueries({ queryKey: ["/api/admin/race-markets", selectedRaceForOutcomes.id, "outcomes"] });
+      }
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to update outcome", variant: "destructive" });
+    },
+  });
+
+  const handleOpenOutcomesDialog = (race: RaceMarket) => {
+    setSelectedRaceForOutcomes(race);
+    setOutcomeEdits({});
+    setShowOutcomesDialog(true);
+  };
+
+  const handleSaveOutcome = (outcome: EnrichedOutcome) => {
+    const edits = outcomeEdits[outcome.id];
+    if (!edits) return;
+    
+    const parsedPrice = parseFloat(edits.price);
+    const currentPrice = Number.isFinite(parsedPrice) && parsedPrice >= 0 && parsedPrice <= 1 
+      ? parsedPrice 
+      : 0.05;
+    
+    updateOutcomeMutation.mutate({
+      outcomeId: outcome.id,
+      polymarketTokenId: edits.tokenId,
+      currentPrice,
+    });
+  };
+
   const winningTeam = season?.winningTeamId ? teams.find((t) => t.id === season.winningTeamId) : null;
   const pendingPayouts = payouts.filter((p) => p.status === "pending");
   const completedPayouts = payouts.filter((p) => p.status === "sent");
@@ -367,47 +313,6 @@ export function AdminPanel() {
         )}
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="border rounded-md p-4 space-y-3">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <Bot className="h-5 w-5 text-muted-foreground" />
-              <div>
-                <p className="font-medium">Market Maker Bot</p>
-                <p className="text-sm text-muted-foreground">
-                  Provides liquidity for trading
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <Badge variant={marketMakerStatus?.running ? "default" : "secondary"}>
-                {marketMakerStatus?.running ? (
-                  <><Power className="h-3 w-3 mr-1" /> Running</>
-                ) : (
-                  <><PowerOff className="h-3 w-3 mr-1" /> Stopped</>
-                )}
-              </Badge>
-              <Switch
-                id="market-maker-toggle"
-                checked={marketMakerStatus?.running ?? false}
-                disabled={startMarketMakerMutation.isPending || stopMarketMakerMutation.isPending}
-                onCheckedChange={(checked) => {
-                  if (checked) {
-                    startMarketMakerMutation.mutate();
-                  } else {
-                    stopMarketMakerMutation.mutate();
-                  }
-                }}
-                data-testid="switch-market-maker"
-              />
-            </div>
-          </div>
-          {marketMakerStatus?.lastRunAt && (
-            <p className="text-xs text-muted-foreground">
-              Last run: {new Date(marketMakerStatus.lastRunAt).toLocaleString()}
-            </p>
-          )}
-        </div>
-
         {!season?.exists && (
           <div className="space-y-4">
             <p className="text-muted-foreground">No active season. Create one to start trading.</p>
@@ -432,36 +337,194 @@ export function AdminPanel() {
             <div className="border rounded-md p-4 space-y-3">
               <div className="flex items-center justify-between gap-4">
                 <div className="flex items-center gap-2">
-                  <Users className="h-5 w-5 text-muted-foreground" />
+                  <Flag className="h-5 w-5 text-muted-foreground" />
                   <div>
-                    <p className="font-medium">Driver Championship Markets</p>
+                    <p className="font-medium">Race Markets</p>
                     <p className="text-sm text-muted-foreground">
-                      {driverMarketsStatus?.exists 
-                        ? `${driverMarketsStatus.count} driver markets active`
-                        : "Create markets for driver championship predictions"}
+                      {raceMarketsLoading ? "Loading..." : 
+                        raceMarkets.length > 0 
+                          ? `${raceMarkets.length} race markets configured`
+                          : "No race markets. Add races to enable individual race betting."}
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  {driverMarketsStatus?.exists ? (
-                    <Badge variant="default">
-                      <CheckCircle className="h-3 w-3 mr-1" /> Active
-                    </Badge>
-                  ) : (
-                    <Button
-                      size="sm"
-                      onClick={() => createDriverMarketsMutation.mutate()}
-                      disabled={createDriverMarketsMutation.isPending}
-                      data-testid="button-create-driver-markets"
-                    >
-                      <Play className="h-4 w-4 mr-2" />
-                      {createDriverMarketsMutation.isPending ? "Creating..." : "Create Driver Markets"}
-                    </Button>
-                  )}
+                <div className="flex items-center gap-2">
+                  <Dialog open={showAddRaceDialog} onOpenChange={setShowAddRaceDialog}>
+                    <DialogTrigger asChild>
+                      <Button size="sm" data-testid="button-add-race">
+                        <Plus className="h-4 w-4 mr-1" />
+                        Add Race
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Add Race Market</DialogTitle>
+                        <DialogDescription>
+                          Create a new race market for individual race betting.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="raceName">Race Name</Label>
+                          <Input
+                            id="raceName"
+                            placeholder="e.g., Australian Grand Prix 2026"
+                            value={newRace.name}
+                            onChange={(e) => setNewRace({ ...newRace, name: e.target.value })}
+                            data-testid="input-race-name"
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="shortName">Short Name</Label>
+                            <Input
+                              id="shortName"
+                              placeholder="e.g., AUS"
+                              value={newRace.shortName}
+                              onChange={(e) => setNewRace({ ...newRace, shortName: e.target.value })}
+                              data-testid="input-short-name"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="raceDate">Race Date</Label>
+                            <Input
+                              id="raceDate"
+                              type="date"
+                              value={newRace.raceDate}
+                              onChange={(e) => setNewRace({ ...newRace, raceDate: e.target.value })}
+                              data-testid="input-race-date"
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="location">Location</Label>
+                          <Input
+                            id="location"
+                            placeholder="e.g., Melbourne, Australia"
+                            value={newRace.location}
+                            onChange={(e) => setNewRace({ ...newRace, location: e.target.value })}
+                            data-testid="input-location"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="polymarketConditionId">Polymarket Condition ID (optional)</Label>
+                          <Input
+                            id="polymarketConditionId"
+                            placeholder="Polymarket market condition ID"
+                            value={newRace.polymarketConditionId}
+                            onChange={(e) => setNewRace({ ...newRace, polymarketConditionId: e.target.value })}
+                            data-testid="input-condition-id"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="polymarketSlug">Polymarket Slug (optional)</Label>
+                          <Input
+                            id="polymarketSlug"
+                            placeholder="e.g., australian-gp-2026-winner"
+                            value={newRace.polymarketSlug}
+                            onChange={(e) => setNewRace({ ...newRace, polymarketSlug: e.target.value })}
+                            data-testid="input-slug"
+                          />
+                        </div>
+                        <Button
+                          className="w-full"
+                          onClick={() => createRaceMarketMutation.mutate(newRace)}
+                          disabled={!newRace.name || !newRace.shortName || !newRace.location || !newRace.raceDate || createRaceMarketMutation.isPending}
+                          data-testid="button-create-race"
+                        >
+                          {createRaceMarketMutation.isPending ? "Creating..." : "Create Race Market"}
+                        </Button>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => refetchRaceMarkets()}
+                    disabled={raceMarketsLoading}
+                    data-testid="button-refresh-races"
+                  >
+                    <RefreshCw className={`h-4 w-4 ${raceMarketsLoading ? 'animate-spin' : ''}`} />
+                  </Button>
                 </div>
               </div>
+              
+              {raceMarkets.length > 0 && (
+                <div className="mt-3 space-y-2 max-h-64 overflow-y-auto">
+                  {raceMarkets.map((race) => (
+                    <div
+                      key={race.id}
+                      className="flex items-center justify-between gap-2 text-sm p-3 rounded bg-muted/50"
+                      data-testid={`race-row-${race.id}`}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-medium">{race.name}</p>
+                          <Badge variant="outline" className="text-xs">{race.shortName}</Badge>
+                          <Badge variant={race.status === "active" ? "default" : race.status === "completed" ? "secondary" : "outline"}>
+                            {race.status}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1 flex-wrap">
+                          <span className="flex items-center gap-1">
+                            <MapPin className="h-3 w-3" />
+                            {race.location}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Calendar className="h-3 w-3" />
+                            {new Date(race.raceDate).toLocaleDateString()}
+                          </span>
+                          {race.polymarketConditionId && (
+                            <span className="flex items-center gap-1">
+                              <Link2 className="h-3 w-3" />
+                              Polymarket linked
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => handleOpenOutcomesDialog(race)}
+                          title="Manage driver outcomes"
+                          data-testid={`button-manage-outcomes-${race.id}`}
+                        >
+                          <Settings className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => populateDriversMutation.mutate(race.id)}
+                          disabled={populateDriversMutation.isPending}
+                          title="Add all drivers as betting outcomes"
+                          data-testid={`button-populate-drivers-${race.id}`}
+                        >
+                          <Users className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => toggleRaceVisibilityMutation.mutate({ id: race.id, isVisible: !race.isVisible })}
+                          data-testid={`button-toggle-visibility-${race.id}`}
+                        >
+                          {race.isVisible ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4 text-muted-foreground" />}
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => deleteRaceMarketMutation.mutate(race.id)}
+                          data-testid={`button-delete-race-${race.id}`}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-            
+
             <div className="border rounded-md p-4 space-y-3">
               <div className="flex items-center justify-between gap-4">
                 <div className="flex items-center gap-2">
@@ -471,8 +534,8 @@ export function AdminPanel() {
                     <p className="text-sm text-muted-foreground">
                       {polymarketLoading ? "Loading..." : 
                         polymarketF1Markets.length > 0 
-                          ? `${polymarketF1Markets.length} F1 markets available on Polymarket`
-                          : "No F1 markets found on Polymarket"}
+                          ? `${polymarketF1Markets.length} F1 markets available`
+                          : "No F1 markets found"}
                     </p>
                   </div>
                 </div>
@@ -639,172 +702,127 @@ export function AdminPanel() {
             </div>
           </div>
         )}
+      </CardContent>
 
-        {/* zkTLS Proof Verification Section */}
-        <div className="border rounded-md p-4 space-y-4">
-          <div className="flex items-center gap-2">
-            <Shield className="h-5 w-5 text-muted-foreground" />
-            <div>
-              <p className="font-medium">zkTLS Proof Verification</p>
+      <Dialog open={showOutcomesDialog} onOpenChange={setShowOutcomesDialog}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Manage Race Outcomes - {selectedRaceForOutcomes?.name}</DialogTitle>
+            <DialogDescription>
+              Configure Polymarket token IDs and prices for each driver outcome.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="flex items-center justify-between gap-4">
               <p className="text-sm text-muted-foreground">
-                Submit TLSNotary proofs from formula1.com to verify championship results
+                {outcomesLoading ? "Loading outcomes..." : `${raceOutcomes.length} driver outcomes`}
               </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => selectedRaceForOutcomes && populateDriversMutation.mutate(selectedRaceForOutcomes.id)}
+                  disabled={populateDriversMutation.isPending}
+                  data-testid="button-dialog-populate-drivers"
+                >
+                  <Users className="h-4 w-4 mr-1" />
+                  Add All Drivers
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => refetchOutcomes()}
+                  data-testid="button-refresh-outcomes"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
-          </div>
-
-          <div className="space-y-3">
-            <div className="flex gap-2 flex-wrap">
-              <Select value={selectedPoolId} onValueChange={setSelectedPoolId}>
-                <SelectTrigger className="w-[250px]" data-testid="select-pool">
-                  <SelectValue placeholder="Select prediction pool" />
-                </SelectTrigger>
-                <SelectContent>
-                  {pools.map((pool) => (
-                    <SelectItem key={pool.id} value={pool.id}>
-                      {pool.type} Championship ({pool.status})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {selectedPoolId && (
-              <>
-                <div className="space-y-2">
-                  <Label>Upload TLSNotary Proof</Label>
-                  <div className="flex gap-2 flex-wrap">
-                    <input
-                      type="file"
-                      ref={fileInputRef}
-                      accept=".json"
-                      onChange={handleFileUpload}
-                      className="hidden"
-                      data-testid="input-proof-file"
-                    />
-                    <Button
-                      variant="outline"
-                      onClick={() => fileInputRef.current?.click()}
-                      data-testid="button-upload-proof"
+            
+            {raceOutcomes.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <Users className="h-12 w-12 mx-auto mb-4" />
+                <p>No driver outcomes configured.</p>
+                <p className="text-sm">Click "Add All Drivers" to add all drivers as betting outcomes.</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {raceOutcomes.map((outcome) => {
+                  const edits = outcomeEdits[outcome.id] || { 
+                    tokenId: outcome.polymarketTokenId, 
+                    price: outcome.currentPrice.toString() 
+                  };
+                  const hasEdits = edits.tokenId !== outcome.polymarketTokenId || 
+                    parseFloat(edits.price) !== outcome.currentPrice;
+                  
+                  return (
+                    <div 
+                      key={outcome.id} 
+                      className="flex items-center gap-3 p-3 rounded bg-muted/50"
+                      data-testid={`outcome-row-${outcome.id}`}
                     >
-                      <Upload className="h-4 w-4 mr-2" />
-                      Choose File
-                    </Button>
-                    {proofJson && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => {
-                          setProofJson("");
-                          setProofPreview(null);
-                          if (fileInputRef.current) fileInputRef.current.value = "";
-                        }}
-                        data-testid="button-clear-proof"
-                      >
-                        <XCircle className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
-                </div>
-
-                {proofPreview && (
-                  <div className={`border rounded-md p-3 space-y-2 ${proofPreview.valid ? "border-green-500/50 bg-green-500/5" : "border-red-500/50 bg-red-500/5"}`}>
-                    <div className="flex items-center gap-2">
-                      {proofPreview.valid ? (
-                        <CheckCircle className="h-4 w-4 text-green-500" />
-                      ) : (
-                        <XCircle className="h-4 w-4 text-red-500" />
-                      )}
-                      <span className="font-medium">
-                        {proofPreview.valid ? "Valid Proof Structure" : "Invalid Proof"}
-                      </span>
-                    </div>
-                    {proofPreview.error ? (
-                      <p className="text-sm text-red-600">{proofPreview.error}</p>
-                    ) : (
-                      <div className="text-sm space-y-1">
-                        <p><span className="text-muted-foreground">Server:</span> {proofPreview.serverDomain}</p>
-                        <p><span className="text-muted-foreground">Notary Key:</span> {proofPreview.notaryPublicKey}</p>
-                        {proofPreview.extractedWinner.name && (
-                          <p>
-                            <span className="text-muted-foreground">Extracted Winner:</span>{" "}
-                            <Badge variant="secondary" className="ml-1">
-                              {proofPreview.extractedWinner.name} ({proofPreview.extractedWinner.isTeamResult ? "Team" : "Driver"})
-                            </Badge>
-                          </p>
-                        )}
-                        <p><span className="text-muted-foreground">Crypto Check:</span> {proofPreview.cryptoVerification}</p>
+                      <div 
+                        className="w-2 h-8 rounded shrink-0"
+                        style={{ backgroundColor: outcome.driver?.color || "#888" }}
+                      />
+                      <div className="w-32 shrink-0">
+                        <p className="font-medium text-sm">{outcome.driver?.name || outcome.driverId}</p>
+                        <p className="text-xs text-muted-foreground">{outcome.driver?.shortName || ""}</p>
                       </div>
-                    )}
-                  </div>
-                )}
-
-                {proofJson && proofPreview?.valid && (
-                  <Button
-                    onClick={() => submitProofMutation.mutate({ poolId: selectedPoolId, json: proofJson })}
-                    disabled={submitProofMutation.isPending}
-                    data-testid="button-submit-proof"
-                  >
-                    <FileCode className="h-4 w-4 mr-2" />
-                    {submitProofMutation.isPending ? "Submitting..." : "Submit Proof"}
-                  </Button>
-                )}
-
-                {zkProofs.length > 0 && (
-                  <div className="space-y-2">
-                    <p className="text-sm font-medium">Submitted Proofs</p>
-                    <div className="space-y-2 max-h-48 overflow-y-auto">
-                      {zkProofs.map((proof) => (
-                        <div
-                          key={proof.id}
-                          className="flex items-center justify-between gap-2 text-sm p-2 rounded bg-muted/50"
-                          data-testid={`proof-row-${proof.id}`}
-                        >
-                          <div className="flex items-center gap-2 min-w-0">
-                            <Badge
-                              variant={
-                                proof.verificationStatus === "verified" ? "default" :
-                                proof.verificationStatus === "rejected" ? "destructive" : "secondary"
-                              }
-                            >
-                              {proof.verificationStatus}
-                            </Badge>
-                            <span className="truncate">{proof.extractedWinnerName || proof.extractedWinnerId || "Unknown"}</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            {proof.verificationStatus === "pending" && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => verifyProofMutation.mutate(proof.id)}
-                                disabled={verifyProofMutation.isPending}
-                                data-testid={`button-verify-proof-${proof.id}`}
-                              >
-                                <Shield className="h-3 w-3 mr-1" />
-                                Verify
-                              </Button>
-                            )}
-                            {proof.verificationStatus === "verified" && (
-                              <Button
-                                size="sm"
-                                onClick={() => resolvePoolMutation.mutate(proof.id)}
-                                disabled={resolvePoolMutation.isPending}
-                                data-testid={`button-resolve-pool-${proof.id}`}
-                              >
-                                <ArrowRight className="h-3 w-3 mr-1" />
-                                Resolve Pool
-                              </Button>
-                            )}
-                          </div>
+                      <div className="flex-1 grid grid-cols-2 gap-2">
+                        <div>
+                          <Label className="text-xs">Token ID</Label>
+                          <Input
+                            placeholder="Polymarket token ID"
+                            value={edits.tokenId}
+                            onChange={(e) => setOutcomeEdits(prev => ({
+                              ...prev,
+                              [outcome.id]: { ...edits, tokenId: e.target.value }
+                            }))}
+                            className="h-8 text-xs"
+                            data-testid={`input-token-id-${outcome.id}`}
+                          />
                         </div>
-                      ))}
+                        <div>
+                          <Label className="text-xs">Price (0-1)</Label>
+                          <Input
+                            placeholder="0.05"
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            max="1"
+                            value={edits.price}
+                            onChange={(e) => setOutcomeEdits(prev => ({
+                              ...prev,
+                              [outcome.id]: { ...edits, price: e.target.value }
+                            }))}
+                            className="h-8 text-xs"
+                            data-testid={`input-price-${outcome.id}`}
+                          />
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Badge variant={outcome.polymarketTokenId ? "default" : "secondary"} className="text-xs">
+                          {outcome.polymarketTokenId ? "Configured" : "Pending"}
+                        </Badge>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => handleSaveOutcome(outcome)}
+                          disabled={!hasEdits || updateOutcomeMutation.isPending}
+                          data-testid={`button-save-outcome-${outcome.id}`}
+                        >
+                          <Save className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                )}
-              </>
+                  );
+                })}
+              </div>
             )}
           </div>
-        </div>
-      </CardContent>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

@@ -608,7 +608,65 @@ export type InsertPoolPriceHistory = z.infer<typeof insertPoolPriceHistorySchema
 export type PoolPriceHistory = typeof poolPriceHistory.$inferSelect;
 
 // =====================================================
-// zkTLS / TLSNotary Proof Tables
+// Race Markets - Individual F1 race betting markets
+// =====================================================
+
+// Race Markets - Tracks individual races enabled for betting
+export const raceMarkets = pgTable("race_markets", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(), // e.g., "Australian Grand Prix 2026"
+  shortName: text("short_name").notNull(), // e.g., "AUS"
+  location: text("location").notNull(), // e.g., "Melbourne, Australia"
+  raceDate: timestamp("race_date").notNull(),
+  polymarketConditionId: text("polymarket_condition_id"), // Polymarket condition ID if linked
+  polymarketSlug: text("polymarket_slug"), // Polymarket market slug
+  status: text("status").notNull().default("upcoming"), // 'upcoming', 'active', 'completed'
+  winnerDriverId: varchar("winner_driver_id").references(() => drivers.id),
+  isVisible: boolean("is_visible").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const raceMarketsRelations = relations(raceMarkets, ({ one, many }) => ({
+  winner: one(drivers, { fields: [raceMarkets.winnerDriverId], references: [drivers.id] }),
+  outcomes: many(raceMarketOutcomes),
+}));
+
+// Race Market Outcomes - Polymarket token IDs for each driver in a race
+export const raceMarketOutcomes = pgTable("race_market_outcomes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  raceMarketId: varchar("race_market_id").notNull().references(() => raceMarkets.id),
+  driverId: varchar("driver_id").notNull().references(() => drivers.id),
+  polymarketTokenId: text("polymarket_token_id").notNull(), // Token ID for this outcome
+  currentPrice: real("current_price").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  raceDriverUnique: unique().on(table.raceMarketId, table.driverId),
+}));
+
+export const raceMarketOutcomesRelations = relations(raceMarketOutcomes, ({ one }) => ({
+  raceMarket: one(raceMarkets, { fields: [raceMarketOutcomes.raceMarketId], references: [raceMarkets.id] }),
+  driver: one(drivers, { fields: [raceMarketOutcomes.driverId], references: [drivers.id] }),
+}));
+
+// Insert schemas for race markets
+export const insertRaceMarketSchema = createInsertSchema(raceMarkets).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertRaceMarketOutcomeSchema = createInsertSchema(raceMarketOutcomes).omit({
+  id: true,
+  createdAt: true,
+});
+
+// Race Market Types
+export type InsertRaceMarket = z.infer<typeof insertRaceMarketSchema>;
+export type RaceMarket = typeof raceMarkets.$inferSelect;
+export type InsertRaceMarketOutcome = z.infer<typeof insertRaceMarketOutcomeSchema>;
+export type RaceMarketOutcome = typeof raceMarketOutcomes.$inferSelect;
+
+// =====================================================
+// zkTLS / TLSNotary Proof Tables (DEPRECATED - resolution handled by Polymarket)
 // =====================================================
 
 // ZK Proofs - Stores TLSNotary proofs for trustless result verification

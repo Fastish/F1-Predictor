@@ -13,10 +13,8 @@ import {
   USDC_CONTRACT_ADDRESS,
 } from "./polygon";
 import { matchingEngine } from "./matchingEngine";
-import { marketMaker } from "./marketMaker";
 import { randomBytes } from "crypto";
 import { registerPoolRoutes } from "./pool-routes";
-import { registerProofRoutes } from "./proof-routes";
 
 // In-memory store for pending transaction expectations
 // Key: nonce, Value: { userId, walletAddress, collateralAmount, orderDetails, createdAt }
@@ -57,9 +55,6 @@ export async function registerRoutes(
 ): Promise<Server> {
   // Register LMSR pool routes (non-blocking)
   registerPoolRoutes(app);
-  
-  // Register TLSNotary proof routes (non-blocking)
-  registerProofRoutes(app);
 
   // ============ Teams/Market Routes ============
   
@@ -1168,38 +1163,254 @@ export async function registerRoutes(
     }
   });
 
-  // ============ Market Maker Bot Routes ============
+  // ============ Race Markets Routes ============
 
-  // Start market maker bot (admin)
-  app.post("/api/admin/market-maker/start", requireAdmin, async (req, res) => {
+  // Get all race markets (public)
+  app.get("/api/race-markets", async (req, res) => {
     try {
-      const intervalMs = req.body.intervalMs || 30000;
-      await marketMaker.start(intervalMs);
-      const status = await marketMaker.getStatus();
-      res.json({ success: true, message: "Market maker started", status });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message || "Failed to start market maker" });
-    }
-  });
-
-  // Stop market maker bot (admin)
-  app.post("/api/admin/market-maker/stop", requireAdmin, async (req, res) => {
-    try {
-      marketMaker.stop();
-      const status = await marketMaker.getStatus();
-      res.json({ success: true, message: "Market maker stopped", status });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message || "Failed to stop market maker" });
-    }
-  });
-
-  // Get market maker status (admin)
-  app.get("/api/admin/market-maker/status", requireAdmin, async (req, res) => {
-    try {
-      const status = await marketMaker.getStatus();
-      res.json(status);
+      const markets = await storage.getRaceMarkets();
+      // Filter to only visible markets for public access
+      const visibleMarkets = markets.filter(m => m.isVisible);
+      res.json(visibleMarkets);
     } catch (error) {
-      res.status(500).json({ error: "Failed to get market maker status" });
+      console.error("Error fetching race markets:", error);
+      res.status(500).json({ error: "Failed to fetch race markets" });
+    }
+  });
+
+  // Get all race markets (admin - includes hidden)
+  app.get("/api/admin/race-markets", requireAdmin, async (req, res) => {
+    try {
+      const markets = await storage.getRaceMarkets();
+      res.json(markets);
+    } catch (error) {
+      console.error("Error fetching race markets:", error);
+      res.status(500).json({ error: "Failed to fetch race markets" });
+    }
+  });
+
+  // Get single race market with outcomes and driver info
+  app.get("/api/race-markets/:id", async (req, res) => {
+    try {
+      const market = await storage.getRaceMarket(req.params.id);
+      if (!market) {
+        return res.status(404).json({ error: "Race market not found" });
+      }
+      const outcomes = await storage.getRaceMarketOutcomes(market.id);
+      
+      // Enrich outcomes with driver information
+      const drivers = await storage.getDrivers();
+      const driverMap = new Map(drivers.map(d => [d.id, d]));
+      
+      const enrichedOutcomes = outcomes.map(outcome => ({
+        ...outcome,
+        driver: driverMap.get(outcome.driverId) || null
+      }));
+      
+      res.json({ ...market, outcomes: enrichedOutcomes });
+    } catch (error) {
+      console.error("Error fetching race market:", error);
+      res.status(500).json({ error: "Failed to fetch race market" });
+    }
+  });
+
+  // Create race market (admin)
+  app.post("/api/admin/race-markets", requireAdmin, async (req, res) => {
+    try {
+      const { name, shortName, location, raceDate, polymarketConditionId, polymarketSlug, status, isVisible } = req.body;
+      
+      if (!name || !shortName || !location || !raceDate) {
+        return res.status(400).json({ error: "name, shortName, location, and raceDate are required" });
+      }
+
+      const market = await storage.createRaceMarket({
+        name,
+        shortName,
+        location,
+        raceDate: new Date(raceDate),
+        polymarketConditionId: polymarketConditionId || null,
+        polymarketSlug: polymarketSlug || null,
+        status: status || "upcoming",
+        isVisible: isVisible !== false,
+      });
+
+      res.json(market);
+    } catch (error) {
+      console.error("Error creating race market:", error);
+      res.status(500).json({ error: "Failed to create race market" });
+    }
+  });
+
+  // Update race market (admin)
+  app.patch("/api/admin/race-markets/:id", requireAdmin, async (req, res) => {
+    try {
+      const { name, shortName, location, raceDate, polymarketConditionId, polymarketSlug, status, isVisible, winnerDriverId } = req.body;
+      
+      const updates: Record<string, any> = {};
+      if (name !== undefined) updates.name = name;
+      if (shortName !== undefined) updates.shortName = shortName;
+      if (location !== undefined) updates.location = location;
+      if (raceDate !== undefined) updates.raceDate = new Date(raceDate);
+      if (polymarketConditionId !== undefined) updates.polymarketConditionId = polymarketConditionId;
+      if (polymarketSlug !== undefined) updates.polymarketSlug = polymarketSlug;
+      if (status !== undefined) updates.status = status;
+      if (isVisible !== undefined) updates.isVisible = isVisible;
+      if (winnerDriverId !== undefined) updates.winnerDriverId = winnerDriverId;
+
+      const market = await storage.updateRaceMarket(req.params.id, updates);
+      if (!market) {
+        return res.status(404).json({ error: "Race market not found" });
+      }
+      res.json(market);
+    } catch (error) {
+      console.error("Error updating race market:", error);
+      res.status(500).json({ error: "Failed to update race market" });
+    }
+  });
+
+  // Delete race market (admin)
+  app.delete("/api/admin/race-markets/:id", requireAdmin, async (req, res) => {
+    try {
+      await storage.deleteRaceMarket(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting race market:", error);
+      res.status(500).json({ error: "Failed to delete race market" });
+    }
+  });
+
+  // Get race market outcomes with drivers (admin)
+  app.get("/api/admin/race-markets/:id/outcomes", requireAdmin, async (req, res) => {
+    try {
+      const outcomes = await storage.getRaceMarketOutcomes(req.params.id);
+      const drivers = await storage.getDrivers();
+      const driverMap = new Map(drivers.map(d => [d.id, d]));
+      
+      const enrichedOutcomes = outcomes.map(outcome => ({
+        ...outcome,
+        driver: driverMap.get(outcome.driverId) || null
+      }));
+      
+      res.json(enrichedOutcomes);
+    } catch (error) {
+      console.error("Error fetching race market outcomes:", error);
+      res.status(500).json({ error: "Failed to fetch race market outcomes" });
+    }
+  });
+
+  // Add outcome to race market (admin)
+  app.post("/api/admin/race-markets/:id/outcomes", requireAdmin, async (req, res) => {
+    try {
+      const { driverId, polymarketTokenId } = req.body;
+      
+      if (!driverId || !polymarketTokenId) {
+        return res.status(400).json({ error: "driverId and polymarketTokenId are required" });
+      }
+
+      const outcome = await storage.createRaceMarketOutcome({
+        raceMarketId: req.params.id,
+        driverId,
+        polymarketTokenId,
+        currentPrice: 0,
+      });
+
+      res.json(outcome);
+    } catch (error) {
+      console.error("Error creating race market outcome:", error);
+      res.status(500).json({ error: "Failed to create race market outcome" });
+    }
+  });
+
+  // Update race market outcome (admin)
+  app.patch("/api/admin/race-market-outcomes/:id", requireAdmin, async (req, res) => {
+    try {
+      const { polymarketTokenId, currentPrice } = req.body;
+      
+      const updates: Record<string, any> = {};
+      if (polymarketTokenId !== undefined) updates.polymarketTokenId = polymarketTokenId;
+      if (currentPrice !== undefined) updates.currentPrice = parseFloat(currentPrice);
+
+      const outcome = await storage.updateRaceMarketOutcome(req.params.id, updates);
+      if (!outcome) {
+        return res.status(404).json({ error: "Outcome not found" });
+      }
+      res.json(outcome);
+    } catch (error) {
+      console.error("Error updating race market outcome:", error);
+      res.status(500).json({ error: "Failed to update race market outcome" });
+    }
+  });
+
+  // Delete outcome from race market (admin)
+  app.delete("/api/admin/race-market-outcomes/:id", requireAdmin, async (req, res) => {
+    try {
+      await storage.deleteRaceMarketOutcome(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting race market outcome:", error);
+      res.status(500).json({ error: "Failed to delete race market outcome" });
+    }
+  });
+
+  // Update race market outcome (admin)
+  app.patch("/api/admin/race-market-outcomes/:id", requireAdmin, async (req, res) => {
+    try {
+      const { polymarketTokenId, currentPrice } = req.body;
+      
+      const updates: { polymarketTokenId?: string; currentPrice?: number } = {};
+      if (polymarketTokenId !== undefined) updates.polymarketTokenId = polymarketTokenId;
+      if (currentPrice !== undefined) updates.currentPrice = currentPrice;
+      
+      const outcome = await storage.updateRaceMarketOutcome(req.params.id, updates);
+      if (!outcome) {
+        return res.status(404).json({ error: "Outcome not found" });
+      }
+      
+      res.json(outcome);
+    } catch (error) {
+      console.error("Error updating race market outcome:", error);
+      res.status(500).json({ error: "Failed to update outcome" });
+    }
+  });
+
+  // Bulk populate all drivers as outcomes for a race market (admin)
+  app.post("/api/admin/race-markets/:id/populate-drivers", requireAdmin, async (req, res) => {
+    try {
+      const raceId = req.params.id;
+      const drivers = await storage.getDrivers();
+      
+      // Check if race exists
+      const race = await storage.getRaceMarket(raceId);
+      if (!race) {
+        return res.status(404).json({ error: "Race market not found" });
+      }
+
+      // Get existing outcomes to avoid duplicates
+      const existingOutcomes = await storage.getRaceMarketOutcomes(raceId);
+      const existingDriverIds = new Set(existingOutcomes.map(o => o.driverId));
+
+      // Create outcomes for drivers not already added
+      const newOutcomes = [];
+      for (const driver of drivers) {
+        if (!existingDriverIds.has(driver.id)) {
+          const outcome = await storage.createRaceMarketOutcome({
+            raceMarketId: raceId,
+            driverId: driver.id,
+            polymarketTokenId: "", // Will need to be filled in later
+            currentPrice: 0.05, // Default starting price
+          });
+          newOutcomes.push(outcome);
+        }
+      }
+
+      res.json({ 
+        success: true, 
+        addedCount: newOutcomes.length,
+        totalOutcomes: existingOutcomes.length + newOutcomes.length
+      });
+    } catch (error) {
+      console.error("Error populating race market with drivers:", error);
+      res.status(500).json({ error: "Failed to populate drivers" });
     }
   });
 
@@ -1312,14 +1523,6 @@ export async function initializeAfterListen(): Promise<void> {
   if (existingHistory.length === 0) {
     await storage.recordAllTeamPrices();
     console.log("Seeded initial price history snapshots");
-  }
-
-  // Auto-start market maker bot to provide liquidity
-  try {
-    await marketMaker.start(30000); // 30 second interval
-    console.log("Market maker bot auto-started for liquidity");
-  } catch (error) {
-    console.error("Failed to start market maker bot:", error);
   }
 
   // Initialize championship pools for current season if they don't exist

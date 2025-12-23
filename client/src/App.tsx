@@ -10,6 +10,8 @@ import Home from "@/pages/Home";
 import Admin from "@/pages/Admin";
 import Markets from "@/pages/Markets";
 import Positions from "@/pages/Positions";
+import Races from "@/pages/Races";
+import RaceDetail from "@/pages/RaceDetail";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -17,6 +19,8 @@ function Router() {
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/markets" component={Markets} />
+      <Route path="/races" component={Races} />
+      <Route path="/races/:id" component={RaceDetail} />
       <Route path="/positions" component={Positions} />
       <Route path="/admin" component={Admin} />
       <Route component={NotFound} />

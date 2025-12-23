@@ -1,6 +1,7 @@
 import { 
   users, teams, drivers, holdings, transactions, deposits, priceHistory, seasons, payouts, markets, orderFills,
   championshipPools, championshipOutcomes, poolTrades, poolPositions, poolPayouts, zkProofs, poolPriceHistory,
+  raceMarkets, raceMarketOutcomes,
   type User, type InsertUser, 
   type Team, type InsertTeam,
   type Driver, type InsertDriver,
@@ -18,6 +19,8 @@ import {
   type PoolPayout, type InsertPoolPayout,
   type ZkProof, type InsertZkProof,
   type PoolPriceHistory, type InsertPoolPriceHistory,
+  type RaceMarket, type InsertRaceMarket,
+  type RaceMarketOutcome, type InsertRaceMarketOutcome,
   type BuySharesRequest,
   type SellSharesRequest
 } from "@shared/schema";
@@ -147,6 +150,19 @@ export interface IStorage {
   recordPoolPrices(poolId: string): Promise<void>;
   getPoolPriceHistory(poolId: string, limit?: number): Promise<PoolPriceHistory[]>;
   getPricesFromTimeAgo(poolId: string, hoursAgo: number): Promise<Map<string, number>>;
+  
+  // Race Markets
+  getRaceMarkets(): Promise<RaceMarket[]>;
+  getRaceMarket(id: string): Promise<RaceMarket | undefined>;
+  createRaceMarket(market: InsertRaceMarket): Promise<RaceMarket>;
+  updateRaceMarket(id: string, updates: Partial<RaceMarket>): Promise<RaceMarket | undefined>;
+  deleteRaceMarket(id: string): Promise<void>;
+  
+  // Race Market Outcomes
+  getRaceMarketOutcomes(raceMarketId: string): Promise<RaceMarketOutcome[]>;
+  createRaceMarketOutcome(outcome: InsertRaceMarketOutcome): Promise<RaceMarketOutcome>;
+  updateRaceMarketOutcome(id: string, updates: Partial<RaceMarketOutcome>): Promise<RaceMarketOutcome | undefined>;
+  deleteRaceMarketOutcome(id: string): Promise<void>;
 }
 
 // Initial F1 2026 teams data - all teams start at equal $0.10 price
@@ -1140,6 +1156,62 @@ export class DatabaseStorage implements IStorage {
     }
     
     return priceMap;
+  }
+
+  // ============ Race Markets ============
+  
+  async getRaceMarkets(): Promise<RaceMarket[]> {
+    return await db.select().from(raceMarkets).orderBy(asc(raceMarkets.raceDate));
+  }
+
+  async getRaceMarket(id: string): Promise<RaceMarket | undefined> {
+    const [market] = await db.select().from(raceMarkets).where(eq(raceMarkets.id, id));
+    return market || undefined;
+  }
+
+  async createRaceMarket(market: InsertRaceMarket): Promise<RaceMarket> {
+    const [created] = await db.insert(raceMarkets).values(market).returning();
+    return created;
+  }
+
+  async updateRaceMarket(id: string, updates: Partial<RaceMarket>): Promise<RaceMarket | undefined> {
+    const [updated] = await db
+      .update(raceMarkets)
+      .set(updates)
+      .where(eq(raceMarkets.id, id))
+      .returning();
+    return updated || undefined;
+  }
+
+  async deleteRaceMarket(id: string): Promise<void> {
+    // Delete associated outcomes first
+    await db.delete(raceMarketOutcomes).where(eq(raceMarketOutcomes.raceMarketId, id));
+    // Then delete the race market
+    await db.delete(raceMarkets).where(eq(raceMarkets.id, id));
+  }
+
+  // ============ Race Market Outcomes ============
+  
+  async getRaceMarketOutcomes(raceMarketId: string): Promise<RaceMarketOutcome[]> {
+    return await db.select().from(raceMarketOutcomes).where(eq(raceMarketOutcomes.raceMarketId, raceMarketId));
+  }
+
+  async createRaceMarketOutcome(outcome: InsertRaceMarketOutcome): Promise<RaceMarketOutcome> {
+    const [created] = await db.insert(raceMarketOutcomes).values(outcome).returning();
+    return created;
+  }
+
+  async updateRaceMarketOutcome(id: string, updates: Partial<RaceMarketOutcome>): Promise<RaceMarketOutcome | undefined> {
+    const [updated] = await db
+      .update(raceMarketOutcomes)
+      .set(updates)
+      .where(eq(raceMarketOutcomes.id, id))
+      .returning();
+    return updated || undefined;
+  }
+
+  async deleteRaceMarketOutcome(id: string): Promise<void> {
+    await db.delete(raceMarketOutcomes).where(eq(raceMarketOutcomes.id, id));
   }
 }
 
