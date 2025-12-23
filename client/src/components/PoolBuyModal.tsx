@@ -6,7 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
-import { Loader2, Wallet, Minus, Plus, AlertCircle, TrendingUp, Coins } from "lucide-react";
+import { Loader2, Wallet, Minus, Plus, AlertCircle, TrendingUp } from "lucide-react";
+import { useWallet } from "@/context/WalletContext";
 
 interface PoolOutcome {
   id: string;
@@ -36,7 +37,6 @@ interface PoolBuyModalProps {
   participantName: string;
   participantColor: string;
   userId: string;
-  userBalance?: number;
 }
 
 interface QuoteResponse {
