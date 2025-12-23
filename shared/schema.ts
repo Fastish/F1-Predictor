@@ -709,3 +709,40 @@ export const submitProofSchema = z.object({
 export type InsertZkProof = z.infer<typeof insertZkProofSchema>;
 export type ZkProof = typeof zkProofs.$inferSelect;
 export type SubmitProofRequest = z.infer<typeof submitProofSchema>;
+
+// =====================================================
+// Polymarket Orders Table - Tracks orders placed on Polymarket
+// =====================================================
+
+export const polymarketOrders = pgTable("polymarket_orders", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  polymarketOrderId: text("polymarket_order_id"), // Order ID from Polymarket API (if available)
+  userId: varchar("user_id").notNull().references(() => users.id),
+  tokenId: text("token_id").notNull(), // Polymarket token ID
+  marketName: text("market_name"), // Human-readable market name (e.g., "Max Verstappen")
+  outcome: text("outcome").notNull(), // "YES" or "NO"
+  side: text("side").notNull(), // "BUY" or "SELL"
+  price: real("price").notNull(), // Price per share (0-1)
+  size: real("size").notNull(), // Number of shares
+  filledSize: real("filled_size").notNull().default(0), // How many shares have been filled
+  status: text("status").notNull().default("pending"), // 'pending', 'open', 'filled', 'partial', 'cancelled', 'expired'
+  totalCost: real("total_cost").notNull(), // Total USDC spent
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  lastSyncedAt: timestamp("last_synced_at"),
+});
+
+export const polymarketOrdersRelations = relations(polymarketOrders, ({ one }) => ({
+  user: one(users, { fields: [polymarketOrders.userId], references: [users.id] }),
+}));
+
+export const insertPolymarketOrderSchema = createInsertSchema(polymarketOrders).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  lastSyncedAt: true,
+});
+
+// Polymarket Order Types
+export type InsertPolymarketOrder = z.infer<typeof insertPolymarketOrderSchema>;
+export type PolymarketOrder = typeof polymarketOrders.$inferSelect;

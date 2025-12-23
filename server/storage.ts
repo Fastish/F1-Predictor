@@ -1,7 +1,7 @@
 import { 
   users, teams, drivers, holdings, transactions, deposits, priceHistory, seasons, payouts, markets, orderFills,
   championshipPools, championshipOutcomes, poolTrades, poolPositions, poolPayouts, zkProofs, poolPriceHistory,
-  raceMarkets, raceMarketOutcomes,
+  raceMarkets, raceMarketOutcomes, polymarketOrders,
   type User, type InsertUser, 
   type Team, type InsertTeam,
   type Driver, type InsertDriver,
@@ -21,6 +21,7 @@ import {
   type PoolPriceHistory, type InsertPoolPriceHistory,
   type RaceMarket, type InsertRaceMarket,
   type RaceMarketOutcome, type InsertRaceMarketOutcome,
+  type PolymarketOrder, type InsertPolymarketOrder,
   type BuySharesRequest,
   type SellSharesRequest
 } from "@shared/schema";
@@ -163,6 +164,12 @@ export interface IStorage {
   createRaceMarketOutcome(outcome: InsertRaceMarketOutcome): Promise<RaceMarketOutcome>;
   updateRaceMarketOutcome(id: string, updates: Partial<RaceMarketOutcome>): Promise<RaceMarketOutcome | undefined>;
   deleteRaceMarketOutcome(id: string): Promise<void>;
+  
+  // Polymarket Orders
+  createPolymarketOrder(order: InsertPolymarketOrder): Promise<PolymarketOrder>;
+  getPolymarketOrdersByUser(userId: string): Promise<PolymarketOrder[]>;
+  getPolymarketOrder(id: string): Promise<PolymarketOrder | undefined>;
+  updatePolymarketOrder(id: string, updates: Partial<PolymarketOrder>): Promise<PolymarketOrder | undefined>;
 }
 
 // Initial F1 2026 teams data - all teams start at equal $0.10 price
@@ -1212,6 +1219,35 @@ export class DatabaseStorage implements IStorage {
 
   async deleteRaceMarketOutcome(id: string): Promise<void> {
     await db.delete(raceMarketOutcomes).where(eq(raceMarketOutcomes.id, id));
+  }
+
+  // ============ Polymarket Orders ============
+  
+  async createPolymarketOrder(order: InsertPolymarketOrder): Promise<PolymarketOrder> {
+    const [created] = await db.insert(polymarketOrders).values(order).returning();
+    return created;
+  }
+
+  async getPolymarketOrdersByUser(userId: string): Promise<PolymarketOrder[]> {
+    return await db
+      .select()
+      .from(polymarketOrders)
+      .where(eq(polymarketOrders.userId, userId))
+      .orderBy(desc(polymarketOrders.createdAt));
+  }
+
+  async getPolymarketOrder(id: string): Promise<PolymarketOrder | undefined> {
+    const [order] = await db.select().from(polymarketOrders).where(eq(polymarketOrders.id, id));
+    return order || undefined;
+  }
+
+  async updatePolymarketOrder(id: string, updates: Partial<PolymarketOrder>): Promise<PolymarketOrder | undefined> {
+    const [updated] = await db
+      .update(polymarketOrders)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(polymarketOrders.id, id))
+      .returning();
+    return updated || undefined;
   }
 }
 
