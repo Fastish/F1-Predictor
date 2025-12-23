@@ -98,10 +98,17 @@ The app uses a dual-wallet system:
 - **Balance Queries**: Client-side USDC balance fetching via ethers.js
 
 ### Polymarket Integration
-- Gamma API for fetching F1 prediction markets
-- CLOB API for order placement with HMAC-SHA256 signing
-- EIP-712 signatures for credential derivation
-- API credentials cached in-memory (not localStorage) for security
+- **Gamma API**: Fetches F1 prediction markets with outcomes and prices
+- **CLOB Client**: @polymarket/clob-client library for order execution
+- **Order Execution**: Uses ethers v5 wallet (from @ethersproject/wallet) for EIP-712 signing
+- **API Configuration**:
+  - POLY_BUILDER_PRIVATE_KEY: Private key for order signing (stored in Replit Secrets)
+  - Signature type 0 (EOA) with funder = wallet address
+  - API credentials derived via createOrDeriveApiKey()
+- **Order Parameters**:
+  - tickSize: "0.01" (standard tick size)
+  - negRisk: true (F1 championship markets use negative risk)
+- **Status Normalization**: CLOB statuses (OPEN/LIVE/MATCHED/CANCELED/EXPIRED) mapped to schema vocabulary (open/filled/partial/cancelled/expired/pending)
 - Admin panel section for viewing/syncing Polymarket F1 markets
 
 ### Secure Buy Order Flow (Nonce-Based Verification)
