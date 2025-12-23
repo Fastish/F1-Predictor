@@ -72,17 +72,33 @@ function generateNonce(): string {
   return Math.floor(Math.random() * 1000000000).toString();
 }
 
+function base64UrlToBase64(base64url: string): string {
+  let base64 = base64url.replace(/-/g, '+').replace(/_/g, '/');
+  while (base64.length % 4) {
+    base64 += '=';
+  }
+  return base64;
+}
+
 async function createHmacSignature(secret: string, timestamp: string, method: string, path: string, body: string = ""): Promise<string> {
   const message = timestamp + method + path + body;
   const encoder = new TextEncoder();
   
   let secretBytes: Uint8Array;
-  if (/^[0-9a-fA-F]+$/.test(secret)) {
+  
+  if (/^[0-9a-fA-F]+$/.test(secret) && secret.length % 2 === 0) {
     const hexMatches = secret.match(/.{1,2}/g);
     if (!hexMatches) throw new Error("Invalid hex secret");
     secretBytes = new Uint8Array(hexMatches.map(byte => parseInt(byte, 16)));
   } else {
-    secretBytes = Uint8Array.from(atob(secret), c => c.charCodeAt(0));
+    try {
+      const base64Standard = base64UrlToBase64(secret);
+      const decoded = atob(base64Standard);
+      secretBytes = Uint8Array.from(decoded, c => c.charCodeAt(0));
+    } catch (e) {
+      console.error("Failed to decode secret as base64, using raw bytes:", e);
+      secretBytes = encoder.encode(secret);
+    }
   }
   
   const cryptoKey = await crypto.subtle.importKey(
