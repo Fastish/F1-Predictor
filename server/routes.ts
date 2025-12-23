@@ -730,7 +730,10 @@ export async function registerRoutes(
       });
     } catch (error) {
       console.error("Failed to place Polymarket order:", error);
-      res.status(500).json({ error: "Failed to place order" });
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      console.error("Error details:", { message: errorMessage, stack: errorStack });
+      res.status(500).json({ error: "Failed to place order", details: errorMessage });
     }
   });
 
