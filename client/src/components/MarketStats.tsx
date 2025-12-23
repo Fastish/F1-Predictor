@@ -1,4 +1,4 @@
-import { TrendingUp, Clock, Trophy, Car, User } from "lucide-react";
+import { TrendingUp, Clock, DollarSign, Car, User } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useQuery } from "@tanstack/react-query";
 
@@ -61,31 +61,6 @@ export function MarketStats() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between gap-4 pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
-                Prize Pool
-              </CardTitle>
-              <Trophy className="h-4 w-4 text-primary" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold tabular-nums" data-testid="text-stats-prize-pool">
-                {formatUSD(totalLiquidity)}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Shares still in market
-              </p>
-              <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
-                <span className="flex items-center gap-1">
-                  <Car className="h-3 w-3" /> Teams: {formatUSD(constructorsLiquidity)}
-                </span>
-                <span className="flex items-center gap-1">
-                  <User className="h-3 w-3" /> Drivers: {formatUSD(driversLiquidity)}
-                </span>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between gap-4 pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
                 Total Market Volume
               </CardTitle>
               <TrendingUp className="h-4 w-4 text-primary" />
@@ -95,7 +70,7 @@ export function MarketStats() {
                 {formatUSD(totalVolume)}
               </div>
               <p className="text-xs text-muted-foreground">
-                USD traded across markets
+                USD traded across all markets
               </p>
               <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
                 <span className="flex items-center gap-1">
@@ -103,6 +78,31 @@ export function MarketStats() {
                 </span>
                 <span className="flex items-center gap-1">
                   <User className="h-3 w-3" /> Drivers: {formatUSD(driversVolume)}
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between gap-4 pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Market Liquidity
+              </CardTitle>
+              <DollarSign className="h-4 w-4 text-primary" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold tabular-nums" data-testid="text-stats-liquidity">
+                {formatUSD(totalLiquidity)}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Available for trading
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                <span className="flex items-center gap-1">
+                  <Car className="h-3 w-3" /> Teams: {formatUSD(constructorsLiquidity)}
+                </span>
+                <span className="flex items-center gap-1">
+                  <User className="h-3 w-3" /> Drivers: {formatUSD(driversLiquidity)}
                 </span>
               </div>
             </CardContent>
