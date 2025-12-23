@@ -11,6 +11,7 @@ interface PolymarketOutcome {
   price: number;
   noPrice?: number;
   volume: string;
+  liquidity: string;
   conditionId: string;
   questionId: string;
   image?: string;
@@ -34,26 +35,21 @@ export function MarketStats() {
   const driversVolume = drivers.reduce((acc, o) => acc + parseFloat(o.volume || "0"), 0);
   const totalVolume = constructorsVolume + driversVolume;
 
+  const constructorsLiquidity = constructors.reduce((acc, o) => acc + parseFloat(o.liquidity || "0"), 0);
+  const driversLiquidity = drivers.reduce((acc, o) => acc + parseFloat(o.liquidity || "0"), 0);
+  const totalLiquidity = constructorsLiquidity + driversLiquidity;
+
   const seasonStart = new Date("2026-03-15");
   const now = new Date();
   const daysUntil = Math.max(0, Math.ceil((seasonStart.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
 
-  const formatVolume = (vol: number) => {
+  const formatUSD = (vol: number) => {
     if (vol >= 1000000) {
       return `$${(vol / 1000000).toFixed(2)}M`;
     } else if (vol >= 1000) {
       return `$${(vol / 1000).toFixed(1)}K`;
     }
     return `$${vol.toFixed(0)}`;
-  };
-
-  const formatShares = (vol: number) => {
-    if (vol >= 1000000) {
-      return `${(vol / 1000000).toFixed(2)}M`;
-    } else if (vol >= 1000) {
-      return `${(vol / 1000).toFixed(1)}K`;
-    }
-    return vol.toLocaleString();
   };
 
   return (
@@ -71,17 +67,17 @@ export function MarketStats() {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold tabular-nums" data-testid="text-stats-prize-pool">
-                {formatVolume(totalVolume)}
+                {formatUSD(totalLiquidity)}
               </div>
               <p className="text-xs text-muted-foreground">
-                Total market volume
+                Shares still in market
               </p>
               <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
                 <span className="flex items-center gap-1">
-                  <Car className="h-3 w-3" /> Teams: {formatVolume(constructorsVolume)}
+                  <Car className="h-3 w-3" /> Teams: {formatUSD(constructorsLiquidity)}
                 </span>
                 <span className="flex items-center gap-1">
-                  <User className="h-3 w-3" /> Drivers: {formatVolume(driversVolume)}
+                  <User className="h-3 w-3" /> Drivers: {formatUSD(driversLiquidity)}
                 </span>
               </div>
             </CardContent>
@@ -90,23 +86,23 @@ export function MarketStats() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between gap-4 pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
-                Total Shares
+                Total Market Volume
               </CardTitle>
               <TrendingUp className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold tabular-nums" data-testid="text-stats-total-shares">
-                {formatShares(totalVolume)}
+              <div className="text-3xl font-bold tabular-nums" data-testid="text-stats-total-volume">
+                {formatUSD(totalVolume)}
               </div>
               <p className="text-xs text-muted-foreground">
-                Shares traded across markets
+                USD traded across markets
               </p>
               <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
                 <span className="flex items-center gap-1">
-                  <Car className="h-3 w-3" /> Teams: {formatShares(constructorsVolume)}
+                  <Car className="h-3 w-3" /> Teams: {formatUSD(constructorsVolume)}
                 </span>
                 <span className="flex items-center gap-1">
-                  <User className="h-3 w-3" /> Drivers: {formatShares(driversVolume)}
+                  <User className="h-3 w-3" /> Drivers: {formatUSD(driversVolume)}
                 </span>
               </div>
             </CardContent>

@@ -334,6 +334,7 @@ export interface NormalizedOutcome {
   price: number;
   noPrice: number;
   volume: string;
+  liquidity: string;
   conditionId: string;
   questionId: string;
   image?: string;
@@ -341,17 +342,17 @@ export interface NormalizedOutcome {
 
 // Fallback F1 Constructors data based on current Polymarket markets
 const fallbackConstructors: NormalizedOutcome[] = [
-  { id: "mercedes", name: "Mercedes", tokenId: "mercedes-yes", yesTokenId: "mercedes-yes", noTokenId: "mercedes-no", price: 0.33, noPrice: 0.67, volume: "116671", conditionId: "mercedes", questionId: "mercedes" },
-  { id: "mclaren", name: "McLaren", tokenId: "mclaren-yes", yesTokenId: "mclaren-yes", noTokenId: "mclaren-no", price: 0.29, noPrice: 0.71, volume: "570288", conditionId: "mclaren", questionId: "mclaren" },
-  { id: "redbull", name: "Red Bull Racing", tokenId: "redbull-yes", yesTokenId: "redbull-yes", noTokenId: "redbull-no", price: 0.15, noPrice: 0.85, volume: "5256", conditionId: "redbull", questionId: "redbull" },
-  { id: "ferrari", name: "Ferrari", tokenId: "ferrari-yes", yesTokenId: "ferrari-yes", noTokenId: "ferrari-no", price: 0.12, noPrice: 0.88, volume: "6709", conditionId: "ferrari", questionId: "ferrari" },
-  { id: "astonmartin", name: "Aston Martin", tokenId: "astonmartin-yes", yesTokenId: "astonmartin-yes", noTokenId: "astonmartin-no", price: 0.08, noPrice: 0.92, volume: "3159", conditionId: "astonmartin", questionId: "astonmartin" },
-  { id: "williams", name: "Williams", tokenId: "williams-yes", yesTokenId: "williams-yes", noTokenId: "williams-no", price: 0.03, noPrice: 0.97, volume: "1995", conditionId: "williams", questionId: "williams" },
-  { id: "audi", name: "Audi", tokenId: "audi-yes", yesTokenId: "audi-yes", noTokenId: "audi-no", price: 0.036, noPrice: 0.964, volume: "1564", conditionId: "audi", questionId: "audi" },
-  { id: "alpine", name: "Alpine", tokenId: "alpine-yes", yesTokenId: "alpine-yes", noTokenId: "alpine-no", price: 0.025, noPrice: 0.975, volume: "2101", conditionId: "alpine", questionId: "alpine" },
-  { id: "cadillac", name: "Cadillac", tokenId: "cadillac-yes", yesTokenId: "cadillac-yes", noTokenId: "cadillac-no", price: 0.024, noPrice: 0.976, volume: "2784", conditionId: "cadillac", questionId: "cadillac" },
-  { id: "haas", name: "Haas", tokenId: "haas-yes", yesTokenId: "haas-yes", noTokenId: "haas-no", price: 0.004, noPrice: 0.996, volume: "1552", conditionId: "haas", questionId: "haas" },
-  { id: "rb", name: "Racing Bulls", tokenId: "rb-yes", yesTokenId: "rb-yes", noTokenId: "rb-no", price: 0.003, noPrice: 0.997, volume: "1700", conditionId: "rb", questionId: "rb" },
+  { id: "mercedes", name: "Mercedes", tokenId: "mercedes-yes", yesTokenId: "mercedes-yes", noTokenId: "mercedes-no", price: 0.33, noPrice: 0.67, volume: "116671", liquidity: "50000", conditionId: "mercedes", questionId: "mercedes" },
+  { id: "mclaren", name: "McLaren", tokenId: "mclaren-yes", yesTokenId: "mclaren-yes", noTokenId: "mclaren-no", price: 0.29, noPrice: 0.71, volume: "570288", liquidity: "120000", conditionId: "mclaren", questionId: "mclaren" },
+  { id: "redbull", name: "Red Bull Racing", tokenId: "redbull-yes", yesTokenId: "redbull-yes", noTokenId: "redbull-no", price: 0.15, noPrice: 0.85, volume: "5256", liquidity: "15000", conditionId: "redbull", questionId: "redbull" },
+  { id: "ferrari", name: "Ferrari", tokenId: "ferrari-yes", yesTokenId: "ferrari-yes", noTokenId: "ferrari-no", price: 0.12, noPrice: 0.88, volume: "6709", liquidity: "18000", conditionId: "ferrari", questionId: "ferrari" },
+  { id: "astonmartin", name: "Aston Martin", tokenId: "astonmartin-yes", yesTokenId: "astonmartin-yes", noTokenId: "astonmartin-no", price: 0.08, noPrice: 0.92, volume: "3159", liquidity: "8000", conditionId: "astonmartin", questionId: "astonmartin" },
+  { id: "williams", name: "Williams", tokenId: "williams-yes", yesTokenId: "williams-yes", noTokenId: "williams-no", price: 0.03, noPrice: 0.97, volume: "1995", liquidity: "5000", conditionId: "williams", questionId: "williams" },
+  { id: "audi", name: "Audi", tokenId: "audi-yes", yesTokenId: "audi-yes", noTokenId: "audi-no", price: 0.036, noPrice: 0.964, volume: "1564", liquidity: "4000", conditionId: "audi", questionId: "audi" },
+  { id: "alpine", name: "Alpine", tokenId: "alpine-yes", yesTokenId: "alpine-yes", noTokenId: "alpine-no", price: 0.025, noPrice: 0.975, volume: "2101", liquidity: "5500", conditionId: "alpine", questionId: "alpine" },
+  { id: "cadillac", name: "Cadillac", tokenId: "cadillac-yes", yesTokenId: "cadillac-yes", noTokenId: "cadillac-no", price: 0.024, noPrice: 0.976, volume: "2784", liquidity: "7000", conditionId: "cadillac", questionId: "cadillac" },
+  { id: "haas", name: "Haas", tokenId: "haas-yes", yesTokenId: "haas-yes", noTokenId: "haas-no", price: 0.004, noPrice: 0.996, volume: "1552", liquidity: "4000", conditionId: "haas", questionId: "haas" },
+  { id: "rb", name: "Racing Bulls", tokenId: "rb-yes", yesTokenId: "rb-yes", noTokenId: "rb-no", price: 0.003, noPrice: 0.997, volume: "1700", liquidity: "4500", conditionId: "rb", questionId: "rb" },
 ];
 
 export async function getConstructorsMarket(): Promise<NormalizedOutcome[]> {
@@ -407,6 +408,7 @@ export async function getConstructorsMarket(): Promise<NormalizedOutcome[]> {
         price: yesPrice,
         noPrice: noPrice,
         volume: market.volume || "0",
+        liquidity: market.liquidity || "0",
         conditionId: market.conditionId,
         questionId: market.questionID || market.questionId,
         image: market.image,
@@ -423,16 +425,16 @@ export async function getConstructorsMarket(): Promise<NormalizedOutcome[]> {
 
 // Fallback F1 Drivers data based on current Polymarket markets
 const fallbackDrivers: NormalizedOutcome[] = [
-  { id: "verstappen", name: "Max Verstappen", tokenId: "verstappen-yes", yesTokenId: "verstappen-yes", noTokenId: "verstappen-no", price: 0.24, noPrice: 0.76, volume: "50000", conditionId: "verstappen", questionId: "verstappen" },
-  { id: "norris", name: "Lando Norris", tokenId: "norris-yes", yesTokenId: "norris-yes", noTokenId: "norris-no", price: 0.22, noPrice: 0.78, volume: "45000", conditionId: "norris", questionId: "norris" },
-  { id: "hamilton", name: "Lewis Hamilton", tokenId: "hamilton-yes", yesTokenId: "hamilton-yes", noTokenId: "hamilton-no", price: 0.18, noPrice: 0.82, volume: "40000", conditionId: "hamilton", questionId: "hamilton" },
-  { id: "russell", name: "George Russell", tokenId: "russell-yes", yesTokenId: "russell-yes", noTokenId: "russell-no", price: 0.12, noPrice: 0.88, volume: "25000", conditionId: "russell", questionId: "russell" },
-  { id: "leclerc", name: "Charles Leclerc", tokenId: "leclerc-yes", yesTokenId: "leclerc-yes", noTokenId: "leclerc-no", price: 0.08, noPrice: 0.92, volume: "20000", conditionId: "leclerc", questionId: "leclerc" },
-  { id: "piastri", name: "Oscar Piastri", tokenId: "piastri-yes", yesTokenId: "piastri-yes", noTokenId: "piastri-no", price: 0.06, noPrice: 0.94, volume: "15000", conditionId: "piastri", questionId: "piastri" },
-  { id: "antonelli", name: "Kimi Antonelli", tokenId: "antonelli-yes", yesTokenId: "antonelli-yes", noTokenId: "antonelli-no", price: 0.04, noPrice: 0.96, volume: "10000", conditionId: "antonelli", questionId: "antonelli" },
-  { id: "alonso", name: "Fernando Alonso", tokenId: "alonso-yes", yesTokenId: "alonso-yes", noTokenId: "alonso-no", price: 0.02, noPrice: 0.98, volume: "8000", conditionId: "alonso", questionId: "alonso" },
-  { id: "sainz", name: "Carlos Sainz", tokenId: "sainz-yes", yesTokenId: "sainz-yes", noTokenId: "sainz-no", price: 0.015, noPrice: 0.985, volume: "5000", conditionId: "sainz", questionId: "sainz" },
-  { id: "lawson", name: "Liam Lawson", tokenId: "lawson-yes", yesTokenId: "lawson-yes", noTokenId: "lawson-no", price: 0.01, noPrice: 0.99, volume: "3000", conditionId: "lawson", questionId: "lawson" },
+  { id: "verstappen", name: "Max Verstappen", tokenId: "verstappen-yes", yesTokenId: "verstappen-yes", noTokenId: "verstappen-no", price: 0.24, noPrice: 0.76, volume: "50000", liquidity: "25000", conditionId: "verstappen", questionId: "verstappen" },
+  { id: "norris", name: "Lando Norris", tokenId: "norris-yes", yesTokenId: "norris-yes", noTokenId: "norris-no", price: 0.22, noPrice: 0.78, volume: "45000", liquidity: "22000", conditionId: "norris", questionId: "norris" },
+  { id: "hamilton", name: "Lewis Hamilton", tokenId: "hamilton-yes", yesTokenId: "hamilton-yes", noTokenId: "hamilton-no", price: 0.18, noPrice: 0.82, volume: "40000", liquidity: "20000", conditionId: "hamilton", questionId: "hamilton" },
+  { id: "russell", name: "George Russell", tokenId: "russell-yes", yesTokenId: "russell-yes", noTokenId: "russell-no", price: 0.12, noPrice: 0.88, volume: "25000", liquidity: "12000", conditionId: "russell", questionId: "russell" },
+  { id: "leclerc", name: "Charles Leclerc", tokenId: "leclerc-yes", yesTokenId: "leclerc-yes", noTokenId: "leclerc-no", price: 0.08, noPrice: 0.92, volume: "20000", liquidity: "10000", conditionId: "leclerc", questionId: "leclerc" },
+  { id: "piastri", name: "Oscar Piastri", tokenId: "piastri-yes", yesTokenId: "piastri-yes", noTokenId: "piastri-no", price: 0.06, noPrice: 0.94, volume: "15000", liquidity: "7500", conditionId: "piastri", questionId: "piastri" },
+  { id: "antonelli", name: "Kimi Antonelli", tokenId: "antonelli-yes", yesTokenId: "antonelli-yes", noTokenId: "antonelli-no", price: 0.04, noPrice: 0.96, volume: "10000", liquidity: "5000", conditionId: "antonelli", questionId: "antonelli" },
+  { id: "alonso", name: "Fernando Alonso", tokenId: "alonso-yes", yesTokenId: "alonso-yes", noTokenId: "alonso-no", price: 0.02, noPrice: 0.98, volume: "8000", liquidity: "4000", conditionId: "alonso", questionId: "alonso" },
+  { id: "sainz", name: "Carlos Sainz", tokenId: "sainz-yes", yesTokenId: "sainz-yes", noTokenId: "sainz-no", price: 0.015, noPrice: 0.985, volume: "5000", liquidity: "2500", conditionId: "sainz", questionId: "sainz" },
+  { id: "lawson", name: "Liam Lawson", tokenId: "lawson-yes", yesTokenId: "lawson-yes", noTokenId: "lawson-no", price: 0.01, noPrice: 0.99, volume: "3000", liquidity: "1500", conditionId: "lawson", questionId: "lawson" },
 ];
 
 export async function getDriversMarket(): Promise<NormalizedOutcome[]> {
@@ -488,6 +490,7 @@ export async function getDriversMarket(): Promise<NormalizedOutcome[]> {
         price: yesPrice,
         noPrice: noPrice,
         volume: market.volume || "0",
+        liquidity: market.liquidity || "0",
         conditionId: market.conditionId,
         questionId: market.questionID || market.questionId,
         image: market.image,
