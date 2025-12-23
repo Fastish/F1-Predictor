@@ -15,6 +15,28 @@ import {
 import { matchingEngine } from "./matchingEngine";
 import { randomBytes } from "crypto";
 import { registerPoolRoutes } from "./pool-routes";
+import { HttpsProxyAgent } from "https-proxy-agent";
+
+// Oxylabs proxy configuration for bypassing Polymarket's US IP block
+// Returns undefined if proxy is not configured
+function getOxylabsProxyAgent(): HttpsProxyAgent<string> | undefined {
+  const proxyUser = process.env.OXYLABS_USER;
+  const proxyPass = process.env.OXYLABS_PASS;
+  
+  if (!proxyUser || !proxyPass) {
+    return undefined;
+  }
+  
+  // Target UK residential IP to bypass US geo-blocking
+  // Format: customer-USER-cc-COUNTRY:PASSWORD@proxy.oxylabs.io:7777
+  const proxyUrl = `http://${proxyUser}-cc-uk:${proxyPass}@pr.oxylabs.io:7777`;
+  return new HttpsProxyAgent(proxyUrl);
+}
+
+// Check if Oxylabs proxy is configured
+export function hasOxylabsProxy(): boolean {
+  return !!(process.env.OXYLABS_USER && process.env.OXYLABS_PASS);
+}
 
 // In-memory store for pending transaction expectations
 // Key: nonce, Value: { userId, walletAddress, collateralAmount, orderDetails, createdAt }
@@ -572,6 +594,19 @@ export async function registerRoutes(
     }
   });
 
+  // Check if Oxylabs proxy is configured (for bypassing US geo-blocking)
+  app.get("/api/polymarket/proxy-status", async (req, res) => {
+    try {
+      res.json({ 
+        available: hasOxylabsProxy(),
+        provider: "oxylabs",
+        country: "uk"
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to check proxy status" });
+    }
+  });
+
   // ============ Polymarket Relayer Client (Server-Side Proxy) ============
   
   // Check if relayer credentials are available
@@ -868,7 +903,8 @@ export async function registerRoutes(
 
       console.log("Proxying credential derivation for:", walletAddress);
 
-      const response = await fetch("https://clob.polymarket.com/auth/derive-api-key", {
+      const proxyAgent = getOxylabsProxyAgent();
+      const fetchOptions: RequestInit & { agent?: HttpsProxyAgent<string> } = {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -878,7 +914,12 @@ export async function registerRoutes(
           "POLY_TIMESTAMP": timestamp.toString(),
           "POLY_NONCE": (nonce || 0).toString(),
         },
-      });
+      };
+      if (proxyAgent) {
+        (fetchOptions as any).agent = proxyAgent;
+        console.log("Using Oxylabs proxy for derive-api-key");
+      }
+      const response = await fetch("https://clob.polymarket.com/auth/derive-api-key", fetchOptions);
 
       const responseText = await response.text();
       console.log("Polymarket derive-api-key response:", response.status, responseText.substring(0, 200));
@@ -936,7 +977,8 @@ export async function registerRoutes(
       hmac.update(message);
       const hmacSignature = hmac.digest("base64");
 
-      const response = await fetch("https://clob.polymarket.com/order", {
+      const proxyAgent = getOxylabsProxyAgent();
+      const submitFetchOptions: RequestInit & { agent?: HttpsProxyAgent<string> } = {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -950,7 +992,12 @@ export async function registerRoutes(
           ...order,
           signature: signature,
         }),
-      });
+      };
+      if (proxyAgent) {
+        (submitFetchOptions as any).agent = proxyAgent;
+        console.log("Using Oxylabs proxy for submit-order");
+      }
+      const response = await fetch("https://clob.polymarket.com/order", submitFetchOptions);
 
       const responseText = await response.text();
       console.log("Polymarket order response:", response.status, responseText.substring(0, 200));
@@ -1038,11 +1085,17 @@ export async function registerRoutes(
         signature: userSignature,
       };
 
-      const response = await fetch("https://clob.polymarket.com/order", {
+      const proxyAgent = getOxylabsProxyAgent();
+      const builderFetchOptions: RequestInit & { agent?: HttpsProxyAgent<string> } = {
         method: "POST",
         headers,
         body: JSON.stringify(orderWithSignature),
-      });
+      };
+      if (proxyAgent) {
+        (builderFetchOptions as any).agent = proxyAgent;
+        console.log("Using Oxylabs proxy for builder-order");
+      }
+      const response = await fetch("https://clob.polymarket.com/order", builderFetchOptions);
 
       const responseText = await response.text();
       console.log("Builder order response:", response.status, responseText);
@@ -1142,16 +1195,22 @@ export async function registerRoutes(
         }
       }
 
-      const fetchOptions: RequestInit = {
+      const proxyAgent = getOxylabsProxyAgent();
+      const clobFetchOptions: RequestInit & { agent?: HttpsProxyAgent<string> } = {
         method: method.toUpperCase(),
         headers,
       };
 
       if (body && (method.toUpperCase() === "POST" || method.toUpperCase() === "PUT")) {
-        fetchOptions.body = bodyStr;
+        clobFetchOptions.body = bodyStr;
+      }
+      
+      if (proxyAgent) {
+        (clobFetchOptions as any).agent = proxyAgent;
+        console.log("Using Oxylabs proxy for clob-proxy:", path);
       }
 
-      const response = await fetch(`https://clob.polymarket.com${path}`, fetchOptions);
+      const response = await fetch(`https://clob.polymarket.com${path}`, clobFetchOptions);
 
       const responseText = await response.text();
       console.log("CLOB Proxy response:", response.status, responseText);
