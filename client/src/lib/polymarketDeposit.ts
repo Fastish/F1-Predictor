@@ -4,7 +4,8 @@ import { ethers } from "ethers";
 export const POLYMARKET_CONTRACTS = {
   CTF_EXCHANGE: "0x4bFb41d5B3570DeFd03C39a9A4D8dE6Bd8B8982E",
   NEG_RISK_CTF_EXCHANGE: "0xC5d563A36AE78145C45a50134d48A1215220f80a",
-  USDC: "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174", // USDC.e on Polygon
+  USDC: "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174", // USDC.e on Polygon (bridged - used by Polymarket)
+  USDC_NATIVE: "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359", // Native USDC on Polygon
   CTF: "0x4d97dcd97ec945f40cf65f87097ace5ea0476045", // Conditional Tokens
   PROXY_FACTORY: "0xaB45c5A4B0c941a2F231C04C3f49182e1A254052", // Magic proxy factory
 };
@@ -44,6 +45,15 @@ export async function getUSDCBalance(
   address: string
 ): Promise<string> {
   const usdc = new ethers.Contract(POLYMARKET_CONTRACTS.USDC, ERC20_ABI, provider);
+  const balance = await usdc.balanceOf(address);
+  return ethers.formatUnits(balance, 6); // USDC has 6 decimals
+}
+
+export async function getNativeUSDCBalance(
+  provider: ethers.Provider,
+  address: string
+): Promise<string> {
+  const usdc = new ethers.Contract(POLYMARKET_CONTRACTS.USDC_NATIVE, ERC20_ABI, provider);
   const balance = await usdc.balanceOf(address);
   return ethers.formatUnits(balance, 6); // USDC has 6 decimals
 }
@@ -203,6 +213,7 @@ export async function checkDepositRequirements(
   isMagicWallet: boolean
 ): Promise<{
   usdcBalance: string;
+  nativeUsdcBalance: string;
   ctfExchangeAllowance: string;
   negRiskExchangeAllowance: string;
   ctfApprovedForExchange: boolean;
@@ -213,6 +224,7 @@ export async function checkDepositRequirements(
   needsCTFApproval: boolean;
 }> {
   const usdcBalance = await getUSDCBalance(provider, walletAddress);
+  const nativeUsdcBalance = await getNativeUSDCBalance(provider, walletAddress);
   const ctfExchangeAllowance = await getUSDCAllowance(
     provider, 
     walletAddress, 
@@ -252,6 +264,7 @@ export async function checkDepositRequirements(
   
   return {
     usdcBalance,
+    nativeUsdcBalance,
     ctfExchangeAllowance,
     negRiskExchangeAllowance,
     ctfApprovedForExchange,

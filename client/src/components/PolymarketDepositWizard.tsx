@@ -32,6 +32,7 @@ type Step = "check" | "approve_usdc" | "approve_ctf" | "deposit" | "complete" | 
 
 interface DepositStatus {
   usdcBalance: string;
+  nativeUsdcBalance: string;
   ctfExchangeAllowance: string;
   negRiskExchangeAllowance: string;
   ctfApprovedForExchange: boolean;
@@ -41,6 +42,7 @@ interface DepositStatus {
   needsApproval: boolean;
   needsCTFApproval: boolean;
   needsDeposit: boolean;
+  needsSwap: boolean;
 }
 
 export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWizardProps) {
@@ -79,9 +81,15 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
         parseFloat(rawStatus.proxyBalance || "0") < 1 && 
         parseFloat(rawStatus.usdcBalance) >= 1;
       
+      // Check if user needs to swap native USDC to USDC.e
+      // Only show swap warning when USDC.e is effectively zero but user has native USDC
+      const needsSwap = parseFloat(rawStatus.nativeUsdcBalance) >= 1 && 
+        parseFloat(rawStatus.usdcBalance) < 0.01;
+      
       const status: DepositStatus = {
         ...rawStatus,
         needsDeposit,
+        needsSwap,
       };
       setDepositStatus(status);
       
@@ -152,10 +160,13 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
         updatedStatus.proxyAddress !== null &&
         parseFloat(updatedStatus.proxyBalance || "0") < 1 && 
         parseFloat(updatedStatus.usdcBalance) >= 1;
+      const needsSwap = parseFloat(updatedStatus.nativeUsdcBalance) >= 1 && 
+        parseFloat(updatedStatus.usdcBalance) < 0.01;
       
       setDepositStatus({
         ...updatedStatus,
         needsDeposit,
+        needsSwap,
       });
       
       if (updatedStatus.needsCTFApproval) {
@@ -222,10 +233,13 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
         updatedStatus.proxyAddress !== null &&
         parseFloat(updatedStatus.proxyBalance || "0") < 1 && 
         parseFloat(updatedStatus.usdcBalance) >= 1;
+      const needsSwap = parseFloat(updatedStatus.nativeUsdcBalance) >= 1 && 
+        parseFloat(updatedStatus.usdcBalance) < 0.01;
       
       setDepositStatus({
         ...updatedStatus,
         needsDeposit,
+        needsSwap,
       });
       
       if (needsDeposit) {
@@ -347,9 +361,38 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
             {depositStatus && (
               <Card className="p-4 space-y-3">
                 <div className="flex justify-between items-center">
-                  <span className="text-sm">USDC Balance</span>
+                  <span className="text-sm">USDC.e Balance (for trading)</span>
                   <span className="font-medium">${parseFloat(depositStatus.usdcBalance).toFixed(2)}</span>
                 </div>
+                {parseFloat(depositStatus.nativeUsdcBalance) > 0 && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Native USDC Balance</span>
+                    <span className="font-medium text-muted-foreground">${parseFloat(depositStatus.nativeUsdcBalance).toFixed(2)}</span>
+                  </div>
+                )}
+                {depositStatus.needsSwap && (
+                  <div className="p-3 bg-amber-500/10 rounded-lg space-y-2">
+                    <div className="flex items-start gap-2">
+                      <AlertCircle className="h-4 w-4 text-amber-500 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <p className="text-sm font-medium">Swap Required</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Polymarket uses USDC.e (bridged USDC). You have ${parseFloat(depositStatus.nativeUsdcBalance).toFixed(2)} native USDC that needs to be swapped.
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      onClick={() => window.open(`https://app.uniswap.org/swap?chain=polygon&inputCurrency=0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359&outputCurrency=0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174`, '_blank')}
+                      data-testid="button-swap-usdc"
+                    >
+                      <ExternalLink className="h-4 w-4 mr-2" />
+                      Swap on Uniswap
+                    </Button>
+                  </div>
+                )}
                 <div className="flex justify-between items-center">
                   <span className="text-sm">USDC Approved</span>
                   {!depositStatus.needsApproval ? (
@@ -570,9 +613,15 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
             {depositStatus && depositStatus.proxyAddress && (
               <Card className="p-4 space-y-3">
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Your Wallet Balance</span>
+                  <span className="text-sm text-muted-foreground">Your Wallet USDC.e</span>
                   <span className="font-medium">${parseFloat(depositStatus.usdcBalance).toFixed(2)}</span>
                 </div>
+                {parseFloat(depositStatus.nativeUsdcBalance) > 0 && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Your Wallet Native USDC</span>
+                    <span className="font-medium text-muted-foreground">${parseFloat(depositStatus.nativeUsdcBalance).toFixed(2)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">Trading Wallet Balance</span>
                   <span className="font-medium">${parseFloat(depositStatus.proxyBalance || "0").toFixed(2)}</span>
@@ -718,12 +767,18 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
             {depositStatus && (
               <Card className="p-4 space-y-3">
                 <div className="flex justify-between items-center">
-                  <span className="text-sm">USDC in Wallet</span>
+                  <span className="text-sm">USDC.e in Wallet (for trading)</span>
                   <span className="font-medium">${parseFloat(depositStatus.usdcBalance).toFixed(2)}</span>
                 </div>
+                {parseFloat(depositStatus.nativeUsdcBalance) > 0 && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Native USDC in Wallet</span>
+                    <span className="font-medium text-muted-foreground">${parseFloat(depositStatus.nativeUsdcBalance).toFixed(2)}</span>
+                  </div>
+                )}
                 {walletType === "magic" && depositStatus.proxyAddress && (
                   <div className="flex justify-between items-center">
-                    <span className="text-sm">USDC in Trading Wallet</span>
+                    <span className="text-sm">USDC.e in Trading Wallet</span>
                     <span className="font-medium text-green-600 dark:text-green-400">
                       ${parseFloat(depositStatus.proxyBalance || "0").toFixed(2)}
                     </span>
@@ -732,13 +787,35 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
               </Card>
             )}
 
+            {depositStatus && depositStatus.needsSwap && (
+              <div className="flex items-start gap-3 p-4 bg-amber-500/10 rounded-lg">
+                <AlertCircle className="h-5 w-5 text-amber-500 mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <p className="font-medium text-sm">Swap Required</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Polymarket uses USDC.e (bridged USDC). You have ${parseFloat(depositStatus.nativeUsdcBalance).toFixed(2)} native USDC that needs to be swapped before trading.
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-2"
+                    onClick={() => window.open(`https://app.uniswap.org/swap?chain=polygon&inputCurrency=0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359&outputCurrency=0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174`, '_blank')}
+                    data-testid="button-swap-usdc-complete"
+                  >
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    Swap on Uniswap
+                  </Button>
+                </div>
+              </div>
+            )}
+
             {depositStatus && walletType === "magic" && parseFloat(depositStatus.proxyBalance || "0") < 1 && parseFloat(depositStatus.usdcBalance) >= 1 && (
               <div className="flex items-start gap-3 p-4 bg-amber-500/10 rounded-lg">
                 <AlertCircle className="h-5 w-5 text-amber-500 mt-0.5 flex-shrink-0" />
                 <div>
                   <p className="font-medium text-sm">Your trading wallet needs funds</p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    You have ${parseFloat(depositStatus.usdcBalance).toFixed(2)} USDC available. 
+                    You have ${parseFloat(depositStatus.usdcBalance).toFixed(2)} USDC.e available. 
                     Consider depositing to start trading.
                   </p>
                   <button
@@ -752,14 +829,14 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
               </div>
             )}
 
-            {depositStatus && parseFloat(depositStatus.usdcBalance) < 1 && parseFloat(depositStatus.proxyBalance || "0") < 1 && (
+            {depositStatus && parseFloat(depositStatus.usdcBalance) < 1 && parseFloat(depositStatus.proxyBalance || "0") < 1 && !depositStatus.needsSwap && (
               <div className="flex items-start gap-3 p-4 bg-amber-500/10 rounded-lg">
                 <AlertCircle className="h-5 w-5 text-amber-500 mt-0.5 flex-shrink-0" />
                 <div>
-                  <p className="font-medium text-sm">Add USDC to Trade</p>
+                  <p className="font-medium text-sm">Add USDC.e to Trade</p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    You need USDC on Polygon to place orders. Visit Polymarket to deposit funds, 
-                    or transfer USDC directly to your Polygon wallet.
+                    You need USDC.e (bridged USDC) on Polygon to place orders. Visit Polymarket to deposit funds, 
+                    or transfer USDC.e directly to your Polygon wallet.
                   </p>
                   <a
                     href="https://polymarket.com"
