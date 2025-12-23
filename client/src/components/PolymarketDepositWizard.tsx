@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { useWallet } from "@/context/WalletContext";
 import { 
   checkDepositRequirements, 
@@ -10,6 +11,7 @@ import {
   approveUSDCForNegRiskExchange,
   approveCTFForExchange,
   approveCTFForNegRiskExchange,
+  transferUSDCToProxy,
   POLYMARKET_CONTRACTS,
 } from "@/lib/polymarketDeposit";
 import { 
@@ -18,14 +20,14 @@ import {
   approveCTFForTradingGasless,
 } from "@/lib/polymarketRelayer";
 import { ethers } from "ethers";
-import { Check, Loader2, AlertCircle, ExternalLink, ArrowRight, Wallet, Shield, ChevronRight, Zap } from "lucide-react";
+import { Check, Loader2, AlertCircle, ExternalLink, ArrowRight, Wallet, Shield, ChevronRight, Zap, Copy, ArrowDown, DollarSign } from "lucide-react";
 
 interface PolymarketDepositWizardProps {
   open: boolean;
   onClose: () => void;
 }
 
-type Step = "check" | "approve_usdc" | "approve_ctf" | "complete" | "error";
+type Step = "check" | "approve_usdc" | "approve_ctf" | "deposit" | "complete" | "error";
 
 interface DepositStatus {
   usdcBalance: string;
@@ -37,6 +39,7 @@ interface DepositStatus {
   proxyBalance: string | null;
   needsApproval: boolean;
   needsCTFApproval: boolean;
+  needsDeposit: boolean;
 }
 
 export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWizardProps) {
@@ -48,6 +51,8 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
   const [txHash, setTxHash] = useState<string | null>(null);
   const [relayerAvailable, setRelayerAvailable] = useState(false);
   const [usingRelayer, setUsingRelayer] = useState(false);
+  const [depositAmount, setDepositAmount] = useState<string>("");
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (open && walletAddress) {
@@ -65,15 +70,29 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
     try {
       const isMagic = walletType === "magic";
       
-      const status = await checkDepositRequirements(provider, walletAddress, isMagic);
+      const rawStatus = await checkDepositRequirements(provider, walletAddress, isMagic);
+      
+      // For Magic wallets, check if proxy has low balance and user has USDC to deposit
+      const needsDeposit = isMagic && 
+        rawStatus.proxyAddress !== null &&
+        parseFloat(rawStatus.proxyBalance || "0") < 1 && 
+        parseFloat(rawStatus.usdcBalance) >= 1;
+      
+      const status: DepositStatus = {
+        ...rawStatus,
+        needsDeposit,
+      };
       setDepositStatus(status);
       
-      if (!status.needsApproval && !status.needsCTFApproval) {
-        setStep("complete");
-      } else if (status.needsApproval) {
+      // Determine which step to show
+      if (status.needsApproval) {
         setStep("approve_usdc");
       } else if (status.needsCTFApproval) {
         setStep("approve_ctf");
+      } else if (status.needsDeposit) {
+        setStep("deposit");
+      } else {
+        setStep("complete");
       }
     } catch (err) {
       console.error("Failed to check deposit status:", err);
@@ -124,11 +143,24 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
         setTxHash(result2.txHash || result1.txHash || null);
       }
       
-      // Re-check status
-      await checkStatus();
+      // Re-check status to determine next step
+      if (!walletAddress || !provider) return;
+      const isMagic = walletType === "magic";
+      const updatedStatus = await checkDepositRequirements(provider, walletAddress, isMagic);
+      const needsDeposit = isMagic && 
+        updatedStatus.proxyAddress !== null &&
+        parseFloat(updatedStatus.proxyBalance || "0") < 1 && 
+        parseFloat(updatedStatus.usdcBalance) >= 1;
       
-      if (depositStatus?.needsCTFApproval) {
+      setDepositStatus({
+        ...updatedStatus,
+        needsDeposit,
+      });
+      
+      if (updatedStatus.needsCTFApproval) {
         setStep("approve_ctf");
+      } else if (needsDeposit) {
+        setStep("deposit");
       } else {
         setStep("complete");
       }
@@ -181,13 +213,81 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
         setTxHash(result2.txHash || result1.txHash || null);
       }
       
-      setStep("complete");
+      // Re-check status to determine next step
+      if (!walletAddress || !provider) return;
+      const isMagic = walletType === "magic";
+      const updatedStatus = await checkDepositRequirements(provider, walletAddress, isMagic);
+      const needsDeposit = isMagic && 
+        updatedStatus.proxyAddress !== null &&
+        parseFloat(updatedStatus.proxyBalance || "0") < 1 && 
+        parseFloat(updatedStatus.usdcBalance) >= 1;
+      
+      setDepositStatus({
+        ...updatedStatus,
+        needsDeposit,
+      });
+      
+      if (needsDeposit) {
+        setStep("deposit");
+      } else {
+        setStep("complete");
+      }
     } catch (err) {
       console.error("CTF approval failed:", err);
       setError(err instanceof Error ? err.message : "Approval failed");
     } finally {
       setLoading(false);
       setUsingRelayer(false);
+    }
+  };
+
+  const handleDeposit = async () => {
+    if (!signer || !depositStatus?.proxyAddress || !depositAmount) return;
+    
+    setLoading(true);
+    setError(null);
+    setTxHash(null);
+    
+    try {
+      const amount = parseFloat(depositAmount);
+      if (isNaN(amount) || amount <= 0) {
+        throw new Error("Please enter a valid amount");
+      }
+      
+      if (amount > parseFloat(depositStatus.usdcBalance)) {
+        throw new Error("Insufficient balance");
+      }
+      
+      const result = await transferUSDCToProxy(signer, depositStatus.proxyAddress, depositAmount);
+      
+      if (!result.success) {
+        throw new Error(result.error || "Transfer failed");
+      }
+      
+      setTxHash(result.txHash || null);
+      
+      // Refresh status and go to complete
+      await checkStatus();
+      setStep("complete");
+    } catch (err) {
+      console.error("Deposit failed:", err);
+      setError(err instanceof Error ? err.message : "Deposit failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCopyAddress = () => {
+    if (depositStatus?.proxyAddress) {
+      navigator.clipboard.writeText(depositStatus.proxyAddress);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const handleSetMaxAmount = () => {
+    if (depositStatus?.usdcBalance) {
+      setDepositAmount(depositStatus.usdcBalance);
     }
   };
 
@@ -435,6 +535,118 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
           </div>
         );
 
+      case "deposit":
+        return (
+          <div className="space-y-4">
+            <div className="flex items-start gap-3 p-4 bg-muted rounded-lg">
+              <DollarSign className="h-5 w-5 text-primary mt-0.5" />
+              <div>
+                <p className="font-medium text-sm">Fund Your Trading Wallet</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Transfer USDC from your wallet to your Polymarket trading address.
+                  This is where your trading balance lives.
+                </p>
+              </div>
+            </div>
+
+            {depositStatus && depositStatus.proxyAddress && (
+              <Card className="p-4 space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Your Wallet Balance</span>
+                  <span className="font-medium">${parseFloat(depositStatus.usdcBalance).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Trading Wallet Balance</span>
+                  <span className="font-medium">${parseFloat(depositStatus.proxyBalance || "0").toFixed(2)}</span>
+                </div>
+                <div className="pt-2 border-t">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-muted-foreground">Trading Wallet Address</span>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="h-6 px-2 text-xs"
+                      onClick={handleCopyAddress}
+                      data-testid="button-copy-proxy-address"
+                    >
+                      <span className="font-mono">{formatAddress(depositStatus.proxyAddress)}</span>
+                      <Copy className="h-3 w-3 ml-1" />
+                      {copied && <span className="ml-1 text-green-500">Copied!</span>}
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            )}
+
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max={depositStatus?.usdcBalance}
+                    placeholder="0.00"
+                    value={depositAmount}
+                    onChange={(e) => setDepositAmount(e.target.value)}
+                    className="pl-8"
+                    data-testid="input-deposit-amount"
+                  />
+                </div>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={handleSetMaxAmount}
+                  data-testid="button-max-amount"
+                >
+                  Max
+                </Button>
+              </div>
+              {depositStatus && (
+                <p className="text-xs text-muted-foreground">
+                  Available: ${parseFloat(depositStatus.usdcBalance).toFixed(2)} USDC
+                </p>
+              )}
+            </div>
+
+            {error && (
+              <div className="flex items-center gap-2 p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+                <AlertCircle className="h-4 w-4 text-destructive" />
+                <p className="text-sm text-destructive">{error}</p>
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <Button 
+                onClick={handleDeposit} 
+                disabled={loading || !depositAmount || parseFloat(depositAmount) <= 0}
+                className="flex-1"
+                data-testid="button-deposit-usdc"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Transferring...
+                  </>
+                ) : (
+                  <>
+                    <ArrowDown className="h-4 w-4 mr-2" />
+                    Deposit to Trading Wallet
+                  </>
+                )}
+              </Button>
+              <Button 
+                variant="outline"
+                onClick={() => setStep("complete")}
+                data-testid="button-skip-deposit"
+              >
+                Skip
+              </Button>
+            </div>
+          </div>
+        );
+
       case "complete":
         return (
           <div className="space-y-4">
@@ -443,9 +655,9 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
                 <Check className="h-6 w-6 text-green-600 dark:text-green-400" />
               </div>
               <div className="text-center">
-                <p className="font-medium">Approvals Complete!</p>
+                <p className="font-medium">Setup Complete!</p>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Your wallet is approved for Polymarket trading.
+                  Your wallet is ready for Polymarket trading.
                 </p>
               </div>
             </div>
@@ -458,8 +670,8 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
                 </div>
                 {walletType === "magic" && depositStatus.proxyAddress && (
                   <div className="flex justify-between items-center">
-                    <span className="text-sm">USDC in Polymarket</span>
-                    <span className="font-medium">
+                    <span className="text-sm">USDC in Trading Wallet</span>
+                    <span className="font-medium text-green-600 dark:text-green-400">
                       ${parseFloat(depositStatus.proxyBalance || "0").toFixed(2)}
                     </span>
                   </div>
@@ -467,11 +679,31 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
               </Card>
             )}
 
-            {depositStatus && parseFloat(depositStatus.usdcBalance) < 1 && (
+            {depositStatus && walletType === "magic" && parseFloat(depositStatus.proxyBalance || "0") < 1 && parseFloat(depositStatus.usdcBalance) >= 1 && (
               <div className="flex items-start gap-3 p-4 bg-amber-500/10 rounded-lg">
                 <AlertCircle className="h-5 w-5 text-amber-500 mt-0.5 flex-shrink-0" />
                 <div>
-                  <p className="font-medium text-sm">Deposit USDC to Trade</p>
+                  <p className="font-medium text-sm">Your trading wallet needs funds</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    You have ${parseFloat(depositStatus.usdcBalance).toFixed(2)} USDC available. 
+                    Consider depositing to start trading.
+                  </p>
+                  <button
+                    className="text-xs text-primary hover:underline mt-2"
+                    onClick={() => setStep("deposit")}
+                    data-testid="button-go-to-deposit"
+                  >
+                    Deposit now
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {depositStatus && parseFloat(depositStatus.usdcBalance) < 1 && parseFloat(depositStatus.proxyBalance || "0") < 1 && (
+              <div className="flex items-start gap-3 p-4 bg-amber-500/10 rounded-lg">
+                <AlertCircle className="h-5 w-5 text-amber-500 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="font-medium text-sm">Add USDC to Trade</p>
                   <p className="text-xs text-muted-foreground mt-1">
                     You need USDC on Polygon to place orders. Visit Polymarket to deposit funds, 
                     or transfer USDC directly to your Polygon wallet.
@@ -537,10 +769,15 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
       case "check": return 1;
       case "approve_usdc": return 2;
       case "approve_ctf": return 3;
-      case "complete": return 4;
+      case "deposit": return 4;
+      case "complete": return 5;
       default: return 1;
     }
   };
+
+  // Determine which steps are visible based on wallet type
+  const isMagicWallet = walletType === "magic";
+  const totalSteps = isMagicWallet ? 5 : 4; // External wallets don't need deposit step
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
@@ -548,14 +785,17 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
         <DialogHeader>
           <DialogTitle>Setup Polymarket Trading</DialogTitle>
           <DialogDescription>
-            Approve your wallet to trade on Polymarket prediction markets.
+            {isMagicWallet 
+              ? "Approve and fund your wallet to trade on Polymarket."
+              : "Approve your wallet to trade on Polymarket prediction markets."
+            }
           </DialogDescription>
         </DialogHeader>
 
         {/* Progress indicator */}
         {step !== "error" && (
           <div className="flex items-center justify-center gap-2 py-2">
-            {[1, 2, 3, 4].map((num) => (
+            {Array.from({ length: totalSteps }, (_, i) => i + 1).map((num) => (
               <div
                 key={num}
                 className={`h-2 w-8 rounded-full transition-colors ${
