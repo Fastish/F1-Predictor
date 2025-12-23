@@ -27,15 +27,33 @@ function getOxylabsProxyAgent(): HttpsProxyAgent<string> | undefined {
     return undefined;
   }
   
-  // Target Netherlands residential IP to bypass US geo-blocking
+  // Target Germany residential IP to bypass US geo-blocking
   // Format: customer-USER-cc-COUNTRY:PASSWORD@proxy.oxylabs.io:7777
-  const proxyUrl = `http://${proxyUser}-cc-nl:${proxyPass}@pr.oxylabs.io:7777`;
+  const proxyUrl = `http://${proxyUser}-cc-de:${proxyPass}@pr.oxylabs.io:7777`;
   return new HttpsProxyAgent(proxyUrl);
 }
 
 // Check if Oxylabs proxy is configured
 export function hasOxylabsProxy(): boolean {
   return !!(process.env.OXYLABS_USER && process.env.OXYLABS_PASS);
+}
+
+// Browser-like headers to bypass Cloudflare bot detection
+function getBrowserHeaders(): Record<string, string> {
+  return {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Origin": "https://polymarket.com",
+    "Referer": "https://polymarket.com/",
+    "Sec-Ch-Ua": '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+    "Sec-Ch-Ua-Mobile": "?0",
+    "Sec-Ch-Ua-Platform": '"Windows"',
+    "Sec-Fetch-Dest": "empty",
+    "Sec-Fetch-Mode": "cors",
+    "Sec-Fetch-Site": "same-site",
+  };
 }
 
 // In-memory store for pending transaction expectations
@@ -600,7 +618,7 @@ export async function registerRoutes(
       res.json({ 
         available: hasOxylabsProxy(),
         provider: "oxylabs",
-        country: "nl"
+        country: "de"
       });
     } catch (error) {
       res.status(500).json({ error: "Failed to check proxy status" });
@@ -907,8 +925,8 @@ export async function registerRoutes(
       const fetchOptions: RequestInit & { agent?: HttpsProxyAgent<string> } = {
         method: "GET",
         headers: {
+          ...getBrowserHeaders(),
           "Content-Type": "application/json",
-          "Accept": "application/json",
           "POLY_ADDRESS": walletAddress,
           "POLY_SIGNATURE": signature,
           "POLY_TIMESTAMP": timestamp.toString(),
@@ -981,8 +999,8 @@ export async function registerRoutes(
       const submitFetchOptions: RequestInit & { agent?: HttpsProxyAgent<string> } = {
         method: "POST",
         headers: {
+          ...getBrowserHeaders(),
           "Content-Type": "application/json",
-          "Accept": "application/json",
           "POLY_API_KEY": apiKey,
           "POLY_PASSPHRASE": passphrase,
           "POLY_TIMESTAMP": timestamp,
@@ -1069,9 +1087,10 @@ export async function registerRoutes(
       const builderSignature = hmac.digest("base64");
 
       // Build request with builder headers for submitting on behalf of user
+      // Include browser-like headers to bypass Cloudflare bot detection
       const headers: Record<string, string> = {
+        ...getBrowserHeaders(),
         "Content-Type": "application/json",
-        "Accept": "application/json",
         "POLY_ADDRESS": walletAddress,
         "POLY_BUILDER_API_KEY": builderApiKey,
         "POLY_BUILDER_PASSPHRASE": builderPassphrase,
@@ -1169,8 +1188,8 @@ export async function registerRoutes(
       const hmacSignature = hmac.digest("base64");
 
       const headers: Record<string, string> = {
+        ...getBrowserHeaders(),
         "Content-Type": "application/json",
-        "Accept": "application/json",
         "POLY_API_KEY": apiKey,
         "POLY_PASSPHRASE": passphrase,
         "POLY_TIMESTAMP": timestamp,
