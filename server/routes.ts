@@ -767,6 +767,121 @@ export async function registerRoutes(
     }
   });
 
+  // Server-side proxy for deriving Polymarket API credentials
+  // This bypasses CORS/Cloudflare restrictions by making the request from the server
+  app.post("/api/polymarket/derive-credentials", async (req, res) => {
+    try {
+      const { walletAddress, signature, timestamp, nonce } = req.body;
+      
+      if (!walletAddress || !signature || !timestamp) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      console.log("Proxying credential derivation for:", walletAddress);
+
+      const response = await fetch("https://clob.polymarket.com/auth/derive-api-key", {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+          "POLY_ADDRESS": walletAddress,
+          "POLY_SIGNATURE": signature,
+          "POLY_TIMESTAMP": timestamp.toString(),
+          "POLY_NONCE": (nonce || 0).toString(),
+        },
+      });
+
+      const responseText = await response.text();
+      console.log("Polymarket derive-api-key response:", response.status, responseText.substring(0, 200));
+
+      if (responseText.includes("<!DOCTYPE html>") || responseText.includes("Cloudflare")) {
+        return res.status(503).json({ error: "Polymarket API is blocking requests" });
+      }
+
+      if (!response.ok) {
+        return res.status(response.status).json({ error: responseText });
+      }
+
+      const data = JSON.parse(responseText);
+      res.json(data);
+    } catch (error) {
+      console.error("Failed to derive Polymarket credentials:", error);
+      res.status(500).json({ error: "Failed to derive credentials" });
+    }
+  });
+
+  // Server-side proxy for submitting orders to Polymarket CLOB
+  app.post("/api/polymarket/submit-order", async (req, res) => {
+    try {
+      const { order, signature, apiKey, apiSecret, passphrase } = req.body;
+      
+      if (!order || !signature || !apiKey || !apiSecret || !passphrase) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      console.log("Proxying order submission:", { 
+        tokenId: order.tokenId, 
+        side: order.side === 0 ? "BUY" : "SELL" 
+      });
+
+      // Create HMAC signature for the request
+      const timestamp = Math.floor(Date.now() / 1000).toString();
+      const method = "POST";
+      const path = "/order";
+      const body = JSON.stringify(order);
+      const message = timestamp + method + path + body;
+      
+      // Decode secret (base64url or hex)
+      let secretBytes: Buffer;
+      if (/^[0-9a-fA-F]+$/.test(apiSecret) && apiSecret.length % 2 === 0) {
+        secretBytes = Buffer.from(apiSecret, "hex");
+      } else {
+        // Convert base64url to base64
+        let base64 = apiSecret.replace(/-/g, '+').replace(/_/g, '/');
+        while (base64.length % 4) base64 += '=';
+        secretBytes = Buffer.from(base64, "base64");
+      }
+
+      const crypto = await import("crypto");
+      const hmac = crypto.createHmac("sha256", secretBytes);
+      hmac.update(message);
+      const hmacSignature = hmac.digest("base64");
+
+      const response = await fetch("https://clob.polymarket.com/order", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+          "POLY_API_KEY": apiKey,
+          "POLY_PASSPHRASE": passphrase,
+          "POLY_TIMESTAMP": timestamp,
+          "POLY_SIGNATURE": hmacSignature,
+        },
+        body: JSON.stringify({
+          ...order,
+          signature: signature,
+        }),
+      });
+
+      const responseText = await response.text();
+      console.log("Polymarket order response:", response.status, responseText.substring(0, 200));
+
+      if (responseText.includes("<!DOCTYPE html>") || responseText.includes("Cloudflare")) {
+        return res.status(503).json({ error: "Polymarket API is blocking requests" });
+      }
+
+      if (!response.ok) {
+        return res.status(response.status).json({ error: responseText });
+      }
+
+      const data = JSON.parse(responseText);
+      res.json(data);
+    } catch (error) {
+      console.error("Failed to submit order to Polymarket:", error);
+      res.status(500).json({ error: "Failed to submit order" });
+    }
+  });
+
   // Record a client-submitted Polymarket order (for client-side signing flow)
   app.post("/api/polymarket/record-order", async (req, res) => {
     try {

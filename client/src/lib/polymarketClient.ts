@@ -154,26 +154,24 @@ export async function deriveApiCredentials(
       authValue
     );
     
-    console.log("ClobAuth signature obtained, calling derive-api-key...");
+    console.log("ClobAuth signature obtained, calling server proxy...");
     
-    const response = await fetch(`${CLOB_API_URL}/auth/derive-api-key`, {
-      method: "GET",
+    // Use server-side proxy to avoid CORS/Cloudflare restrictions
+    const response = await fetch("/api/polymarket/derive-credentials", {
+      method: "POST",
       headers: {
-        ...BROWSER_HEADERS,
-        "POLY_ADDRESS": walletAddress,
-        "POLY_SIGNATURE": signature,
-        "POLY_TIMESTAMP": timestamp,
-        "POLY_NONCE": nonce.toString(),
+        "Content-Type": "application/json",
       },
+      body: JSON.stringify({
+        walletAddress,
+        signature,
+        timestamp,
+        nonce,
+      }),
     });
     
     const responseText = await response.text();
-    console.log("derive-api-key response:", response.status, responseText.substring(0, 500));
-    
-    if (responseText.includes("<!DOCTYPE html>") || responseText.includes("Cloudflare")) {
-      console.error("Cloudflare blocked the credential derivation request");
-      return null;
-    }
+    console.log("derive-credentials response:", response.status, responseText.substring(0, 500));
     
     if (!response.ok) {
       console.error("Failed to derive API credentials:", responseText);
@@ -279,10 +277,6 @@ export async function submitOrder(
   orderType: "GTC" | "GTD" | "FOK" = "GTC"
 ): Promise<OrderResult> {
   try {
-    const timestamp = Math.floor(Date.now() / 1000).toString();
-    const method = "POST";
-    const path = "/order";
-    
     const orderPayload = {
       order: {
         ...order,
@@ -292,51 +286,34 @@ export async function submitOrder(
       owner: order.maker,
     };
     
-    const body = JSON.stringify(orderPayload);
-    
-    const hmacSignature = await createHmacSignature(
-      credentials.secret,
-      timestamp,
-      method,
-      path,
-      body
-    );
-    
-    console.log("Submitting order to CLOB API:", {
-      path,
-      method,
+    console.log("Submitting order via server proxy:", {
       orderType,
       maker: order.maker,
       tokenId: order.tokenId,
     });
     
-    const response = await fetch(`${CLOB_API_URL}${path}`, {
-      method,
+    // Use server-side proxy to avoid CORS/Cloudflare restrictions
+    const response = await fetch("/api/polymarket/submit-order", {
+      method: "POST",
       headers: {
-        ...BROWSER_HEADERS,
-        "POLY_ADDRESS": order.maker,
-        "POLY_SIGNATURE": hmacSignature,
-        "POLY_TIMESTAMP": timestamp,
-        "POLY_API_KEY": credentials.apiKey,
-        "POLY_PASSPHRASE": credentials.passphrase,
+        "Content-Type": "application/json",
       },
-      body,
+      body: JSON.stringify({
+        order: orderPayload,
+        signature,
+        apiKey: credentials.apiKey,
+        apiSecret: credentials.secret,
+        passphrase: credentials.passphrase,
+      }),
     });
     
     const responseText = await response.text();
     
-    console.log("CLOB API response:", {
+    console.log("Server proxy response:", {
       status: response.status,
       statusText: response.statusText,
       bodyPreview: responseText.substring(0, 500),
     });
-    
-    if (responseText.includes("<!DOCTYPE html>") || responseText.includes("Cloudflare")) {
-      return {
-        success: false,
-        error: "Request blocked by Cloudflare. Please try again from a different network.",
-      };
-    }
     
     let data;
     try {
