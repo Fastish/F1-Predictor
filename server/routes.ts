@@ -873,9 +873,6 @@ export async function registerRoutes(
         headers: {
           "Content-Type": "application/json",
           "Accept": "application/json",
-          "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-          "Origin": "https://polymarket.com",
-          "Referer": "https://polymarket.com/",
           "POLY_ADDRESS": walletAddress,
           "POLY_SIGNATURE": signature,
           "POLY_TIMESTAMP": timestamp.toString(),
@@ -903,15 +900,7 @@ export async function registerRoutes(
   });
 
   // Server-side proxy for submitting orders to Polymarket CLOB
-  // DISABLED: Polymarket CLOB API blocks requests from Replit infrastructure via Cloudflare
   app.post("/api/polymarket/submit-order", async (req, res) => {
-    // Feature is disabled due to infrastructure-level blocking
-    return res.status(503).json({ 
-      error: "Order placement temporarily unavailable",
-      details: "Polymarket's security system blocks orders from this server. Please trade directly on Polymarket.",
-      polymarketUrl: "https://polymarket.com/event/f1-constructors-champion"
-    });
-    
     try {
       const { order, signature, apiKey, apiSecret, passphrase } = req.body;
       
@@ -952,9 +941,6 @@ export async function registerRoutes(
         headers: {
           "Content-Type": "application/json",
           "Accept": "application/json",
-          "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-          "Origin": "https://polymarket.com",
-          "Referer": "https://polymarket.com/",
           "POLY_API_KEY": apiKey,
           "POLY_PASSPHRASE": passphrase,
           "POLY_TIMESTAMP": timestamp,
@@ -987,17 +973,7 @@ export async function registerRoutes(
 
   // Builder-only order placement - uses builder credentials without requiring per-user API keys
   // This is for users who haven't been onboarded to Polymarket yet
-  // DISABLED: Polymarket CLOB API blocks requests from Replit infrastructure via Cloudflare
-  // To enable: Deploy order submission proxy on trusted infrastructure (AWS/Vercel)
-  // and request Polymarket builder allowlist
   app.post("/api/polymarket/builder-order", async (req, res) => {
-    // Feature is disabled due to infrastructure-level blocking
-    return res.status(503).json({ 
-      error: "Order placement temporarily unavailable",
-      details: "Polymarket's security system blocks orders from this server. Please trade directly on Polymarket.",
-      polymarketUrl: "https://polymarket.com/event/f1-constructors-champion"
-    });
-    
     try {
       const { order, userSignature, walletAddress } = req.body;
       
@@ -1046,13 +1022,9 @@ export async function registerRoutes(
       const builderSignature = hmac.digest("base64");
 
       // Build request with builder headers for submitting on behalf of user
-      // Include browser-like headers to help with Cloudflare
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
         "Accept": "application/json",
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Origin": "https://polymarket.com",
-        "Referer": "https://polymarket.com/",
         "POLY_ADDRESS": walletAddress,
         "POLY_BUILDER_API_KEY": builderApiKey,
         "POLY_BUILDER_PASSPHRASE": builderPassphrase,
@@ -1146,9 +1118,6 @@ export async function registerRoutes(
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
         "Accept": "application/json",
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Origin": "https://polymarket.com",
-        "Referer": "https://polymarket.com/",
         "POLY_API_KEY": apiKey,
         "POLY_PASSPHRASE": passphrase,
         "POLY_TIMESTAMP": timestamp,
