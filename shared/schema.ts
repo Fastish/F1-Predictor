@@ -717,7 +717,7 @@ export type SubmitProofRequest = z.infer<typeof submitProofSchema>;
 export const polymarketOrders = pgTable("polymarket_orders", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   polymarketOrderId: text("polymarket_order_id"), // Order ID from Polymarket API (if available)
-  userId: varchar("user_id").notNull().references(() => users.id),
+  userId: varchar("user_id").notNull(), // No FK constraint - allows guest users without user record
   tokenId: text("token_id").notNull(), // Polymarket token ID
   marketName: text("market_name"), // Human-readable market name (e.g., "Max Verstappen")
   outcome: text("outcome").notNull(), // "YES" or "NO"
