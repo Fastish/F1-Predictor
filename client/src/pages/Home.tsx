@@ -156,8 +156,9 @@ export default function Home() {
         <div className="mx-auto max-w-7xl px-4 text-center text-sm text-muted-foreground">
           <p>F1 Predict - Predictive Market Platform</p>
           <p className="mt-1">
-            This site is powered by Polymarket.com, Copyright 2025
+            This site is powered by Polymarket.com
           </p>
+          <p className="mt-1">All orders are subject to <a href="https://polymarket.com/tos" className="underline">Polymarket terms</a></p>
         </div>
       </footer>
     </div>
