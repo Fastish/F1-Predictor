@@ -266,9 +266,8 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
       
       setTxHash(result.txHash || null);
       
-      // Refresh status and go to complete
+      // Refresh status - let checkStatus determine the next step based on updated balances
       await checkStatus();
-      setStep("complete");
     } catch (err) {
       console.error("Deposit failed:", err);
       setError(err instanceof Error ? err.message : "Deposit failed");
