@@ -156,8 +156,7 @@ export default function Home() {
         <div className="mx-auto max-w-7xl px-4 text-center text-sm text-muted-foreground">
           <p>F1 Predict - Predictive Market Platform</p>
           <p className="mt-1">
-            This is a demo application using virtual currency.
-            Not affiliated with Formula 1 or FIA.
+            This site is powered by Polymarket.com, Copyright 2025
           </p>
         </div>
       </footer>

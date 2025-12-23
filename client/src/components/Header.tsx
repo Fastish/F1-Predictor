@@ -52,20 +52,21 @@ export function Header() {
                 Races
               </Button>
             </Link>
-            <Link href="/positions">
-              <Button
-                variant={location === "/positions" ? "secondary" : "ghost"}
-                size="sm"
-                data-testid="button-nav-positions"
-              >
-                <Briefcase className="mr-1 h-4 w-4" />
-                Positions
-              </Button>
-            </Link>
           </nav>
         </div>
 
         <div className="flex items-center gap-2">
+          <Link href="/positions" className="hidden md:block">
+            <Button
+              variant={location === "/positions" ? "secondary" : "ghost"}
+              size="sm"
+              data-testid="button-nav-positions"
+            >
+              <Briefcase className="mr-1 h-4 w-4" />
+              Positions
+            </Button>
+          </Link>
+          
           {walletAddress && (
             <Badge variant="outline" className="gap-1 px-3 py-1.5">
               {isLoadingBalance ? (
