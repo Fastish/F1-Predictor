@@ -34,7 +34,7 @@ const WalletContext = createContext<WalletContextType | undefined>(undefined);
 const MAGIC_API_KEY = import.meta.env.VITE_MAGIC_API_KEY || "";
 const POLYGON_RPC = "https://polygon-rpc.com";
 const POLYGON_CHAIN_ID = 137;
-const USDC_CONTRACT_ADDRESS = "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359";
+const USDC_CONTRACT_ADDRESS = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"; // USDC.e on Polygon (used by Polymarket)
 
 const USDC_ABI = [
   "function balanceOf(address owner) view returns (uint256)",
