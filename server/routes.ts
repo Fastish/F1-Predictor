@@ -1189,10 +1189,13 @@ export async function registerRoutes(
 
       const proxyAgent = getOxylabsProxyAgent();
       
-      // Log request details without exposing sensitive credentials
+      // Log request details with masked sensitive values for debugging
       console.log("Request URL: https://clob.polymarket.com/order");
-      console.log("Builder API key present:", !!builderApiKey);
-      console.log("Signature generated:", !!builderSignature);
+      console.log("Builder API key (first 8 chars):", builderApiKey.substring(0, 8) + "...");
+      console.log("Builder passphrase (first 8 chars):", builderPassphrase.substring(0, 8) + "...");
+      console.log("Signature generated:", builderSignature.substring(0, 20) + "...");
+      console.log("Timestamp:", timestamp);
+      console.log("Request body preview:", requestBody.substring(0, 200) + "...");
       
       if (proxyAgent) {
         console.log("Using Oxylabs proxy (undici/Switzerland) for builder-order");
