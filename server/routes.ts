@@ -1057,13 +1057,10 @@ export async function registerRoutes(
         return res.status(503).json({ error: "Builder program not configured" });
       }
 
-      console.log("Builder-only order:", { 
-        walletAddress: walletAddress.substring(0, 10) + "...",
-        tokenId: order.tokenID,
-        side: order.side,
-        price: order.price,
-        size: order.size
-      });
+      console.log("=== BUILDER ORDER REQUEST START ===");
+      console.log("Wallet Address:", walletAddress);
+      console.log("Order Details:", JSON.stringify(order, null, 2));
+      console.log("User Signature:", userSignature);
 
       // Create HMAC signature for builder authentication
       const timestamp = Math.floor(Date.now() / 1000).toString();
@@ -1106,19 +1103,32 @@ export async function registerRoutes(
       };
 
       const proxyAgent = getOxylabsProxyAgent();
+      const requestBody = JSON.stringify(orderWithSignature);
       const builderFetchOptions: RequestInit & { agent?: HttpsProxyAgent<string> } = {
         method: "POST",
         headers,
-        body: JSON.stringify(orderWithSignature),
+        body: requestBody,
       };
+      
+      // Log complete request details for debugging
+      console.log("Request URL: https://clob.polymarket.com/order");
+      console.log("Request Headers:", JSON.stringify(headers, null, 2));
+      console.log("Request Body:", requestBody);
+      
       if (proxyAgent) {
         (builderFetchOptions as any).agent = proxyAgent;
-        console.log("Using Oxylabs proxy for builder-order");
+        console.log("Using Oxylabs proxy (Switzerland) for builder-order");
+      } else {
+        console.log("WARNING: No proxy configured - request may be geo-blocked");
       }
+      
       const response = await fetch("https://clob.polymarket.com/order", builderFetchOptions);
 
       const responseText = await response.text();
-      console.log("Builder order response:", response.status, responseText);
+      console.log("Response Status:", response.status);
+      console.log("Response Headers:", JSON.stringify(Object.fromEntries(response.headers.entries()), null, 2));
+      console.log("Response Body:", responseText);
+      console.log("=== BUILDER ORDER REQUEST END ===");
 
       if (responseText.includes("<!DOCTYPE html>") || responseText.includes("Cloudflare")) {
         return res.status(503).json({ 
