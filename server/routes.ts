@@ -27,9 +27,10 @@ function getOxylabsProxyAgent(): HttpsProxyAgent<string> | undefined {
     return undefined;
   }
   
-  // Target Germany residential IP to bypass US geo-blocking
+  // Target Switzerland residential IP to bypass US geo-blocking
+  // Switzerland is NOT on Polymarket's geoblock list
   // Format: customer-USER-cc-COUNTRY:PASSWORD@proxy.oxylabs.io:7777
-  const proxyUrl = `http://${proxyUser}-cc-de:${proxyPass}@pr.oxylabs.io:7777`;
+  const proxyUrl = `http://${proxyUser}-cc-ch:${proxyPass}@pr.oxylabs.io:7777`;
   return new HttpsProxyAgent(proxyUrl);
 }
 
@@ -618,7 +619,7 @@ export async function registerRoutes(
       res.json({ 
         available: hasOxylabsProxy(),
         provider: "oxylabs",
-        country: "de"
+        country: "ch"
       });
     } catch (error) {
       res.status(500).json({ error: "Failed to check proxy status" });
