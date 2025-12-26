@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, TrendingUp, TrendingDown, AlertCircle, ExternalLink, Wallet, Settings } from "lucide-react";
+import { Loader2, TrendingUp, TrendingDown, Wallet, Settings } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useMarket } from "@/context/MarketContext";
@@ -274,19 +274,6 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance }: Poly
             </div>
           )}
 
-          <div className="flex items-start gap-2 rounded-md bg-red-500/10 p-3 text-sm">
-            <AlertCircle className="h-4 w-4 text-red-500 mt-0.5 flex-shrink-0" />
-            <div className="text-muted-foreground space-y-1">
-              <p className="font-medium text-red-600 dark:text-red-400">
-                Order placement temporarily unavailable
-              </p>
-              <p>
-                Polymarket's security system is currently blocking orders from this server. 
-                To trade, please use the Polymarket website directly.
-              </p>
-            </div>
-          </div>
-
           {!walletAddress && (
             <div className="flex items-center gap-2 rounded-md bg-blue-500/10 p-3 text-sm">
               <Wallet className="h-4 w-4 text-blue-500 flex-shrink-0" />
@@ -314,18 +301,19 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance }: Poly
               Close
             </Button>
             <Button
-              asChild
               className="flex-1"
-              data-testid="button-trade-on-polymarket"
+              onClick={handlePlaceBet}
+              disabled={isPlacingOrder || hookIsPlacing}
+              data-testid="button-trade"
             >
-              <a
-                href="https://polymarket.com/event/f1-constructors-champion"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <ExternalLink className="mr-2 h-4 w-4" />
-                Trade on Polymarket
-              </a>
+              {isPlacingOrder || hookIsPlacing ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Trading...
+                </>
+              ) : (
+                "Trade"
+              )}
             </Button>
           </div>
         </div>

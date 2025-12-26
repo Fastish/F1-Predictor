@@ -903,15 +903,7 @@ export async function registerRoutes(
   });
 
   // Server-side proxy for submitting orders to Polymarket CLOB
-  // DISABLED: Polymarket CLOB API blocks requests from Replit infrastructure via Cloudflare
   app.post("/api/polymarket/submit-order", async (req, res) => {
-    // Feature is disabled due to infrastructure-level blocking
-    return res.status(503).json({ 
-      error: "Order placement temporarily unavailable",
-      details: "Polymarket's security system blocks orders from this server. Please trade directly on Polymarket.",
-      polymarketUrl: "https://polymarket.com/event/f1-constructors-champion"
-    });
-    
     try {
       const { order, signature, apiKey, apiSecret, passphrase } = req.body;
       
@@ -987,17 +979,7 @@ export async function registerRoutes(
 
   // Builder-only order placement - uses builder credentials without requiring per-user API keys
   // This is for users who haven't been onboarded to Polymarket yet
-  // DISABLED: Polymarket CLOB API blocks requests from Replit infrastructure via Cloudflare
-  // To enable: Deploy order submission proxy on trusted infrastructure (AWS/Vercel)
-  // and request Polymarket builder allowlist
   app.post("/api/polymarket/builder-order", async (req, res) => {
-    // Feature is disabled due to infrastructure-level blocking
-    return res.status(503).json({ 
-      error: "Order placement temporarily unavailable",
-      details: "Polymarket's security system blocks orders from this server. Please trade directly on Polymarket.",
-      polymarketUrl: "https://polymarket.com/event/f1-constructors-champion"
-    });
-    
     try {
       const { order, userSignature, walletAddress } = req.body;
       

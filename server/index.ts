@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes, initializeAfterListen } from "./routes";
 import { serveStatic } from "./static";
