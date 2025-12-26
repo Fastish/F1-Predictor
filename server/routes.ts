@@ -81,7 +81,7 @@ async function testProxyConnection(): Promise<{ success: boolean; ip?: string; c
     } as any);
     
     if (!response.ok) {
-      return { success: false, error: `HTTP ${response.status}`, proxyUrl: `http://${proxyUsername}:****@pr.oxylabs.io:7777` };
+      return { success: false, error: `HTTP ${response.status}`, proxyUrl: `http://${fullUsername}:****@pr.oxylabs.io:7777` };
     }
     
     const data = await response.json() as { ip: string; country: string; city?: string; org?: string };
@@ -89,7 +89,7 @@ async function testProxyConnection(): Promise<{ success: boolean; ip?: string; c
       success: true, 
       ip: data.ip, 
       country: data.country,
-      proxyUrl: `http://${proxyUsername}:****@pr.oxylabs.io:7777`,
+      proxyUrl: `http://${fullUsername}:****@pr.oxylabs.io:7777`,
     };
   } catch (error: any) {
     console.error("Proxy test error details:", error);
