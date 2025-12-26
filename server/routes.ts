@@ -1189,8 +1189,24 @@ export async function registerRoutes(
 
       const proxyAgent = getOxylabsProxyAgent();
       
+      // Get actual IP address via proxy for logging
+      let actualIp = "unknown";
+      if (proxyAgent) {
+        try {
+          const { fetch: undiciFetch } = await import("undici");
+          const ipResponse = await undiciFetch("https://api.ipify.org?format=json", {
+            dispatcher: proxyAgent
+          });
+          const ipData = await ipResponse.json() as { ip: string };
+          actualIp = ipData.ip;
+        } catch (e) {
+          actualIp = "failed to fetch";
+        }
+      }
+      
       // Log request details with masked sensitive values for debugging
       console.log("Request URL: https://clob.polymarket.com/order");
+      console.log("Request IP:", actualIp, proxyAgent ? "(via Oxylabs Switzerland proxy)" : "(direct)");
       console.log("Builder API key (first 8 chars):", builderApiKey.substring(0, 8) + "...");
       console.log("Builder passphrase (first 8 chars):", builderPassphrase.substring(0, 8) + "...");
       console.log("Signature generated:", builderSignature.substring(0, 20) + "...");
