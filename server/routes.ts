@@ -1152,31 +1152,28 @@ export async function registerRoutes(
       }
 
       console.log("=== BUILDER ORDER REQUEST START ===");
-      console.log("Wallet Address:", walletAddress);
-      console.log("Order Details:", JSON.stringify(order, null, 2));
-      console.log("User Signature:", userSignature);
+      console.log("Wallet Address:", walletAddress.substring(0, 10) + "...");
+      console.log("Order tokenID:", order.tokenID);
+      console.log("Order price:", order.price, "size:", order.size);
 
-      // Create HMAC signature for builder authentication
-      const timestamp = Math.floor(Date.now() / 1000).toString();
-      const method = "POST";
-      const path = "/order";
-      const bodyStr = JSON.stringify(order);
-      const message = timestamp + method + path + bodyStr;
-      
-      // Decode builder secret (base64)
-      let secretBytes: Buffer;
-      if (/^[0-9a-fA-F]+$/.test(builderSecret) && builderSecret.length % 2 === 0) {
-        secretBytes = Buffer.from(builderSecret, "hex");
-      } else {
-        let base64 = builderSecret.replace(/-/g, '+').replace(/_/g, '/');
-        while (base64.length % 4) base64 += '=';
-        secretBytes = Buffer.from(base64, "base64");
-      }
+      // Include the user's EIP-712 signature in the order body BEFORE signing
+      const orderWithSignature = {
+        ...order,
+        signature: userSignature,
+      };
+      const requestBody = JSON.stringify(orderWithSignature);
 
-      const crypto = await import("crypto");
-      const hmac = crypto.createHmac("sha256", secretBytes);
-      hmac.update(message);
-      const builderSignature = hmac.digest("base64");
+      // Use the official Polymarket builder-signing-sdk for HMAC signature
+      // Timestamp must be in milliseconds for the SDK
+      const { buildHmacSignature } = await import("@polymarket/builder-signing-sdk");
+      const timestamp = Date.now();
+      const builderSignature = buildHmacSignature(
+        builderSecret,
+        timestamp,
+        "POST",
+        "/order",
+        requestBody
+      );
 
       // Build request with builder headers for submitting on behalf of user
       // Include browser-like headers to bypass Cloudflare bot detection
@@ -1187,22 +1184,15 @@ export async function registerRoutes(
         "POLY_BUILDER_API_KEY": builderApiKey,
         "POLY_BUILDER_PASSPHRASE": builderPassphrase,
         "POLY_BUILDER_SIGNATURE": builderSignature,
-        "POLY_BUILDER_TIMESTAMP": timestamp,
-      };
-
-      // Include the user's EIP-712 signature in the order body
-      const orderWithSignature = {
-        ...order,
-        signature: userSignature,
+        "POLY_BUILDER_TIMESTAMP": timestamp.toString(),
       };
 
       const proxyAgent = getOxylabsProxyAgent();
-      const requestBody = JSON.stringify(orderWithSignature);
       
-      // Log complete request details for debugging
+      // Log request details without exposing sensitive credentials
       console.log("Request URL: https://clob.polymarket.com/order");
-      console.log("Request Headers:", JSON.stringify(headers, null, 2));
-      console.log("Request Body:", requestBody);
+      console.log("Builder API key present:", !!builderApiKey);
+      console.log("Signature generated:", !!builderSignature);
       
       if (proxyAgent) {
         console.log("Using Oxylabs proxy (undici/Switzerland) for builder-order");
@@ -1221,7 +1211,6 @@ export async function registerRoutes(
 
       const responseText = await response.text();
       console.log("Response Status:", response.status);
-      console.log("Response Headers:", JSON.stringify(Object.fromEntries(response.headers.entries()), null, 2));
       console.log("Response Body:", responseText);
       console.log("=== BUILDER ORDER REQUEST END ===");
 
