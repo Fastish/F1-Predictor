@@ -633,6 +633,53 @@ export async function registerRoutes(
   });
 
   // Generate builder signature for order attribution (server-side to protect credentials)
+  // This is the endpoint that ClobClient's remoteBuilderConfig calls
+  // Matches the wagmi-safe-builder-example format exactly
+  app.post("/api/polymarket/sign", async (req, res) => {
+    try {
+      const { method, path, body: requestBody } = req.body;
+      
+      if (!method || !path || requestBody === undefined) {
+        return res.status(400).json({ error: "Missing required parameters: method, path, body" });
+      }
+
+      const builderApiKey = process.env.POLY_BUILDER_API_KEY;
+      const builderSecret = process.env.POLY_BUILDER_SECRET;
+      const builderPassphrase = process.env.POLY_BUILDER_PASSPHRASE;
+      
+      if (!builderApiKey || !builderSecret || !builderPassphrase) {
+        return res.status(500).json({ error: "Builder credentials not configured" });
+      }
+
+      // Use the official Polymarket SDK for signature generation
+      const { buildHmacSignature } = await import("@polymarket/builder-signing-sdk");
+      
+      const sigTimestamp = Date.now().toString();
+      const signature = buildHmacSignature(
+        builderSecret,
+        parseInt(sigTimestamp),
+        method,
+        path,
+        requestBody
+      );
+
+      console.log("Builder sign request:", { method, path, bodyLength: requestBody?.length || 0 });
+      console.log("Generated signature (first 20):", signature.substring(0, 20) + "...");
+
+      // Return headers in the exact format ClobClient expects (at root level)
+      res.json({
+        POLY_BUILDER_SIGNATURE: signature,
+        POLY_BUILDER_TIMESTAMP: sigTimestamp,
+        POLY_BUILDER_API_KEY: builderApiKey,
+        POLY_BUILDER_PASSPHRASE: builderPassphrase,
+      });
+    } catch (error) {
+      console.error("Signing error:", error);
+      res.status(500).json({ error: "Failed to sign message" });
+    }
+  });
+
+  // Legacy endpoint - redirects to new format
   app.post("/api/polymarket/builder-sign", async (req, res) => {
     try {
       const { method, path, body } = req.body;
