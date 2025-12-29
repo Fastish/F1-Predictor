@@ -1,4 +1,4 @@
-import { Wallet, TrendingUp, Menu, Plus, Loader2, Briefcase, Flag, DollarSign, PieChart, LogOut, Check } from "lucide-react";
+import { Wallet, TrendingUp, Menu, Plus, Loader2, Briefcase, Flag, DollarSign, PieChart, LogOut, Check, ArrowRightLeft, Settings } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -135,6 +135,13 @@ export function Header() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                <DropdownMenuItem 
+                  onClick={() => setDepositOpen(true)}
+                  data-testid="button-wallet-settings"
+                >
+                  <Settings className="h-4 w-4 mr-2" />
+                  Wallet Settings
+                </DropdownMenuItem>
                 <DropdownMenuItem 
                   onClick={() => disconnectWallet()}
                   data-testid="button-disconnect"
