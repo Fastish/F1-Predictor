@@ -113,21 +113,25 @@ The app uses a dual-wallet system:
 
 ### Polymarket Relayer Client (Gasless Transactions)
 **Status: IMPLEMENTED** - Uses client-side signing with remote Builder authentication.
+**Wallet Support**: External wallets only (MetaMask, Rainbow, etc.) - Magic wallets require separate flow.
 
 The Polymarket relayer (`https://relayer-v2.polymarket.com/`) requires:
-1. **User wallet signature** on each transaction payload (client-side)
+1. **User wallet signature** on each transaction payload (client-side via ethers v5)
 2. **Builder HMAC authentication** on HTTP requests (server-side)
 
 **Architecture:**
 - **Client-side** (`client/src/lib/polymarketGasless.ts`):
   - Uses `@polymarket/builder-relayer-client` SDK with `RelayClient`
+  - Uses `@ethersproject/providers` Web3Provider for ethers v5 compatible signer
   - Creates `BuilderConfig` with `remoteBuilderConfig` pointing to `/api/polymarket/builder-sign`
-  - User's wallet signs the transaction payload via ethers.js
-  - SDK automatically handles wallet deployment if needed
-  - Exports: `checkGaslessAvailable()`, `approveUSDCGasless()`, `approveCTFGasless()`, `approveAllGasless()`
+  - Verifies Polygon network (chainId 137) before proceeding
+  - SDK automatically handles proxy wallet deployment if needed
+  - Exports: `checkGaslessAvailable()`, `approveUSDCGasless()`, `approveCTFGasless()`, `approveAllGasless()`, `isExternalWalletAvailable()`
 
 - **Server-side** (`server/routes.ts`):
   - `POST /api/polymarket/builder-sign`: Returns HMAC signature headers for the SDK
+    - Passes through SDK-provided timestamp for signature matching
+    - Handles body serialization (object/string) correctly
   - `GET /api/polymarket/relayer-status`: Checks if Builder credentials are configured
   - Uses `@polymarket/builder-signing-sdk` for HMAC signature generation
 
@@ -137,9 +141,9 @@ The Polymarket relayer (`https://relayer-v2.polymarket.com/`) requires:
   - POLY_BUILDER_PASSPHRASE: Authentication passphrase
 
 - **Deposit Wizard** (`client/src/components/PolymarketDepositWizard.tsx`):
-  - Shows "Gasless available!" when Builder credentials are configured
+  - Shows "Gasless available!" only when: Builder credentials configured AND external wallet connected
   - "Gasless Approve" button uses the RelayClient for zero-gas approvals
-  - Falls back to user-paid gas if gasless is unavailable
+  - Falls back to user-paid gas for Magic wallets or if gasless is unavailable
 
 - **Contract Addresses** (Polygon):
   - USDC: 0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174
