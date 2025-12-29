@@ -573,15 +573,23 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
 
           {approvalStatus.checked && approvalStatus.needsApproval && walletAddress && isTradingSessionComplete && (
             <div 
-              className="flex items-center gap-2 rounded-md bg-yellow-500/10 p-3 text-sm cursor-pointer border border-yellow-500/20"
-              onClick={() => setShowDepositWizard(true)}
+              className="flex items-center gap-2 rounded-md bg-yellow-500/10 p-3 text-sm border border-yellow-500/20"
               data-testid="banner-approval-needed"
             >
               <AlertCircle className="h-4 w-4 text-yellow-500 flex-shrink-0" />
               <div className="flex-1">
                 <span className="text-yellow-600 dark:text-yellow-400 font-medium">USDC Approval Required</span>
-                <p className="text-muted-foreground text-xs mt-0.5">Click to approve USDC for trading</p>
+                <p className="text-muted-foreground text-xs mt-0.5">Approve USDC spending before placing bets</p>
               </div>
+              <Button 
+                size="sm" 
+                variant="outline"
+                onClick={() => setShowDepositWizard(true)}
+                className="border-yellow-500/50 text-yellow-600 dark:text-yellow-400"
+                data-testid="button-approve-usdc"
+              >
+                Approve
+              </Button>
             </div>
           )}
 
@@ -592,7 +600,7 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
             {isSellMode ? (
               <Button
                 onClick={handleSellPosition}
-                disabled={parsedSellShares <= 0 || parsedSellShares > (position?.size || 0) || isPlacing || isPlacingOrderLocal || !walletAddress || !isTradingSessionComplete}
+                disabled={parsedSellShares <= 0 || parsedSellShares > (position?.size || 0) || isPlacing || isPlacingOrderLocal || !walletAddress || !isTradingSessionComplete || (approvalStatus.checked && approvalStatus.needsApproval)}
                 className="flex-1"
                 data-testid="button-confirm-sell"
               >
@@ -605,6 +613,8 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
                   "Connect Wallet"
                 ) : !isTradingSessionComplete ? (
                   "Initialize Session First"
+                ) : approvalStatus.checked && approvalStatus.needsApproval ? (
+                  "Approve USDC First"
                 ) : (
                   `Sell ${parsedSellShares.toFixed(2)} shares`
                 )}
@@ -612,7 +622,7 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
             ) : (
               <Button
                 onClick={handlePlaceBet}
-                disabled={parsedAmount <= 0 || parsedAmount > userBalance || isPlacing || isPlacingOrderLocal || !walletAddress || !isTradingSessionComplete}
+                disabled={parsedAmount <= 0 || parsedAmount > userBalance || isPlacing || isPlacingOrderLocal || !walletAddress || !isTradingSessionComplete || (approvalStatus.checked && approvalStatus.needsApproval)}
                 className="flex-1"
                 data-testid="button-confirm-bet"
               >
@@ -625,6 +635,8 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
                   "Connect Wallet"
                 ) : !isTradingSessionComplete ? (
                   "Initialize Session First"
+                ) : approvalStatus.checked && approvalStatus.needsApproval ? (
+                  "Approve USDC First"
                 ) : (
                   `Bet $${parsedAmount.toFixed(2)} on ${side}`
                 )}
@@ -646,8 +658,18 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
 
       <PolymarketDepositWizard
         open={showDepositWizard}
-        onClose={() => {
+        onClose={async () => {
           setShowDepositWizard(false);
+          // Recheck approval status after wizard closes
+          if (walletAddress && provider) {
+            try {
+              const isMagic = walletType === "magic";
+              const status = await checkDepositRequirements(provider, walletAddress, isMagic);
+              setApprovalStatus({ needsApproval: status.needsApproval, checked: true });
+            } catch (error) {
+              console.error("Failed to recheck approval status:", error);
+            }
+          }
           // If there's a pending retry, prompt user to retry the order
           if (pendingRetry) {
             setPendingRetry(false);
