@@ -179,17 +179,34 @@ function getProviderDiagnostics(): string {
 let magicInstance: Magic | null = null;
 
 function getMagic(): Magic | null {
+  console.log("[Magic Debug] getMagic() called");
+  console.log("[Magic Debug] MAGIC_API_KEY exists:", !!MAGIC_API_KEY);
+  console.log("[Magic Debug] MAGIC_API_KEY length:", MAGIC_API_KEY?.length || 0);
+  console.log("[Magic Debug] MAGIC_API_KEY prefix:", MAGIC_API_KEY?.substring(0, 10) + "...");
+  
   if (!MAGIC_API_KEY) {
-    console.warn("Magic API key not configured");
+    console.warn("[Magic Debug] Magic API key not configured - returning null");
     return null;
   }
   if (!magicInstance) {
-    magicInstance = new Magic(MAGIC_API_KEY, {
-      network: {
-        rpcUrl: POLYGON_RPC,
-        chainId: POLYGON_CHAIN_ID,
-      },
+    console.log("[Magic Debug] Creating new Magic instance with config:", {
+      rpcUrl: POLYGON_RPC,
+      chainId: POLYGON_CHAIN_ID,
     });
+    try {
+      magicInstance = new Magic(MAGIC_API_KEY, {
+        network: {
+          rpcUrl: POLYGON_RPC,
+          chainId: POLYGON_CHAIN_ID,
+        },
+      });
+      console.log("[Magic Debug] Magic instance created successfully");
+    } catch (error) {
+      console.error("[Magic Debug] Failed to create Magic instance:", error);
+      return null;
+    }
+  } else {
+    console.log("[Magic Debug] Returning existing Magic instance");
   }
   return magicInstance;
 }
@@ -298,35 +315,64 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   }, [walletType, walletAddress]);
 
   const connectWithMagic = useCallback(async (email: string): Promise<boolean> => {
+    console.log("[Magic Debug] connectWithMagic called with email:", email);
     setIsConnecting(true);
     try {
+      console.log("[Magic Debug] Getting Magic instance...");
       const magic = getMagic();
       if (!magic) {
+        console.error("[Magic Debug] Magic instance is null - API key missing or creation failed");
         throw new Error("Magic not initialized - API key missing");
       }
+      console.log("[Magic Debug] Magic instance obtained successfully");
 
-      await magic.auth.loginWithMagicLink({ email });
+      console.log("[Magic Debug] Calling magic.auth.loginWithMagicLink...");
+      console.log("[Magic Debug] This should open a modal and send an email to:", email);
+      
+      try {
+        await magic.auth.loginWithMagicLink({ email });
+        console.log("[Magic Debug] loginWithMagicLink completed successfully");
+      } catch (loginError: any) {
+        console.error("[Magic Debug] loginWithMagicLink failed:", loginError);
+        console.error("[Magic Debug] Error name:", loginError?.name);
+        console.error("[Magic Debug] Error message:", loginError?.message);
+        console.error("[Magic Debug] Error code:", loginError?.code);
+        console.error("[Magic Debug] Full error object:", JSON.stringify(loginError, null, 2));
+        throw loginError;
+      }
+      
+      console.log("[Magic Debug] Getting user info...");
       const metadata = await magic.user.getInfo();
+      console.log("[Magic Debug] User metadata:", JSON.stringify(metadata, null, 2));
       
       if (metadata.publicAddress) {
+        console.log("[Magic Debug] User authenticated successfully with address:", metadata.publicAddress);
         setWalletAddress(metadata.publicAddress);
         setUserEmail(metadata.email || null);
         setWalletType("magic");
         localStorage.setItem("polygon_wallet_type", "magic");
         localStorage.setItem("polygon_wallet_address", metadata.publicAddress);
         
+        console.log("[Magic Debug] Creating ethers provider from Magic rpcProvider...");
         const magicProvider = new ethers.BrowserProvider(magic.rpcProvider as any);
         setProvider(magicProvider);
         const magicSigner = await magicProvider.getSigner();
         setSigner(magicSigner);
+        console.log("[Magic Debug] Provider and signer set up successfully");
         
         return true;
       }
+      console.log("[Magic Debug] No public address in metadata");
       return false;
-    } catch (error) {
-      console.error("Magic login error:", error);
+    } catch (error: any) {
+      console.error("[Magic Debug] connectWithMagic error:", error);
+      console.error("[Magic Debug] Error type:", typeof error);
+      console.error("[Magic Debug] Error name:", error?.name);
+      console.error("[Magic Debug] Error message:", error?.message);
+      console.error("[Magic Debug] Error stack:", error?.stack);
       return false;
     } finally {
+      console.log("[Magic Debug] connectWithMagic completed, setting isConnecting to false");
       setIsConnecting(false);
     }
   }, []);
