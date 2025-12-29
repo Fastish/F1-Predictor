@@ -22,26 +22,27 @@ import { useTradingSession } from "@/hooks/useTradingSession";
 import { usePolymarketPositions } from "@/hooks/usePolymarketPositions";
 
 export function Header() {
-  const { walletAddress, disconnectWallet } = useWallet();
+  const { walletAddress, walletType, disconnectWallet, getUsdcBalance } = useWallet();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [depositOpen, setDepositOpen] = useState(false);
   const { tradingSession, isTradingSessionComplete } = useTradingSession();
   const { data: positionsData } = usePolymarketPositions();
   
   const safeAddress = tradingSession?.safeAddress;
+  const balanceAddress = walletType === "magic" ? walletAddress : safeAddress;
 
   const { data: cashBalance, isLoading: isLoadingCash } = useQuery({
-    queryKey: ["polymarket-cash-balance", safeAddress],
+    queryKey: ["polymarket-cash-balance", balanceAddress, walletType],
     queryFn: async () => {
-      if (!safeAddress) return 0;
+      if (!balanceAddress) return 0;
       const { ethers } = await import("ethers");
       const provider = new ethers.JsonRpcProvider("https://polygon-rpc.com");
       const USDC_ADDRESS = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174";
       const contract = new ethers.Contract(USDC_ADDRESS, ["function balanceOf(address) view returns (uint256)"], provider);
-      const balance = await contract.balanceOf(safeAddress);
+      const balance = await contract.balanceOf(balanceAddress);
       return parseFloat(ethers.formatUnits(balance, 6));
     },
-    enabled: !!safeAddress && isTradingSessionComplete,
+    enabled: !!balanceAddress,
     refetchInterval: 30000,
   });
 
@@ -75,7 +76,7 @@ export function Header() {
         </div>
 
         <div className="flex items-center gap-2">
-          {walletAddress && isTradingSessionComplete && (
+          {walletAddress && (
             <div className="hidden sm:flex items-center gap-2">
               <Badge variant="outline" className="gap-1 px-3 py-1.5">
                 {isLoadingCash ? (
