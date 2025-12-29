@@ -86,8 +86,38 @@ Legacy CLOB (Central Limit Order Book) system exists in `server/routes.ts` at `/
 - Magic Labs SDK for email-based wallet authentication
 - External wallet support (MetaMask, Rainbow, etc.) via window.ethereum
 - USDC contract on Polygon: 0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359
+- USDC.e (bridged) contract: 0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174
 - Chain ID: 137 (Polygon mainnet)
 - VITE_MAGIC_API_KEY environment variable for Magic Labs integration
+
+### 0x Swap API Integration (USDC ↔ USDC.e)
+**Status: IMPLEMENTED** - In-app token swapping for trading convenience.
+
+The platform uses 0x Protocol's Swap API to enable direct USDC ↔ USDC.e conversion:
+- **Deposit (USDC → USDC.e)**: Convert native USDC to bridged USDC.e for Polymarket trading
+- **Withdraw (USDC.e → USDC)**: Convert USDC.e back to native USDC for exchange withdrawals
+
+**API Endpoints** (`server/routes.ts`):
+- `GET /api/swap/status`: Check if 0x API is configured and get token addresses
+- `GET /api/swap/price`: Get indicative price without transaction data (for display)
+- `GET /api/swap/quote`: Get executable quote with transaction data for wallet signing
+
+**Client Components**:
+- `SwapModal.tsx`: Modal with Deposit/Withdraw tabs, amount input, price preview
+- Integrated into `DepositModal.tsx` via "Swap USDC / USDC.e" button
+
+**Configuration**:
+- ZEROX_API_KEY environment variable (100k free requests/month)
+- Uses 0x API v2 with allowance-holder pattern
+- Default 0.5% slippage (50 bps), configurable up to 100%
+
+**Flow**:
+1. User enters amount to swap
+2. Client fetches price from `/api/swap/price`
+3. On confirm, client fetches quote from `/api/swap/quote`
+4. If token approval needed, user approves the 0x AllowanceHolder contract
+5. User signs and broadcasts the swap transaction
+6. Balances refresh after confirmation
 
 ### Wallet Integration (Magic Labs + External Wallets)
 The app uses a dual-wallet system:
