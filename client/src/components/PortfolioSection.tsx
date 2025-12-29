@@ -130,15 +130,24 @@ export function PortfolioSection() {
   const { tradingSession, isTradingSessionComplete } = useTradingSession();
   const { data: positionsData, isLoading: isLoadingPositions, refetch: refetchPositions, error: positionsError, isError: isPositionsError } = usePolymarketPositions();
 
-  const { data: usdcBalance, isLoading: isLoadingBalance } = useQuery<string>({
-    queryKey: ["polygon-usdc-balance", walletAddress],
+  const safeAddress = tradingSession?.safeAddress;
+  
+  const { data: cashBalance, isLoading: isLoadingBalance } = useQuery<number>({
+    queryKey: ["polymarket-cash-balance", safeAddress],
     queryFn: async () => {
-      if (!walletAddress) return "0";
-      const { getUsdcBalance } = await import("@/lib/polygon");
-      return getUsdcBalance(walletAddress);
+      if (!safeAddress) return 0;
+      const { ethers } = await import("ethers");
+      const provider = new ethers.JsonRpcProvider("https://polygon-rpc.com");
+      const USDC_ADDRESS = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174";
+      const contract = new ethers.Contract(USDC_ADDRESS, ["function balanceOf(address) view returns (uint256)"], provider);
+      const balance = await contract.balanceOf(safeAddress);
+      return parseFloat(ethers.formatUnits(balance, 6));
     },
-    enabled: !!walletAddress,
+    enabled: !!safeAddress && isTradingSessionComplete,
+    refetchInterval: 30000,
   });
+
+  const portfolioValue = positionsData?.totalValue || 0;
 
   const { data: constructors = [] } = useQuery<PolymarketOutcome[]>({
     queryKey: ["/api/polymarket/constructors"],
@@ -184,8 +193,6 @@ export function PortfolioSection() {
     },
   });
 
-  const cashBalance = parseFloat(usdcBalance || "0");
-
   // For now, show available markets instead of positions
   // Real positions would require querying Polymarket CLOB API with wallet address
   const hasWallet = !!walletAddress;
@@ -203,23 +210,47 @@ export function PortfolioSection() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between gap-4 pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
-                USDC Balance
+                Cash
               </CardTitle>
-              <Wallet className="h-4 w-4 text-muted-foreground" />
+              <DollarSign className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              {isLoadingBalance ? (
-                <Loader2 className="h-6 w-6 animate-spin" />
-              ) : walletAddress ? (
-                <div className="text-2xl font-bold tabular-nums" data-testid="text-cash-balance">
-                  ${cashBalance.toFixed(2)}
-                </div>
-              ) : (
+              {!walletAddress ? (
                 <div className="space-y-2">
                   <p className="text-sm text-muted-foreground">Connect wallet to view balance</p>
                   <Button size="sm" onClick={() => connectWallet()} disabled={isConnecting}>
                     Connect Wallet
                   </Button>
+                </div>
+              ) : !isTradingSessionComplete ? (
+                <div className="text-sm text-muted-foreground">Initializing...</div>
+              ) : isLoadingBalance ? (
+                <Loader2 className="h-6 w-6 animate-spin" />
+              ) : (
+                <div className="text-2xl font-bold tabular-nums" data-testid="text-cash-balance">
+                  ${(cashBalance || 0).toFixed(2)}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between gap-4 pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Portfolio
+              </CardTitle>
+              <BarChart3 className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              {!walletAddress ? (
+                <div className="text-sm text-muted-foreground">Connect wallet</div>
+              ) : !isTradingSessionComplete ? (
+                <div className="text-sm text-muted-foreground">Initializing...</div>
+              ) : isLoadingPositions ? (
+                <Loader2 className="h-6 w-6 animate-spin" />
+              ) : (
+                <div className="text-2xl font-bold tabular-nums" data-testid="text-portfolio-value">
+                  ${portfolioValue.toFixed(2)}
                 </div>
               )}
             </CardContent>
@@ -485,7 +516,7 @@ export function PortfolioSection() {
                             {position.title || "Unknown Market"}
                           </div>
                           <div className="flex items-center gap-2 mt-1">
-                            <Badge variant={position.outcome === "Yes" ? "default" : "secondary"} size="sm">
+                            <Badge variant={position.outcome === "Yes" ? "default" : "secondary"}>
                               {position.outcome}
                             </Badge>
                             <span className="text-sm text-muted-foreground">
@@ -622,7 +653,7 @@ export function PortfolioSection() {
             conditionId: selectedPosition.conditionId || "",
             questionId: "",
           }}
-          userBalance={cashBalance}
+          userBalance={cashBalance ?? 0}
           mode="sell"
           position={selectedPosition}
         />

@@ -1,4 +1,4 @@
-import { Wallet, TrendingUp, Menu, Plus, Loader2, Briefcase, Flag } from "lucide-react";
+import { Wallet, TrendingUp, Menu, Plus, Loader2, Briefcase, Flag, DollarSign, PieChart } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -12,21 +12,34 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { DepositModal } from "./DepositModal";
+import { useTradingSession } from "@/hooks/useTradingSession";
+import { usePolymarketPositions } from "@/hooks/usePolymarketPositions";
 
 export function Header() {
-  const { walletAddress, getUsdcBalance } = useWallet();
+  const { walletAddress } = useWallet();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [depositOpen, setDepositOpen] = useState(false);
+  const { tradingSession, isTradingSessionComplete } = useTradingSession();
+  const { data: positionsData } = usePolymarketPositions();
+  
+  const safeAddress = tradingSession?.safeAddress;
 
-  const { data: usdcBalance, isLoading: isLoadingBalance } = useQuery({
-    queryKey: ["polygon-usdc-balance", walletAddress],
+  const { data: cashBalance, isLoading: isLoadingCash } = useQuery({
+    queryKey: ["polymarket-cash-balance", safeAddress],
     queryFn: async () => {
-      if (!walletAddress) return "0";
-      return await getUsdcBalance();
+      if (!safeAddress) return 0;
+      const { ethers } = await import("ethers");
+      const provider = new ethers.JsonRpcProvider("https://polygon-rpc.com");
+      const USDC_ADDRESS = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174";
+      const contract = new ethers.Contract(USDC_ADDRESS, ["function balanceOf(address) view returns (uint256)"], provider);
+      const balance = await contract.balanceOf(safeAddress);
+      return parseFloat(ethers.formatUnits(balance, 6));
     },
-    enabled: !!walletAddress,
+    enabled: !!safeAddress && isTradingSessionComplete,
     refetchInterval: 30000,
   });
+
+  const portfolioValue = positionsData?.totalValue || 0;
 
   const [location] = useLocation();
 
@@ -67,20 +80,29 @@ export function Header() {
             </Button>
           </Link>
           
-          {walletAddress && (
-            <Badge variant="outline" className="gap-1 px-3 py-1.5">
-              {isLoadingBalance ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <>
-                  <Wallet className="h-3.5 w-3.5" />
-                  <span className="text-xs text-muted-foreground">USDC:</span>
-                  <span className="font-semibold tabular-nums" data-testid="text-usdc-balance">
-                    ${parseFloat(usdcBalance || "0").toFixed(2)}
-                  </span>
-                </>
-              )}
-            </Badge>
+          {walletAddress && isTradingSessionComplete && (
+            <div className="hidden sm:flex items-center gap-2">
+              <Badge variant="outline" className="gap-1 px-3 py-1.5">
+                {isLoadingCash ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <>
+                    <DollarSign className="h-3.5 w-3.5" />
+                    <span className="text-xs text-muted-foreground">Cash:</span>
+                    <span className="font-semibold tabular-nums" data-testid="text-cash-balance">
+                      ${(cashBalance || 0).toFixed(2)}
+                    </span>
+                  </>
+                )}
+              </Badge>
+              <Badge variant="outline" className="gap-1 px-3 py-1.5">
+                <PieChart className="h-3.5 w-3.5" />
+                <span className="text-xs text-muted-foreground">Portfolio:</span>
+                <span className="font-semibold tabular-nums" data-testid="text-portfolio-value">
+                  ${portfolioValue.toFixed(2)}
+                </span>
+              </Badge>
+            </div>
           )}
           
           <Button 
