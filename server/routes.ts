@@ -663,7 +663,12 @@ export async function registerRoutes(
       // Use BuilderSigner class exactly like official Polymarket server
       const { BuilderSigner } = await import("@polymarket/builder-signing-sdk");
       
-      const signer = new BuilderSigner(builderApiKey, builderSecret, builderPassphrase);
+      // BuilderSigner expects a credentials object with { key, secret, passphrase }
+      const signer = new BuilderSigner({ 
+        key: builderApiKey, 
+        secret: builderSecret, 
+        passphrase: builderPassphrase 
+      });
       // Pass timestamp if provided by SDK (4th parameter)
       const payload = signer.createBuilderHeaderPayload(method, path, requestBody || "", timestamp);
 
@@ -707,7 +712,12 @@ export async function registerRoutes(
       // Use BuilderSigner class exactly like official Polymarket server
       const { BuilderSigner } = await import("@polymarket/builder-signing-sdk");
       
-      const signer = new BuilderSigner(builderApiKey, builderSecret, builderPassphrase);
+      // BuilderSigner expects a credentials object with { key, secret, passphrase }
+      const signer = new BuilderSigner({ 
+        key: builderApiKey, 
+        secret: builderSecret, 
+        passphrase: builderPassphrase 
+      });
       // Pass timestamp if provided by SDK (4th parameter)
       const payload = signer.createBuilderHeaderPayload(method, path, body || "", timestamp);
 
