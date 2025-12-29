@@ -425,7 +425,7 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance }: Poly
             </div>
           )}
 
-          {walletAddress && !isTradingSessionComplete && !tradingSession?.hasApiCredentials && (
+          {walletAddress && !isTradingSessionComplete && (
             <Button
               variant="outline"
               onClick={handleInitializeSession}
@@ -447,7 +447,7 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance }: Poly
             </Button>
           )}
 
-          {walletAddress && tradingSession?.hasApiCredentials && !isProxyDeployed && (
+          {walletAddress && !isProxyDeployed && tradingSession?.hasApiCredentials && (
             <div className="space-y-2">
               <div className="flex items-start gap-2 rounded-md bg-orange-500/10 p-3 text-sm border border-orange-500/20">
                 <AlertCircle className="h-4 w-4 text-orange-500 mt-0.5 flex-shrink-0" />
