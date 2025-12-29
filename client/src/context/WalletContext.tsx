@@ -31,17 +31,38 @@ interface WalletContextType {
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
-const MAGIC_API_KEY = import.meta.env.VITE_MAGIC_API_KEY || "";
+// Magic API key - prefer build-time env var, fallback to runtime config
+let MAGIC_API_KEY = import.meta.env.VITE_MAGIC_API_KEY || "";
 
-// Immediate debug logging - this runs when the module loads
-console.log("=== WALLET CONTEXT INITIALIZATION ===");
-console.log("VITE_MAGIC_API_KEY from env:", import.meta.env.VITE_MAGIC_API_KEY);
-console.log("MAGIC_API_KEY value exists:", !!MAGIC_API_KEY);
-console.log("MAGIC_API_KEY length:", MAGIC_API_KEY.length);
-if (MAGIC_API_KEY) {
-  console.log("MAGIC_API_KEY prefix:", MAGIC_API_KEY.substring(0, 8) + "...");
+// Runtime config fetch for production resilience
+let runtimeConfigLoaded = false;
+async function ensureMagicApiKey(): Promise<string> {
+  // If we already have the key from build-time env or previous fetch, return it
+  if (MAGIC_API_KEY) {
+    return MAGIC_API_KEY;
+  }
+  
+  // Only try runtime fetch once
+  if (runtimeConfigLoaded) {
+    return MAGIC_API_KEY;
+  }
+  
+  try {
+    const response = await fetch('/api/config');
+    if (response.ok) {
+      const config = await response.json();
+      if (config.magicApiKey) {
+        MAGIC_API_KEY = config.magicApiKey;
+        console.log("Magic API key loaded from runtime config");
+      }
+    }
+  } catch (err) {
+    console.error("Failed to fetch runtime config:", err);
+  }
+  
+  runtimeConfigLoaded = true;
+  return MAGIC_API_KEY;
 }
-console.log("=====================================");
 
 const POLYGON_RPC = "https://polygon-rpc.com";
 const POLYGON_CHAIN_ID = 137;
@@ -189,13 +210,19 @@ function getProviderDiagnostics(): string {
 
 let magicInstance: Magic | null = null;
 
-function getMagic(): Magic | null {
+async function getMagic(): Promise<Magic | null> {
   console.log("[Magic Debug] getMagic() called");
-  console.log("[Magic Debug] MAGIC_API_KEY exists:", !!MAGIC_API_KEY);
-  console.log("[Magic Debug] MAGIC_API_KEY length:", MAGIC_API_KEY?.length || 0);
-  console.log("[Magic Debug] MAGIC_API_KEY prefix:", MAGIC_API_KEY?.substring(0, 10) + "...");
   
-  if (!MAGIC_API_KEY) {
+  // Ensure API key is available (fallback to runtime config if not baked into build)
+  const apiKey = await ensureMagicApiKey();
+  
+  console.log("[Magic Debug] MAGIC_API_KEY exists:", !!apiKey);
+  console.log("[Magic Debug] MAGIC_API_KEY length:", apiKey?.length || 0);
+  if (apiKey) {
+    console.log("[Magic Debug] MAGIC_API_KEY prefix:", apiKey.substring(0, 10) + "...");
+  }
+  
+  if (!apiKey) {
     console.warn("[Magic Debug] Magic API key not configured - returning null");
     return null;
   }
@@ -205,7 +232,7 @@ function getMagic(): Magic | null {
       chainId: POLYGON_CHAIN_ID,
     });
     try {
-      magicInstance = new Magic(MAGIC_API_KEY, {
+      magicInstance = new Magic(apiKey, {
         network: {
           rpcUrl: POLYGON_RPC,
           chainId: POLYGON_CHAIN_ID,
@@ -239,7 +266,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         const savedAddress = localStorage.getItem("polygon_wallet_address");
 
         if (savedType === "magic" && savedAddress) {
-          const magic = getMagic();
+          const magic = await getMagic();
           if (magic) {
             const isLoggedIn = await magic.user.isLoggedIn();
             if (isLoggedIn) {
@@ -330,7 +357,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     setIsConnecting(true);
     try {
       console.log("[Magic Debug] Getting Magic instance...");
-      const magic = getMagic();
+      const magic = await getMagic();
       if (!magic) {
         console.error("[Magic Debug] Magic instance is null - API key missing or creation failed");
         throw new Error("Magic not initialized - API key missing");
@@ -476,7 +503,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const disconnectWallet = useCallback(async () => {
     try {
       if (walletType === "magic") {
-        const magic = getMagic();
+        const magic = await getMagic();
         if (magic) {
           await magic.user.logout();
         }
@@ -530,6 +557,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         userEmail,
         provider,
         signer,
+        polymarketCredentials,
+        setPolymarketCredentials,
         connectWallet,
         connectWithMagic,
         connectExternalWallet,

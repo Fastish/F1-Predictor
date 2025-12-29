@@ -160,6 +160,15 @@ export async function registerRoutes(
   // Register LMSR pool routes (non-blocking)
   registerPoolRoutes(app);
 
+  // ============ Client Configuration (Runtime) ============
+  // This endpoint provides environment variables to the client at RUNTIME
+  // instead of relying on Vite's build-time replacement
+  app.get("/api/config", (req, res) => {
+    res.json({
+      magicApiKey: process.env.VITE_MAGIC_API_KEY || "",
+    });
+  });
+
   // ============ Teams/Market Routes ============
   
   // Get all teams
