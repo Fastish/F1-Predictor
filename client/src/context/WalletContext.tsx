@@ -271,7 +271,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
             const isLoggedIn = await magic.user.isLoggedIn();
             if (isLoggedIn) {
               const metadata = await magic.user.getInfo();
-              setWalletAddress(metadata.publicAddress || null);
+              const publicAddress = (metadata as any).wallets?.ethereum?.publicAddress || metadata.publicAddress;
+              setWalletAddress(publicAddress || null);
               setUserEmail(metadata.email || null);
               setWalletType("magic");
               
@@ -383,13 +384,16 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       const metadata = await magic.user.getInfo();
       console.log("[Magic Debug] User metadata:", JSON.stringify(metadata, null, 2));
       
-      if (metadata.publicAddress) {
-        console.log("[Magic Debug] User authenticated successfully with address:", metadata.publicAddress);
-        setWalletAddress(metadata.publicAddress);
+      const publicAddress = (metadata as any).wallets?.ethereum?.publicAddress || metadata.publicAddress;
+      console.log("[Magic Debug] Extracted public address:", publicAddress);
+      
+      if (publicAddress) {
+        console.log("[Magic Debug] User authenticated successfully with address:", publicAddress);
+        setWalletAddress(publicAddress);
         setUserEmail(metadata.email || null);
         setWalletType("magic");
         localStorage.setItem("polygon_wallet_type", "magic");
-        localStorage.setItem("polygon_wallet_address", metadata.publicAddress);
+        localStorage.setItem("polygon_wallet_address", publicAddress);
         
         console.log("[Magic Debug] Creating ethers provider from Magic rpcProvider...");
         const magicProvider = new ethers.BrowserProvider(magic.rpcProvider as any);
