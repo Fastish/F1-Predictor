@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ThemeToggle } from "./ThemeToggle";
 import { useWallet } from "@/context/WalletContext";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Sheet,
@@ -20,6 +20,10 @@ import {
 import { DepositModal } from "./DepositModal";
 import { useTradingSession } from "@/hooks/useTradingSession";
 import { usePolymarketPositions } from "@/hooks/usePolymarketPositions";
+import { deriveSafe } from "@polymarket/builder-relayer-client/dist/builder/derive";
+import { getContractConfig } from "@polymarket/builder-relayer-client/dist/config";
+
+const POLYGON_CHAIN_ID = 137;
 
 export function Header() {
   const { walletAddress, walletType, disconnectWallet, getUsdcBalance } = useWallet();
@@ -28,7 +32,18 @@ export function Header() {
   const { tradingSession, isTradingSessionComplete } = useTradingSession();
   const { data: positionsData } = usePolymarketPositions();
   
-  const safeAddress = tradingSession?.safeAddress;
+  const derivedSafeAddress = useMemo(() => {
+    if (walletType !== "external" || !walletAddress) return null;
+    try {
+      const config = getContractConfig(POLYGON_CHAIN_ID);
+      return deriveSafe(walletAddress, config.SafeContracts.SafeFactory);
+    } catch (e) {
+      console.warn("Failed to derive Safe address:", e);
+      return null;
+    }
+  }, [walletAddress, walletType]);
+  
+  const safeAddress = tradingSession?.safeAddress || derivedSafeAddress;
   const balanceAddress = walletType === "magic" ? walletAddress : safeAddress;
 
   const { data: cashBalance, isLoading: isLoadingCash } = useQuery({
