@@ -13,6 +13,7 @@ import { ethers } from "ethers";
 interface SwapModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  initialDirection?: "deposit" | "withdraw";
 }
 
 interface SwapQuote {
@@ -59,11 +60,17 @@ const ERC20_ABI = [
   "function balanceOf(address account) view returns (uint256)",
 ];
 
-export function SwapModal({ open, onOpenChange }: SwapModalProps) {
+export function SwapModal({ open, onOpenChange, initialDirection = "deposit" }: SwapModalProps) {
   const { walletAddress, provider } = useWallet();
   const { toast } = useToast();
   
-  const [direction, setDirection] = useState<"deposit" | "withdraw">("deposit");
+  const [direction, setDirection] = useState<"deposit" | "withdraw">(initialDirection);
+  
+  useEffect(() => {
+    if (open) {
+      setDirection(initialDirection);
+    }
+  }, [open, initialDirection]);
   const [amount, setAmount] = useState("");
   const [isSwapping, setIsSwapping] = useState(false);
   const [isApproving, setIsApproving] = useState(false);

@@ -1,4 +1,4 @@
-import { Wallet, TrendingUp, Menu, Plus, Loader2, Briefcase, Flag, DollarSign, PieChart, LogOut, Check, ArrowRightLeft, Settings } from "lucide-react";
+import { Wallet, TrendingUp, Menu, Plus, Loader2, Briefcase, Flag, DollarSign, PieChart, LogOut, Check, ArrowRightLeft, Settings, ArrowUpRight, ArrowDownLeft } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -18,7 +18,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { DepositModal } from "./DepositModal";
+import { SwapModal } from "./SwapModal";
 import { useTradingSession } from "@/hooks/useTradingSession";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card";
 import { usePolymarketPositions } from "@/hooks/usePolymarketPositions";
 import { deriveSafe } from "@polymarket/builder-relayer-client/dist/builder/derive";
 import { getContractConfig } from "@polymarket/builder-relayer-client/dist/config";
@@ -29,6 +35,8 @@ export function Header() {
   const { walletAddress, walletType, disconnectWallet, getUsdcBalance } = useWallet();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [depositOpen, setDepositOpen] = useState(false);
+  const [swapOpen, setSwapOpen] = useState(false);
+  const [swapDirection, setSwapDirection] = useState<"deposit" | "withdraw">("deposit");
   const { tradingSession, isTradingSessionComplete } = useTradingSession();
   const { data: positionsData } = usePolymarketPositions();
   
