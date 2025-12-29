@@ -32,6 +32,17 @@ interface WalletContextType {
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
 const MAGIC_API_KEY = import.meta.env.VITE_MAGIC_API_KEY || "";
+
+// Immediate debug logging - this runs when the module loads
+console.log("=== WALLET CONTEXT INITIALIZATION ===");
+console.log("VITE_MAGIC_API_KEY from env:", import.meta.env.VITE_MAGIC_API_KEY);
+console.log("MAGIC_API_KEY value exists:", !!MAGIC_API_KEY);
+console.log("MAGIC_API_KEY length:", MAGIC_API_KEY.length);
+if (MAGIC_API_KEY) {
+  console.log("MAGIC_API_KEY prefix:", MAGIC_API_KEY.substring(0, 8) + "...");
+}
+console.log("=====================================");
+
 const POLYGON_RPC = "https://polygon-rpc.com";
 const POLYGON_CHAIN_ID = 137;
 const USDC_CONTRACT_ADDRESS = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"; // USDC.e on Polygon (used by Polymarket)
