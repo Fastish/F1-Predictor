@@ -2,11 +2,16 @@ import { useState, useCallback, useEffect, useMemo } from "react";
 import { ClobClient } from "@polymarket/clob-client";
 import { BuilderConfig } from "@polymarket/builder-signing-sdk";
 import { useWallet } from "@/context/WalletContext";
+import { getSafeAddress as fetchSafeAddressFromRelayer, isExternalWalletAvailable } from "@/lib/polymarketGasless";
 import type { ethers } from "ethers";
 
 const CLOB_API_URL = "https://clob.polymarket.com";
 const POLYGON_CHAIN_ID = 137;
 const SESSION_STORAGE_KEY = "polymarket_trading_session";
+
+// Polymarket requires signatureType=2 (browser wallet proxy) for external wallets
+// signatureType=0 (EOA) is no longer supported for trading
+const SIGNATURE_TYPE_BROWSER_WALLET = 2;
 
 // Adapter to wrap ethers v6 signer with ethers v5 _signTypedData method
 // Polymarket SDK expects _signTypedData (v5) but ethers v6 uses signTypedData
@@ -39,6 +44,8 @@ export interface UserApiCredentials {
 export interface TradingSession {
   eoaAddress: string;
   safeAddress?: string;
+  signatureType: number;
+  proxyDeployed: boolean;
   hasApiCredentials: boolean;
   apiCredentials?: UserApiCredentials;
   lastChecked: number;
@@ -137,6 +144,29 @@ export function useTradingSession() {
     }
   }, [createTempClobClient]);
 
+  // Fetch user's Safe/proxy address using the RelayClient
+  const fetchSafeAddress = useCallback(async (): Promise<{ safeAddress: string | null; proxyDeployed: boolean }> => {
+    try {
+      // Check if external wallet is available (RelayClient requires window.ethereum)
+      if (!isExternalWalletAvailable()) {
+        console.log("External wallet not available for Safe address derivation");
+        return { safeAddress: null, proxyDeployed: false };
+      }
+      
+      // Use the RelayClient to derive and check Safe address
+      const result = await fetchSafeAddressFromRelayer();
+      console.log("Safe address result:", result);
+      
+      return {
+        safeAddress: result.safeAddress,
+        proxyDeployed: result.proxyDeployed,
+      };
+    } catch (err) {
+      console.error("Failed to fetch Safe address:", err);
+      return { safeAddress: null, proxyDeployed: false };
+    }
+  }, []);
+
   // Initialize trading session
   const initializeTradingSession = useCallback(async () => {
     if (!walletAddress || !signer) {
@@ -148,9 +178,9 @@ export function useTradingSession() {
     setSessionError(null);
 
     try {
-      // Check for existing session with valid credentials
+      // Check for existing session with valid credentials and Safe address
       const existingSession = loadSession(walletAddress);
-      if (existingSession?.hasApiCredentials && existingSession?.apiCredentials) {
+      if (existingSession?.hasApiCredentials && existingSession?.apiCredentials && existingSession?.safeAddress) {
         setTradingSession(existingSession);
         setCurrentStep("complete");
         setIsInitializing(false);
@@ -161,9 +191,35 @@ export function useTradingSession() {
       setCurrentStep("credentials");
       const apiCreds = await deriveApiCredentials();
 
-      // Create new session
+      // Fetch the user's Safe proxy address from Polymarket RelayClient
+      console.log("Fetching Safe address from Polymarket...");
+      const { safeAddress, proxyDeployed } = await fetchSafeAddress();
+
+      if (!safeAddress || !proxyDeployed) {
+        // User needs to set up their proxy on Polymarket first
+        console.warn("No proxy wallet found. User needs to complete setup on polymarket.com");
+        const partialSession: TradingSession = {
+          eoaAddress: walletAddress,
+          signatureType: SIGNATURE_TYPE_BROWSER_WALLET,
+          proxyDeployed: false,
+          hasApiCredentials: true,
+          apiCredentials: apiCreds,
+          lastChecked: Date.now(),
+        };
+        setTradingSession(partialSession);
+        saveSession(walletAddress, partialSession);
+        setSessionError("Polymarket proxy wallet not found. Please make your first trade on polymarket.com to set up your account.");
+        setCurrentStep("error");
+        setIsInitializing(false);
+        return partialSession;
+      }
+
+      // Create complete session with Safe address
       const newSession: TradingSession = {
         eoaAddress: walletAddress,
+        safeAddress: safeAddress,
+        signatureType: SIGNATURE_TYPE_BROWSER_WALLET,
+        proxyDeployed: true,
         hasApiCredentials: true,
         apiCredentials: apiCreds,
         lastChecked: Date.now(),
@@ -173,6 +229,7 @@ export function useTradingSession() {
       saveSession(walletAddress, newSession);
       setCurrentStep("complete");
       setIsInitializing(false);
+      console.log("Trading session initialized with Safe:", safeAddress);
       return newSession;
     } catch (err: any) {
       console.error("Session initialization error:", err);
@@ -181,7 +238,7 @@ export function useTradingSession() {
       setIsInitializing(false);
       throw err;
     }
-  }, [walletAddress, signer, deriveApiCredentials]);
+  }, [walletAddress, signer, deriveApiCredentials, fetchSafeAddress]);
 
   // End trading session
   const endTradingSession = useCallback(() => {
@@ -208,6 +265,12 @@ export function useTradingSession() {
       return null;
     }
 
+    // Require Safe address for trading (signatureType=2)
+    if (!tradingSession.safeAddress || !tradingSession.proxyDeployed) {
+      console.warn("ClobClient not created: No Safe address available. User needs to set up proxy on polymarket.com");
+      return null;
+    }
+
     // Get remote signing URL (with full origin for client-side)
     const remoteSigningUrl = typeof window !== "undefined"
       ? `${window.location.origin}/api/polymarket/sign`
@@ -220,27 +283,30 @@ export function useTradingSession() {
       },
     });
 
-    // Create authenticated ClobClient with wrapped signer (ethers v5 compatibility)
-    // signatureType 0 = EOA signature (user signing directly)
+    // Create authenticated ClobClient with browser wallet proxy (signatureType=2)
+    // Polymarket requires signatureType=2 for external wallets with Safe proxy as funder
+    console.log(`Creating ClobClient with signatureType=${SIGNATURE_TYPE_BROWSER_WALLET}, funder=${tradingSession.safeAddress}`);
     return new ClobClient(
       CLOB_API_URL,
       POLYGON_CHAIN_ID,
       wrappedSigner,
       tradingSession.apiCredentials,
-      0, // signatureType = 0 for EOA
-      walletAddress, // funder = user's wallet
+      SIGNATURE_TYPE_BROWSER_WALLET, // signatureType = 2 for browser wallet proxy
+      tradingSession.safeAddress, // funder = user's Safe proxy wallet
       undefined,
       false,
       builderConfig
     );
-  }, [wrappedSigner, walletAddress, tradingSession?.apiCredentials]);
+  }, [wrappedSigner, walletAddress, tradingSession?.apiCredentials, tradingSession?.safeAddress, tradingSession?.proxyDeployed]);
 
   return {
     tradingSession,
     currentStep,
     sessionError,
     isInitializing,
-    isTradingSessionComplete: !!tradingSession?.hasApiCredentials,
+    isTradingSessionComplete: !!tradingSession?.hasApiCredentials && !!tradingSession?.safeAddress,
+    isProxyDeployed: !!tradingSession?.proxyDeployed,
+    safeAddress: tradingSession?.safeAddress,
     initializeTradingSession,
     endTradingSession,
     invalidateSession,

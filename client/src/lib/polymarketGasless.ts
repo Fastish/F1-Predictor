@@ -1,4 +1,6 @@
 import { RelayClient, type Transaction, RelayerTxType } from "@polymarket/builder-relayer-client";
+import { deriveSafe } from "@polymarket/builder-relayer-client/dist/builder/derive";
+import { getContractConfig } from "@polymarket/builder-relayer-client/dist/config";
 import { BuilderConfig } from "@polymarket/builder-signing-sdk";
 import { Web3Provider } from "@ethersproject/providers";
 import { encodeFunctionData, maxUint256 } from "viem";
@@ -105,6 +107,92 @@ async function createRelayClient(): Promise<RelayClient> {
     builderConfig,
     RelayerTxType.PROXY
   );
+}
+
+export interface SafeAddressResult {
+  safeAddress: string | null;
+  proxyDeployed: boolean;
+  eoaAddress: string;
+}
+
+export async function getSafeAddress(): Promise<SafeAddressResult> {
+  try {
+    const signer = await getEthersV5Signer();
+    if (!signer) {
+      throw new Error("No wallet connected");
+    }
+    
+    const client = await createRelayClient();
+    const eoaAddress = await signer.getAddress();
+    
+    // Check if proxy is deployed on-chain (pass EOA address, not Safe address)
+    const deployed = await client.getDeployed(eoaAddress);
+    
+    // Get contract config for Polygon to get Safe factory address
+    const config = getContractConfig(POLYGON_CHAIN_ID);
+    
+    // Derive Safe address deterministically (same EOA -> same Safe address)
+    const safeAddress = deriveSafe(eoaAddress, config.SafeContracts.SafeFactory);
+    console.log(`Derived Safe address for ${eoaAddress}: ${safeAddress}`);
+    
+    if (deployed) {
+      console.log(`Safe is deployed at ${safeAddress}`);
+      return {
+        safeAddress,
+        proxyDeployed: true,
+        eoaAddress,
+      };
+    }
+    
+    console.log(`Safe not yet deployed for ${eoaAddress} (address will be: ${safeAddress})`);
+    return {
+      safeAddress, // Return the derived address even if not deployed
+      proxyDeployed: false,
+      eoaAddress,
+    };
+  } catch (error) {
+    console.error("Failed to get Safe address:", error);
+    throw error;
+  }
+}
+
+export async function deploySafeIfNeeded(): Promise<SafeAddressResult> {
+  try {
+    const signer = await getEthersV5Signer();
+    if (!signer) {
+      throw new Error("No wallet connected");
+    }
+    
+    const client = await createRelayClient();
+    const eoaAddress = await signer.getAddress();
+    
+    // Check if proxy is deployed (pass EOA address)
+    const deployed = await client.getDeployed(eoaAddress);
+    if (!deployed) {
+      console.log("Deploying Polymarket proxy wallet...");
+      const deployResult = await client.deploy();
+      console.log("Wallet deployment initiated:", deployResult.transactionID);
+      
+      const deployedTx = await deployResult.wait();
+      if (!deployedTx) {
+        throw new Error("Wallet deployment failed");
+      }
+      console.log("Wallet deployed:", deployedTx.transactionHash);
+    }
+    
+    // Get contract config and derive Safe address after deployment confirmed
+    const config = getContractConfig(POLYGON_CHAIN_ID);
+    const safeAddress = deriveSafe(eoaAddress, config.SafeContracts.SafeFactory);
+    
+    return {
+      safeAddress,
+      proxyDeployed: true,
+      eoaAddress,
+    };
+  } catch (error) {
+    console.error("Failed to deploy Safe:", error);
+    throw error;
+  }
 }
 
 export async function executeGaslessTransactions(

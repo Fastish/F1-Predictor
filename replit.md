@@ -103,13 +103,39 @@ The app uses a dual-wallet system:
 - **Order Execution**: Uses ethers v5 wallet (from @ethersproject/wallet) for EIP-712 signing
 - **API Configuration**:
   - POLY_BUILDER_PRIVATE_KEY: Private key for order signing (stored in Replit Secrets)
-  - Signature type 0 (EOA) with funder = wallet address
+  - signatureType=2 (browser wallet proxy) for external wallets with Safe proxy as funder
   - API credentials derived via createOrDeriveApiKey()
 - **Order Parameters**:
   - tickSize: "0.01" (standard tick size)
   - negRisk: true (F1 championship markets use negative risk)
 - **Status Normalization**: CLOB statuses (OPEN/LIVE/MATCHED/CANCELED/EXPIRED) mapped to schema vocabulary (open/filled/partial/cancelled/expired/pending)
 - Admin panel section for viewing/syncing Polymarket F1 markets
+
+### Polymarket Safe Proxy System (signatureType=2)
+**Status: IMPLEMENTED** - External wallets use Gnosis Safe proxy for trading.
+
+Polymarket requires external wallets (MetaMask, Rainbow) to trade through Safe proxy wallets:
+- **signatureType=0 (EOA)**: Rejected by Polymarket servers - no longer supported
+- **signatureType=2 (Browser Wallet)**: Required for external wallets; uses Safe proxy as funder
+
+**Trading Session Flow** (`client/src/hooks/useTradingSession.ts`):
+1. User connects external wallet (MetaMask, Rainbow, etc.)
+2. Session initialization derives user API credentials (deriveApiKey/createApiKey)
+3. System queries Polymarket API for user's Safe proxy address
+4. If Safe address exists: ClobClient created with signatureType=2, funder=safeAddress
+5. If no Safe address: User redirected to polymarket.com to complete first trade and deploy Safe
+
+**TradingSession Schema**:
+- `eoaAddress`: User's wallet address (EOA)
+- `safeAddress`: Gnosis Safe proxy address (from Polymarket)
+- `signatureType`: 2 for browser wallet proxy
+- `proxyDeployed`: Whether Safe proxy is deployed on Polymarket
+- `apiCredentials`: User's derived CLOB API key/secret/passphrase
+
+**Contract Addresses**:
+- Safe Factory: 0xaacFeEa03eb1561C4e67d661e40682Bd20E3541b (external wallets)
+- Magic Proxy Factory: 0xaB45c5A4B0c941a2F231C04C3f49182e1A254052 (email wallets)
+- NegRisk Adapter: 0xd91E80cF2E7be2e162c6513ceD06f1dD0dA35296
 
 ### Polymarket Relayer Client (Gasless Transactions)
 **Status: IMPLEMENTED** - Uses client-side signing with remote Builder authentication.

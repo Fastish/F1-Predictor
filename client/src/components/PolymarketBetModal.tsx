@@ -85,6 +85,8 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance }: Poly
   const { 
     tradingSession, 
     isTradingSessionComplete, 
+    isProxyDeployed,
+    safeAddress,
     initializeTradingSession, 
     isInitializing,
     currentStep,
@@ -423,7 +425,7 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance }: Poly
             </div>
           )}
 
-          {walletAddress && !isTradingSessionComplete && (
+          {walletAddress && !isTradingSessionComplete && !tradingSession?.hasApiCredentials && (
             <Button
               variant="outline"
               onClick={handleInitializeSession}
@@ -445,10 +447,36 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance }: Poly
             </Button>
           )}
 
-          {walletAddress && isTradingSessionComplete && (
+          {walletAddress && tradingSession?.hasApiCredentials && !isProxyDeployed && (
+            <div className="space-y-2">
+              <div className="flex items-start gap-2 rounded-md bg-orange-500/10 p-3 text-sm border border-orange-500/20">
+                <AlertCircle className="h-4 w-4 text-orange-500 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="text-orange-600 dark:text-orange-400 font-medium">Polymarket Account Setup Required</p>
+                  <p className="text-muted-foreground text-xs mt-1">
+                    To trade, you need to make your first trade on polymarket.com. This creates your trading wallet.
+                  </p>
+                  <a 
+                    href="https://polymarket.com/event/f1-constructors-champion"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-xs text-orange-600 dark:text-orange-400 hover:underline mt-2"
+                  >
+                    <ExternalLink className="h-3 w-3" />
+                    Go to Polymarket to complete setup
+                  </a>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {walletAddress && isTradingSessionComplete && safeAddress && (
             <div className="flex items-center gap-2 rounded-md bg-green-500/10 p-2 text-sm">
               <Key className="h-4 w-4 text-green-500 flex-shrink-0" />
               <span className="text-green-600 dark:text-green-400">Trading session active</span>
+              <span className="text-muted-foreground text-xs ml-auto">
+                Safe: {safeAddress.slice(0, 6)}...{safeAddress.slice(-4)}
+              </span>
             </div>
           )}
 

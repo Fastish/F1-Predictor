@@ -4,10 +4,12 @@ import { ethers } from "ethers";
 export const POLYMARKET_CONTRACTS = {
   CTF_EXCHANGE: "0x4bFb41d5B3570DeFd03C39a9A4D8dE6Bd8B8982E",
   NEG_RISK_CTF_EXCHANGE: "0xC5d563A36AE78145C45a50134d48A1215220f80a",
+  NEG_RISK_ADAPTER: "0xd91E80cF2E7be2e162c6513ceD06f1dD0dA35296", // NegRisk Adapter for split/merge
   USDC: "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174", // USDC.e on Polygon (bridged - used by Polymarket)
   USDC_NATIVE: "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359", // Native USDC on Polygon
   CTF: "0x4d97dcd97ec945f40cf65f87097ace5ea0476045", // Conditional Tokens
-  PROXY_FACTORY: "0xaB45c5A4B0c941a2F231C04C3f49182e1A254052", // Magic proxy factory
+  PROXY_FACTORY: "0xaB45c5A4B0c941a2F231C04C3f49182e1A254052", // Magic/email proxy factory
+  SAFE_FACTORY: "0xaacFeEa03eb1561C4e67d661e40682Bd20E3541b", // Gnosis Safe factory for external wallets
 };
 
 // ERC20 ABI for USDC interactions
