@@ -238,24 +238,33 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance }: Poly
       } else {
         console.error("Order failed with result:", JSON.stringify(result, null, 2));
         
-        // Check if the failure was due to allowance/approval issues
+        // Check if the failure was due to allowance/approval/balance issues
         const errorMsg = result.error || "";
         const rawError = typeof result.rawResponse?.error === "string" ? result.rawResponse.error : "";
-        const fullError = errorMsg + " " + rawError;
+        const fullError = (errorMsg + " " + rawError).toLowerCase();
         const isAllowanceError = 
-          fullError.toLowerCase().includes("allowance") || 
-          fullError.toLowerCase().includes("insufficient") ||
-          fullError.toLowerCase().includes("not approved");
+          fullError.includes("allowance") || 
+          fullError.includes("insufficient") ||
+          fullError.includes("not approved") ||
+          fullError.includes("not enough balance");
         
-        console.log("Error analysis:", { errorMsg, rawError, isAllowanceError, fullError });
+        const isBalanceError = fullError.includes("balance") && !fullError.includes("allowance");
+        
+        console.log("Error analysis:", { errorMsg, rawError, isAllowanceError, isBalanceError, fullError });
         
         if (isAllowanceError) {
           toast({
-            title: "Approval Required",
-            description: "You need to approve USDC for Polymarket trading. Opening setup wizard...",
+            title: "Setup Required",
+            description: "Your wallet needs USDC approvals or doesn't have enough balance. Opening setup wizard...",
             variant: "destructive",
           });
           setShowDepositWizard(true);
+        } else if (isBalanceError) {
+          toast({
+            title: "Insufficient Balance",
+            description: "You don't have enough USDC.e in your wallet for this trade.",
+            variant: "destructive",
+          });
         } else {
           toast({
             title: "Order Failed",

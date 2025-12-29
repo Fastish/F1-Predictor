@@ -49,10 +49,23 @@ export function usePlaceOrder(
 
         // Post the order to Polymarket with proper OrderType enum
         const result = await clobClient.postOrder(signedOrder, OrderType.GTC);
-        console.log("Order posted successfully:", JSON.stringify(result, null, 2));
+        console.log("postOrder response:", JSON.stringify(result, null, 2));
+
+        // Check if the response contains an error (Polymarket returns errors in response body)
+        const resultAny = result as any;
+        if (resultAny.error || resultAny.status >= 400) {
+          const errorMessage = resultAny.error || `Request failed with status ${resultAny.status}`;
+          console.error("Polymarket order rejected:", errorMessage);
+          setIsPlacing(false);
+          return {
+            success: false,
+            error: errorMessage,
+            rawResponse: result,
+          };
+        }
 
         // Extract order ID from response - Polymarket uses different field names
-        const orderId = (result as any).orderID || (result as any).orderId || (result as any).id || (result as any).order_id;
+        const orderId = resultAny.orderID || resultAny.orderId || resultAny.id || resultAny.order_id;
         
         if (!orderId) {
           console.warn("Order posted but no order ID returned. Full response:", result);
