@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { TrendingUp, TrendingDown, Wallet, PiggyBank, BarChart3, Loader2, Car, User, ExternalLink, Clock, CheckCircle, XCircle, RefreshCw, ShoppingCart, Trash2, Globe, DollarSign, LogOut } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useWallet } from "@/context/WalletContext";
 import { useMarket } from "@/context/MarketContext";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -12,6 +13,7 @@ import { format } from "date-fns";
 import { usePolymarketPositions, type PolymarketPosition } from "@/hooks/usePolymarketPositions";
 import { useTradingSession } from "@/hooks/useTradingSession";
 import { PolymarketBetModal } from "@/components/PolymarketBetModal";
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Area, AreaChart } from "recharts";
 
 interface PolymarketOrder {
   id: string;
@@ -31,50 +33,56 @@ interface PolymarketOrder {
   lastSyncedAt: string | null;
 }
 
-interface PolymarketOutcome {
-  id: string;
-  name: string;
-  tokenId: string;
-  price: number;
-  volume: string;
-  conditionId: string;
-  questionId: string;
-}
+type TimePeriod = "1D" | "1W" | "1M" | "ALL";
 
-// Team colors for F1 constructors
-const teamColors: Record<string, string> = {
-  "Mercedes": "#00D2BE",
-  "McLaren": "#FF8700",
-  "Red Bull Racing": "#1E41FF",
-  "Ferrari": "#DC0000",
-  "Aston Martin": "#006F62",
-  "Williams": "#005AFF",
-  "Audi": "#FF0000",
-  "Alpine": "#0090FF",
-  "Cadillac": "#C4A747",
-  "Haas": "#B6BABD",
-  "Racing Bulls": "#2B4562",
-};
-
-// Driver team associations
-const driverInfo: Record<string, { team: string; color: string }> = {
-  "Max Verstappen": { team: "Red Bull", color: "#1E41FF" },
-  "Lando Norris": { team: "McLaren", color: "#FF8700" },
-  "Lewis Hamilton": { team: "Ferrari", color: "#DC0000" },
-  "George Russell": { team: "Mercedes", color: "#00D2BE" },
-  "Charles Leclerc": { team: "Ferrari", color: "#DC0000" },
-  "Oscar Piastri": { team: "McLaren", color: "#FF8700" },
-  "Kimi Antonelli": { team: "Mercedes", color: "#00D2BE" },
-  "Fernando Alonso": { team: "Aston Martin", color: "#006F62" },
-  "Carlos Sainz": { team: "Williams", color: "#005AFF" },
-  "Liam Lawson": { team: "Red Bull", color: "#1E41FF" },
-};
-
-function getColor(name: string, type: "team" | "driver"): string {
-  if (type === "team") {
-    return teamColors[name] || "#888888";
+function generateMockChartData(period: TimePeriod, currentValue: number): { time: string; value: number }[] {
+  const now = new Date();
+  const data: { time: string; value: number }[] = [];
+  
+  let points: number;
+  let intervalMs: number;
+  
+  switch (period) {
+    case "1D":
+      points = 24;
+      intervalMs = 60 * 60 * 1000;
+      break;
+    case "1W":
+      points = 7;
+      intervalMs = 24 * 60 * 60 * 1000;
+      break;
+    case "1M":
+      points = 30;
+      intervalMs = 24 * 60 * 60 * 1000;
+      break;
+    case "ALL":
+      points = 90;
+      intervalMs = 24 * 60 * 60 * 1000;
+      break;
   }
-  return driverInfo[name]?.color || "#888888";
+  
+  const startValue = currentValue * (0.7 + Math.random() * 0.2);
+  const valueRange = currentValue - startValue;
+  
+  for (let i = 0; i < points; i++) {
+    const time = new Date(now.getTime() - (points - i - 1) * intervalMs);
+    const progress = i / (points - 1);
+    const noise = (Math.random() - 0.5) * valueRange * 0.1;
+    const value = startValue + progress * valueRange + noise;
+    
+    data.push({
+      time: period === "1D" 
+        ? format(time, "h:mm a")
+        : format(time, "MMM d"),
+      value: Math.max(0, value),
+    });
+  }
+  
+  if (data.length > 0) {
+    data[data.length - 1].value = currentValue;
+  }
+  
+  return data;
 }
 
 function getStatusBadge(status: string) {
@@ -120,6 +128,98 @@ function getStatusBadge(status: string) {
   }
 }
 
+function PortfolioChart({ portfolioValue }: { portfolioValue: number }) {
+  const [period, setPeriod] = useState<TimePeriod>("1W");
+  
+  const chartData = useMemo(() => {
+    return generateMockChartData(period, portfolioValue);
+  }, [period, portfolioValue]);
+  
+  const minValue = Math.min(...chartData.map(d => d.value));
+  const maxValue = Math.max(...chartData.map(d => d.value));
+  const change = chartData.length > 1 
+    ? chartData[chartData.length - 1].value - chartData[0].value 
+    : 0;
+  const changePercent = chartData.length > 1 && chartData[0].value > 0
+    ? ((chartData[chartData.length - 1].value - chartData[0].value) / chartData[0].value) * 100
+    : 0;
+  const isPositive = change >= 0;
+
+  return (
+    <Card className="mb-6">
+      <CardHeader className="flex flex-row items-start justify-between gap-4 pb-2">
+        <div>
+          <CardTitle className="text-sm font-medium text-muted-foreground">
+            Portfolio Value
+          </CardTitle>
+          <div className="text-3xl font-bold mt-1">${portfolioValue.toFixed(2)}</div>
+          <div className={`flex items-center gap-1 text-sm ${isPositive ? "text-green-600" : "text-red-600"}`}>
+            {isPositive ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
+            {isPositive ? "+" : ""}{change.toFixed(2)} ({isPositive ? "+" : ""}{changePercent.toFixed(1)}%)
+          </div>
+        </div>
+        <div className="flex gap-1">
+          {(["1D", "1W", "1M", "ALL"] as TimePeriod[]).map((p) => (
+            <Button
+              key={p}
+              size="sm"
+              variant={period === p ? "default" : "ghost"}
+              onClick={() => setPeriod(p)}
+              data-testid={`button-period-${p.toLowerCase()}`}
+            >
+              {p}
+            </Button>
+          ))}
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="h-48">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+              <defs>
+                <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor={isPositive ? "#22c55e" : "#ef4444"} stopOpacity={0.3}/>
+                  <stop offset="95%" stopColor={isPositive ? "#22c55e" : "#ef4444"} stopOpacity={0}/>
+                </linearGradient>
+              </defs>
+              <XAxis 
+                dataKey="time" 
+                axisLine={false} 
+                tickLine={false}
+                tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+                interval="preserveStartEnd"
+              />
+              <YAxis 
+                domain={[minValue * 0.95, maxValue * 1.05]}
+                axisLine={false}
+                tickLine={false}
+                tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+                tickFormatter={(v) => `$${v.toFixed(0)}`}
+                width={50}
+              />
+              <Tooltip 
+                contentStyle={{ 
+                  backgroundColor: "hsl(var(--card))", 
+                  border: "1px solid hsl(var(--border))",
+                  borderRadius: "6px",
+                }}
+                formatter={(value: number) => [`$${value.toFixed(2)}`, "Value"]}
+              />
+              <Area 
+                type="monotone" 
+                dataKey="value" 
+                stroke={isPositive ? "#22c55e" : "#ef4444"} 
+                strokeWidth={2}
+                fill="url(#colorValue)"
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export function PortfolioSection() {
   const { walletAddress, connectWallet, isConnecting } = useWallet();
   const { userId } = useMarket();
@@ -148,14 +248,6 @@ export function PortfolioSection() {
   });
 
   const portfolioValue = positionsData?.totalValue || 0;
-
-  const { data: constructors = [] } = useQuery<PolymarketOutcome[]>({
-    queryKey: ["/api/polymarket/constructors"],
-  });
-
-  const { data: drivers = [] } = useQuery<PolymarketOutcome[]>({
-    queryKey: ["/api/polymarket/drivers"],
-  });
 
   const { data: orders = [], isLoading: isLoadingOrders } = useQuery<PolymarketOrder[]>({
     queryKey: ["/api/polymarket/orders", userId],
@@ -193,8 +285,6 @@ export function PortfolioSection() {
     },
   });
 
-  // For now, show available markets instead of positions
-  // Real positions would require querying Polymarket CLOB API with wallet address
   const hasWallet = !!walletAddress;
   
   const openOrders = orders.filter(o => ["pending", "open", "partial"].includes(o.status));
@@ -204,58 +294,22 @@ export function PortfolioSection() {
   return (
     <section className="py-12">
       <div className="mx-auto max-w-7xl px-4">
-        <h2 className="mb-6 text-2xl font-bold" data-testid="text-portfolio-title">Your Portfolio</h2>
-
-        <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between gap-4 pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Cash
-              </CardTitle>
-              <DollarSign className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              {!walletAddress ? (
-                <div className="space-y-2">
-                  <p className="text-sm text-muted-foreground">Connect wallet to view balance</p>
-                  <Button size="sm" onClick={() => connectWallet()} disabled={isConnecting}>
-                    Connect Wallet
-                  </Button>
-                </div>
-              ) : !isTradingSessionComplete ? (
-                <div className="text-sm text-muted-foreground">Initializing...</div>
-              ) : isLoadingBalance ? (
-                <Loader2 className="h-6 w-6 animate-spin" />
-              ) : (
-                <div className="text-2xl font-bold tabular-nums" data-testid="text-cash-balance">
-                  ${(cashBalance || 0).toFixed(2)}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between gap-4 pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Portfolio
-              </CardTitle>
-              <BarChart3 className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              {!walletAddress ? (
-                <div className="text-sm text-muted-foreground">Connect wallet</div>
-              ) : !isTradingSessionComplete ? (
-                <div className="text-sm text-muted-foreground">Initializing...</div>
-              ) : isLoadingPositions ? (
-                <Loader2 className="h-6 w-6 animate-spin" />
-              ) : (
-                <div className="text-2xl font-bold tabular-nums" data-testid="text-portfolio-value">
-                  ${portfolioValue.toFixed(2)}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl font-bold" data-testid="text-portfolio-title">Portfolio</h2>
+          <div className="flex items-center gap-4">
+            <div className="text-right">
+              <div className="text-sm text-muted-foreground">Cash</div>
+              <div className="font-bold tabular-nums">
+                {isLoadingBalance ? "..." : `$${(cashBalance || 0).toFixed(2)}`}
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-sm text-muted-foreground">Portfolio</div>
+              <div className="font-bold tabular-nums">
+                {isLoadingPositions ? "..." : `$${portfolioValue.toFixed(2)}`}
+              </div>
+            </div>
+          </div>
         </div>
 
         {!hasWallet ? (
@@ -274,124 +328,221 @@ export function PortfolioSection() {
           </Card>
         ) : (
           <>
-            <Card className="mb-6">
-              <CardHeader className="flex flex-row items-center justify-between gap-4">
-                <CardTitle className="flex items-center gap-2">
-                  <ShoppingCart className="h-5 w-5" />
-                  Your Orders
-                </CardTitle>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => syncOrdersMutation.mutate()}
-                  disabled={syncOrdersMutation.isPending}
-                  data-testid="button-sync-orders"
-                >
-                  <RefreshCw className={`h-4 w-4 mr-1 ${syncOrdersMutation.isPending ? "animate-spin" : ""}`} />
-                  Sync
-                </Button>
-              </CardHeader>
-              <CardContent>
-                {isLoadingOrders ? (
-                  <div className="flex justify-center py-8">
-                    <Loader2 className="h-8 w-8 animate-spin" />
-                  </div>
-                ) : orders.length === 0 ? (
-                  <div className="rounded-md bg-muted/50 p-6 text-center">
-                    <p className="text-muted-foreground">
-                      No orders yet. Place bets in the Markets page to see them here.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {openOrders.length > 0 && (
-                      <div>
-                        <h4 className="font-medium text-sm text-muted-foreground mb-2">Open Orders ({openOrders.length})</h4>
-                        <div className="space-y-2">
-                          {openOrders.map((order) => (
-                            <div key={order.id} className="flex items-center justify-between p-3 rounded-md bg-muted/30" data-testid={`order-row-${order.id}`}>
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2">
-                                  <span className="font-medium">{order.marketName || "Unknown Market"}</span>
-                                  {order.polymarketOrderId ? (
-                                    <Badge variant="outline" className="gap-1 text-green-600 border-green-300 text-xs">
-                                      <Globe className="h-3 w-3" />
-                                      Live
-                                    </Badge>
-                                  ) : (
-                                    <Badge variant="outline" className="gap-1 text-orange-600 border-orange-300 text-xs">
-                                      Local Only
-                                    </Badge>
-                                  )}
-                                </div>
-                                <div className="text-sm text-muted-foreground">
-                                  {order.side} {order.outcome} @ {(order.price * 100).toFixed(1)}c | {order.size.toFixed(2)} shares
-                                </div>
-                                <div className="text-xs text-muted-foreground">
-                                  {format(new Date(order.createdAt), "MMM d, yyyy h:mm a")}
-                                </div>
+            <PortfolioChart portfolioValue={portfolioValue + (cashBalance || 0)} />
+
+            <Tabs defaultValue="positions" className="w-full">
+              <TabsList className="mb-4">
+                <TabsTrigger value="positions" data-testid="tab-positions">
+                  Positions
+                  {positionsData?.positions && positionsData.positions.length > 0 && (
+                    <Badge variant="secondary" className="ml-2">
+                      {positionsData.positions.length}
+                    </Badge>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value="orders" data-testid="tab-orders">
+                  Orders
+                  {openOrders.length > 0 && (
+                    <Badge variant="secondary" className="ml-2">
+                      {openOrders.length}
+                    </Badge>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value="history" data-testid="tab-history">
+                  History
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="positions">
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between gap-4">
+                    <CardTitle className="flex items-center gap-2">
+                      <BarChart3 className="h-5 w-5" />
+                      Your Positions
+                    </CardTitle>
+                    <div className="flex items-center gap-2">
+                      {positionsData?.totalValue !== undefined && positionsData.totalValue > 0 && (
+                        <div className="text-right">
+                          <div className="text-sm text-muted-foreground">Total Value</div>
+                          <div className="text-lg font-bold">${positionsData.totalValue.toFixed(2)}</div>
+                        </div>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => refetchPositions()}
+                        disabled={isLoadingPositions}
+                        data-testid="button-refresh-positions"
+                      >
+                        <RefreshCw className={`h-4 w-4 ${isLoadingPositions ? "animate-spin" : ""}`} />
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    {isLoadingPositions ? (
+                      <div className="flex justify-center py-8">
+                        <Loader2 className="h-8 w-8 animate-spin" />
+                      </div>
+                    ) : isPositionsError ? (
+                      <div className="rounded-md bg-red-500/10 p-6 text-center">
+                        <p className="text-red-600 dark:text-red-400 mb-2">Failed to load positions</p>
+                        <p className="text-muted-foreground text-sm mb-4">
+                          {positionsError instanceof Error ? positionsError.message : "Unknown error"}
+                        </p>
+                        <Button size="sm" variant="outline" onClick={() => refetchPositions()}>
+                          <RefreshCw className="h-4 w-4 mr-1" />
+                          Retry
+                        </Button>
+                      </div>
+                    ) : !isTradingSessionComplete ? (
+                      <div className="rounded-md bg-muted/50 p-6 text-center">
+                        <p className="text-muted-foreground mb-4">
+                          Initialize your trading session to view positions.
+                        </p>
+                      </div>
+                    ) : positionsData?.positions && positionsData.positions.length > 0 ? (
+                      <div className="space-y-3">
+                        {positionsData.positions.map((position, index) => (
+                          <div
+                            key={`${position.tokenId}-${index}`}
+                            className="flex items-center gap-4 p-4 rounded-md bg-muted/30 hover-elevate"
+                            data-testid={`position-row-${position.tokenId}`}
+                          >
+                            {position.icon && (
+                              <img
+                                src={position.icon}
+                                alt=""
+                                className="w-12 h-12 rounded-md object-cover flex-shrink-0"
+                              />
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium text-sm line-clamp-2">
+                                {position.title || "Unknown Market"}
                               </div>
-                              <div className="flex items-center gap-2">
-                                <div className="flex flex-col items-end gap-1">
-                                  {getStatusBadge(order.status)}
-                                  <span className="text-sm font-medium">${order.totalCost.toFixed(2)}</span>
-                                </div>
-                                {!order.polymarketOrderId && (
-                                  <Button
-                                    size="icon"
-                                    variant="ghost"
-                                    onClick={() => deleteOrderMutation.mutate(order.id)}
-                                    disabled={deleteOrderMutation.isPending}
-                                    data-testid={`button-delete-order-${order.id}`}
-                                  >
-                                    <Trash2 className="h-4 w-4 text-destructive" />
-                                  </Button>
-                                )}
+                              <div className="flex items-center gap-2 mt-1">
+                                <Badge variant={position.outcome === "Yes" ? "default" : "secondary"}>
+                                  {position.outcome}
+                                </Badge>
+                                <span className="text-sm text-muted-foreground">
+                                  {position.size.toFixed(2)} shares
+                                </span>
+                              </div>
+                              <div className="text-xs text-muted-foreground mt-1">
+                                Avg: {(position.averagePrice * 100).toFixed(1)}c | Current: {(position.currentPrice * 100).toFixed(1)}c
                               </div>
                             </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    
-                    {filledOrders.length > 0 && (
-                      <div>
-                        <h4 className="font-medium text-sm text-muted-foreground mb-2">Filled Orders ({filledOrders.length})</h4>
-                        <div className="space-y-2">
-                          {filledOrders.slice(0, 5).map((order) => (
-                            <div key={order.id} className="flex items-center justify-between p-3 rounded-md bg-muted/30" data-testid={`order-row-${order.id}`}>
-                              <div className="flex-1">
-                                <div className="font-medium">{order.marketName || "Unknown Market"}</div>
-                                <div className="text-sm text-muted-foreground">
-                                  {order.side} {order.outcome} @ {(order.price * 100).toFixed(1)}c | {order.size.toFixed(2)} shares
+                            <div className="flex items-center gap-4">
+                              <div className="text-right">
+                                <div className="font-medium">${position.value.toFixed(2)}</div>
+                                <div className={`text-sm flex items-center gap-1 ${position.pnl >= 0 ? "text-green-600" : "text-red-600"}`}>
+                                  {position.pnl >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                                  ${Math.abs(position.pnl).toFixed(2)} ({position.pnlPercent >= 0 ? "+" : ""}{position.pnlPercent.toFixed(1)}%)
                                 </div>
                               </div>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setSelectedPosition(position);
+                                  setSellModalOpen(true);
+                                }}
+                                data-testid={`button-sell-position-${position.tokenId}`}
+                              >
+                                <LogOut className="h-4 w-4 mr-1" />
+                                Sell
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                        {positionsData.totalPnl !== undefined && (
+                          <div className="flex justify-between items-center pt-3 border-t mt-4">
+                            <span className="text-sm text-muted-foreground">Total P&L</span>
+                            <span className={`font-bold ${positionsData.totalPnl >= 0 ? "text-green-600" : "text-red-600"}`}>
+                              {positionsData.totalPnl >= 0 ? "+" : ""}${positionsData.totalPnl.toFixed(2)}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="rounded-md bg-muted/50 p-6 text-center">
+                        <p className="text-muted-foreground mb-4">
+                          No positions found. Place bets in the Markets page to see them here.
+                        </p>
+                        <a
+                          href="https://polymarket.com/portfolio"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-primary hover:underline"
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                          View on Polymarket
+                        </a>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="orders">
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between gap-4">
+                    <CardTitle className="flex items-center gap-2">
+                      <ShoppingCart className="h-5 w-5" />
+                      Open Orders
+                    </CardTitle>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => syncOrdersMutation.mutate()}
+                      disabled={syncOrdersMutation.isPending}
+                      data-testid="button-sync-orders"
+                    >
+                      <RefreshCw className={`h-4 w-4 mr-1 ${syncOrdersMutation.isPending ? "animate-spin" : ""}`} />
+                      Sync
+                    </Button>
+                  </CardHeader>
+                  <CardContent>
+                    {isLoadingOrders ? (
+                      <div className="flex justify-center py-8">
+                        <Loader2 className="h-8 w-8 animate-spin" />
+                      </div>
+                    ) : openOrders.length === 0 ? (
+                      <div className="rounded-md bg-muted/50 p-6 text-center">
+                        <p className="text-muted-foreground">
+                          No open orders. Your pending and active orders will appear here.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {openOrders.map((order) => (
+                          <div key={order.id} className="flex items-center justify-between p-3 rounded-md bg-muted/30" data-testid={`order-row-${order.id}`}>
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium">{order.marketName || "Unknown Market"}</span>
+                                {order.polymarketOrderId ? (
+                                  <Badge variant="outline" className="gap-1 text-green-600 border-green-300 text-xs">
+                                    <Globe className="h-3 w-3" />
+                                    Live
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="outline" className="gap-1 text-orange-600 border-orange-300 text-xs">
+                                    Local Only
+                                  </Badge>
+                                )}
+                              </div>
+                              <div className="text-sm text-muted-foreground">
+                                {order.side} {order.outcome} @ {(order.price * 100).toFixed(1)}c | {order.size.toFixed(2)} shares
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {format(new Date(order.createdAt), "MMM d, yyyy h:mm a")}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
                               <div className="flex flex-col items-end gap-1">
                                 {getStatusBadge(order.status)}
                                 <span className="text-sm font-medium">${order.totalCost.toFixed(2)}</span>
                               </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    
-                    {cancelledOrders.length > 0 && (
-                      <div>
-                        <h4 className="font-medium text-sm text-muted-foreground mb-2">Cancelled/Expired ({cancelledOrders.length})</h4>
-                        <div className="space-y-2">
-                          {cancelledOrders.slice(0, 3).map((order) => (
-                            <div key={order.id} className="flex items-center justify-between p-3 rounded-md bg-muted/30 opacity-60" data-testid={`order-row-${order.id}`}>
-                              <div className="flex-1">
-                                <div className="font-medium">{order.marketName || "Unknown Market"}</div>
-                                <div className="text-sm text-muted-foreground">
-                                  {order.side} {order.outcome} @ {(order.price * 100).toFixed(1)}c
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <div className="flex flex-col items-end gap-1">
-                                  {getStatusBadge(order.status)}
-                                </div>
+                              {!order.polymarketOrderId && (
                                 <Button
                                   size="icon"
                                   variant="ghost"
@@ -401,205 +552,102 @@ export function PortfolioSection() {
                                 >
                                   <Trash2 className="h-4 w-4 text-destructive" />
                                 </Button>
-                              </div>
+                              )}
                             </div>
-                          ))}
-                        </div>
+                          </div>
+                        ))}
                       </div>
                     )}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                  </CardContent>
+                </Card>
+              </TabsContent>
 
-            <Card className="mb-6">
-              <CardHeader className="flex flex-row items-center justify-between gap-4">
-                <CardTitle className="flex items-center gap-2">
-                  <BarChart3 className="h-5 w-5" />
-                  Your Positions
-                  {positionsData?.positions && positionsData.positions.length > 0 && (
-                    <Badge variant="secondary" className="ml-2">
-                      {positionsData.positions.length}
-                    </Badge>
-                  )}
-                </CardTitle>
-                <div className="flex items-center gap-2">
-                  {positionsData?.totalValue !== undefined && positionsData.totalValue > 0 && (
-                    <div className="text-right">
-                      <div className="text-sm text-muted-foreground">Total Value</div>
-                      <div className="text-lg font-bold">${positionsData.totalValue.toFixed(2)}</div>
-                    </div>
-                  )}
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => refetchPositions()}
-                    disabled={isLoadingPositions}
-                    data-testid="button-refresh-positions"
-                  >
-                    <RefreshCw className={`h-4 w-4 ${isLoadingPositions ? "animate-spin" : ""}`} />
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {isLoadingPositions ? (
-                  <div className="flex justify-center py-8">
-                    <Loader2 className="h-8 w-8 animate-spin" />
-                  </div>
-                ) : isPositionsError ? (
-                  <div className="rounded-md bg-red-500/10 p-6 text-center">
-                    <p className="text-red-600 dark:text-red-400 mb-2">Failed to load positions</p>
-                    <p className="text-muted-foreground text-sm mb-4">
-                      {positionsError instanceof Error ? positionsError.message : "Unknown error"}
-                    </p>
-                    <Button size="sm" variant="outline" onClick={() => refetchPositions()}>
-                      <RefreshCw className="h-4 w-4 mr-1" />
-                      Retry
-                    </Button>
-                  </div>
-                ) : !isTradingSessionComplete ? (
-                  <div className="rounded-md bg-muted/50 p-6 text-center">
-                    <p className="text-muted-foreground mb-4">
-                      Initialize your trading session to view positions.
-                    </p>
-                  </div>
-                ) : positionsData?.positions && positionsData.positions.length > 0 ? (
-                  <div className="space-y-3">
-                    {positionsData.positions.map((position, index) => (
-                      <div
-                        key={`${position.tokenId}-${index}`}
-                        className="flex items-center gap-4 p-4 rounded-md bg-muted/30 hover-elevate"
-                        data-testid={`position-row-${position.tokenId}`}
-                      >
-                        {position.icon && (
-                          <img
-                            src={position.icon}
-                            alt=""
-                            className="w-12 h-12 rounded-md object-cover flex-shrink-0"
-                          />
+              <TabsContent value="history">
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between gap-4">
+                    <CardTitle className="flex items-center gap-2">
+                      <Clock className="h-5 w-5" />
+                      Order History
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {isLoadingOrders ? (
+                      <div className="flex justify-center py-8">
+                        <Loader2 className="h-8 w-8 animate-spin" />
+                      </div>
+                    ) : (filledOrders.length === 0 && cancelledOrders.length === 0) ? (
+                      <div className="rounded-md bg-muted/50 p-6 text-center">
+                        <p className="text-muted-foreground">
+                          No order history yet. Completed and cancelled orders will appear here.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {filledOrders.length > 0 && (
+                          <div>
+                            <h4 className="font-medium text-sm text-muted-foreground mb-2">Filled Orders ({filledOrders.length})</h4>
+                            <div className="space-y-2">
+                              {filledOrders.map((order) => (
+                                <div key={order.id} className="flex items-center justify-between p-3 rounded-md bg-muted/30" data-testid={`order-row-${order.id}`}>
+                                  <div className="flex-1">
+                                    <div className="font-medium">{order.marketName || "Unknown Market"}</div>
+                                    <div className="text-sm text-muted-foreground">
+                                      {order.side} {order.outcome} @ {(order.price * 100).toFixed(1)}c | {order.size.toFixed(2)} shares
+                                    </div>
+                                    <div className="text-xs text-muted-foreground">
+                                      {format(new Date(order.createdAt), "MMM d, yyyy h:mm a")}
+                                    </div>
+                                  </div>
+                                  <div className="flex flex-col items-end gap-1">
+                                    {getStatusBadge(order.status)}
+                                    <span className="text-sm font-medium">${order.totalCost.toFixed(2)}</span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
                         )}
-                        <div className="flex-1 min-w-0">
-                          <div className="font-medium text-sm line-clamp-2">
-                            {position.title || "Unknown Market"}
-                          </div>
-                          <div className="flex items-center gap-2 mt-1">
-                            <Badge variant={position.outcome === "Yes" ? "default" : "secondary"}>
-                              {position.outcome}
-                            </Badge>
-                            <span className="text-sm text-muted-foreground">
-                              {position.size.toFixed(2)} shares
-                            </span>
-                          </div>
-                          <div className="text-xs text-muted-foreground mt-1">
-                            Avg: {(position.averagePrice * 100).toFixed(1)}c | Current: {(position.currentPrice * 100).toFixed(1)}c
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-4">
-                          <div className="text-right">
-                            <div className="font-medium">${position.value.toFixed(2)}</div>
-                            <div className={`text-sm flex items-center gap-1 ${position.pnl >= 0 ? "text-green-600" : "text-red-600"}`}>
-                              {position.pnl >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-                              ${Math.abs(position.pnl).toFixed(2)} ({position.pnlPercent >= 0 ? "+" : ""}{position.pnlPercent.toFixed(1)}%)
+                        
+                        {cancelledOrders.length > 0 && (
+                          <div>
+                            <h4 className="font-medium text-sm text-muted-foreground mb-2">Cancelled/Expired ({cancelledOrders.length})</h4>
+                            <div className="space-y-2">
+                              {cancelledOrders.map((order) => (
+                                <div key={order.id} className="flex items-center justify-between p-3 rounded-md bg-muted/30 opacity-60" data-testid={`order-row-${order.id}`}>
+                                  <div className="flex-1">
+                                    <div className="font-medium">{order.marketName || "Unknown Market"}</div>
+                                    <div className="text-sm text-muted-foreground">
+                                      {order.side} {order.outcome} @ {(order.price * 100).toFixed(1)}c
+                                    </div>
+                                    <div className="text-xs text-muted-foreground">
+                                      {format(new Date(order.createdAt), "MMM d, yyyy h:mm a")}
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <div className="flex flex-col items-end gap-1">
+                                      {getStatusBadge(order.status)}
+                                    </div>
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      onClick={() => deleteOrderMutation.mutate(order.id)}
+                                      disabled={deleteOrderMutation.isPending}
+                                      data-testid={`button-delete-order-${order.id}`}
+                                    >
+                                      <Trash2 className="h-4 w-4 text-destructive" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              ))}
                             </div>
                           </div>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              setSelectedPosition(position);
-                              setSellModalOpen(true);
-                            }}
-                            data-testid={`button-sell-position-${position.tokenId}`}
-                          >
-                            <LogOut className="h-4 w-4 mr-1" />
-                            Sell
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                    {positionsData.totalPnl !== undefined && (
-                      <div className="flex justify-between items-center pt-3 border-t mt-4">
-                        <span className="text-sm text-muted-foreground">Total P&L</span>
-                        <span className={`font-bold ${positionsData.totalPnl >= 0 ? "text-green-600" : "text-red-600"}`}>
-                          {positionsData.totalPnl >= 0 ? "+" : ""}${positionsData.totalPnl.toFixed(2)}
-                        </span>
+                        )}
                       </div>
                     )}
-                  </div>
-                ) : (
-                  <div className="rounded-md bg-muted/50 p-6 text-center">
-                    <p className="text-muted-foreground mb-4">
-                      No positions found. Place bets in the Markets page to see them here.
-                    </p>
-                    <a
-                      href="https://polymarket.com/portfolio"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-primary hover:underline"
-                    >
-                      <ExternalLink className="h-4 w-4" />
-                      View on Polymarket
-                    </a>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            <div className="grid gap-6 md:grid-cols-2">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Car className="h-5 w-5" />
-                    Top Constructor Odds
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {constructors.slice(0, 5).map((team) => (
-                      <div key={team.id} className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <div
-                            className="h-3 w-3 rounded-full"
-                            style={{ backgroundColor: getColor(team.name, "team") }}
-                          />
-                          <span className="font-medium">{team.name}</span>
-                        </div>
-                        <Badge variant="outline">
-                          {(team.price * 100).toFixed(0)}%
-                        </Badge>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <User className="h-5 w-5" />
-                    Top Driver Odds
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {drivers.slice(0, 5).map((driver) => (
-                      <div key={driver.id} className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <div
-                            className="h-3 w-3 rounded-full"
-                            style={{ backgroundColor: getColor(driver.name, "driver") }}
-                          />
-                          <span className="font-medium">{driver.name}</span>
-                        </div>
-                        <Badge variant="outline">
-                          {(driver.price * 100).toFixed(0)}%
-                        </Badge>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            </Tabs>
           </>
         )}
       </div>
