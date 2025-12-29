@@ -1547,6 +1547,43 @@ export async function registerRoutes(
     }
   });
 
+  // Delete a Polymarket order (for failed/local orders)
+  app.delete("/api/polymarket/orders/:orderId", async (req, res) => {
+    try {
+      const { orderId } = req.params;
+      const { userId } = req.body;
+      
+      if (!userId) {
+        return res.status(400).json({ error: "userId is required" });
+      }
+      
+      const order = await storage.getPolymarketOrder(orderId);
+      
+      if (!order) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+      
+      // Verify ownership - order must belong to the requesting user
+      if (order.userId !== userId) {
+        return res.status(403).json({ error: "Not authorized to delete this order" });
+      }
+      
+      // Only allow deletion of orders that failed to reach Polymarket (no polymarketOrderId)
+      // or cancelled/expired orders
+      if (order.polymarketOrderId && !["cancelled", "expired"].includes(order.status)) {
+        return res.status(400).json({ 
+          error: "Cannot delete active orders on Polymarket. Use cancel instead." 
+        });
+      }
+      
+      await storage.deletePolymarketOrder(orderId);
+      res.json({ success: true, message: "Order deleted" });
+    } catch (error) {
+      console.error("Failed to delete order:", error);
+      res.status(500).json({ error: "Failed to delete order" });
+    }
+  });
+
   // Sync order statuses from Polymarket CLOB API
   app.post("/api/polymarket/orders/sync", async (req, res) => {
     try {

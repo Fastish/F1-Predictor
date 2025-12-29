@@ -1,4 +1,4 @@
-import { TrendingUp, TrendingDown, Wallet, PiggyBank, BarChart3, Loader2, Car, User, ExternalLink, Clock, CheckCircle, XCircle, RefreshCw, ShoppingCart } from "lucide-react";
+import { TrendingUp, TrendingDown, Wallet, PiggyBank, BarChart3, Loader2, Car, User, ExternalLink, Clock, CheckCircle, XCircle, RefreshCw, ShoppingCart, Trash2, Globe } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -6,6 +6,7 @@ import { useWallet } from "@/context/WalletContext";
 import { useMarket } from "@/context/MarketContext";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 
 interface PolymarketOrder {
@@ -118,6 +119,7 @@ function getStatusBadge(status: string) {
 export function PortfolioSection() {
   const { walletAddress, connectWallet, isConnecting } = useWallet();
   const { userId } = useMarket();
+  const { toast } = useToast();
 
   const { data: usdcBalance, isLoading: isLoadingBalance } = useQuery<string>({
     queryKey: ["polygon-usdc-balance", walletAddress],
@@ -149,6 +151,27 @@ export function PortfolioSection() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/polymarket/orders", userId] });
+    },
+  });
+
+  const deleteOrderMutation = useMutation({
+    mutationFn: async (orderId: string) => {
+      const response = await apiRequest("DELETE", `/api/polymarket/orders/${orderId}`, { userId });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/polymarket/orders", userId] });
+      toast({
+        title: "Order deleted",
+        description: "The order has been removed from your history.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to delete order",
+        description: error.message || "Could not delete the order. Please try again.",
+        variant: "destructive",
+      });
     },
   });
 
@@ -281,7 +304,19 @@ export function PortfolioSection() {
                           {openOrders.map((order) => (
                             <div key={order.id} className="flex items-center justify-between p-3 rounded-md bg-muted/30" data-testid={`order-row-${order.id}`}>
                               <div className="flex-1">
-                                <div className="font-medium">{order.marketName || "Unknown Market"}</div>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-medium">{order.marketName || "Unknown Market"}</span>
+                                  {order.polymarketOrderId ? (
+                                    <Badge variant="outline" className="gap-1 text-green-600 border-green-300 text-xs">
+                                      <Globe className="h-3 w-3" />
+                                      Live
+                                    </Badge>
+                                  ) : (
+                                    <Badge variant="outline" className="gap-1 text-orange-600 border-orange-300 text-xs">
+                                      Local Only
+                                    </Badge>
+                                  )}
+                                </div>
                                 <div className="text-sm text-muted-foreground">
                                   {order.side} {order.outcome} @ {(order.price * 100).toFixed(1)}c | {order.size.toFixed(2)} shares
                                 </div>
@@ -289,9 +324,22 @@ export function PortfolioSection() {
                                   {format(new Date(order.createdAt), "MMM d, yyyy h:mm a")}
                                 </div>
                               </div>
-                              <div className="flex flex-col items-end gap-1">
-                                {getStatusBadge(order.status)}
-                                <span className="text-sm font-medium">${order.totalCost.toFixed(2)}</span>
+                              <div className="flex items-center gap-2">
+                                <div className="flex flex-col items-end gap-1">
+                                  {getStatusBadge(order.status)}
+                                  <span className="text-sm font-medium">${order.totalCost.toFixed(2)}</span>
+                                </div>
+                                {!order.polymarketOrderId && (
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    onClick={() => deleteOrderMutation.mutate(order.id)}
+                                    disabled={deleteOrderMutation.isPending}
+                                    data-testid={`button-delete-order-${order.id}`}
+                                  >
+                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                  </Button>
+                                )}
                               </div>
                             </div>
                           ))}
@@ -333,8 +381,19 @@ export function PortfolioSection() {
                                   {order.side} {order.outcome} @ {(order.price * 100).toFixed(1)}c
                                 </div>
                               </div>
-                              <div className="flex flex-col items-end gap-1">
-                                {getStatusBadge(order.status)}
+                              <div className="flex items-center gap-2">
+                                <div className="flex flex-col items-end gap-1">
+                                  {getStatusBadge(order.status)}
+                                </div>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  onClick={() => deleteOrderMutation.mutate(order.id)}
+                                  disabled={deleteOrderMutation.isPending}
+                                  data-testid={`button-delete-order-${order.id}`}
+                                >
+                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                </Button>
                               </div>
                             </div>
                           ))}

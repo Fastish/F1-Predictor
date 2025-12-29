@@ -170,6 +170,7 @@ export interface IStorage {
   getPolymarketOrdersByUser(userId: string): Promise<PolymarketOrder[]>;
   getPolymarketOrder(id: string): Promise<PolymarketOrder | undefined>;
   updatePolymarketOrder(id: string, updates: Partial<PolymarketOrder>): Promise<PolymarketOrder | undefined>;
+  deletePolymarketOrder(id: string): Promise<void>;
 }
 
 // Initial F1 2026 teams data - all teams start at equal $0.10 price
@@ -1248,6 +1249,10 @@ export class DatabaseStorage implements IStorage {
       .where(eq(polymarketOrders.id, id))
       .returning();
     return updated || undefined;
+  }
+
+  async deletePolymarketOrder(id: string): Promise<void> {
+    await db.delete(polymarketOrders).where(eq(polymarketOrders.id, id));
   }
 }
 
