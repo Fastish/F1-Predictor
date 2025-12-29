@@ -2,10 +2,33 @@ import { useState, useCallback, useEffect, useMemo } from "react";
 import { ClobClient } from "@polymarket/clob-client";
 import { BuilderConfig } from "@polymarket/builder-signing-sdk";
 import { useWallet } from "@/context/WalletContext";
+import type { ethers } from "ethers";
 
 const CLOB_API_URL = "https://clob.polymarket.com";
 const POLYGON_CHAIN_ID = 137;
 const SESSION_STORAGE_KEY = "polymarket_trading_session";
+
+// Adapter to wrap ethers v6 signer with ethers v5 _signTypedData method
+// Polymarket SDK expects _signTypedData (v5) but ethers v6 uses signTypedData
+function wrapSignerForPolymarket(signer: ethers.Signer): any {
+  // Create a proxy that adds _signTypedData method
+  return new Proxy(signer, {
+    get(target: any, prop: string) {
+      if (prop === "_signTypedData") {
+        // Map _signTypedData to signTypedData (ethers v6 method)
+        return async (domain: any, types: any, value: any) => {
+          return target.signTypedData(domain, types, value);
+        };
+      }
+      // For all other properties, return the original
+      const value = target[prop];
+      if (typeof value === "function") {
+        return value.bind(target);
+      }
+      return value;
+    },
+  });
+}
 
 export interface UserApiCredentials {
   key: string;
@@ -78,11 +101,17 @@ export function useTradingSession() {
     }
   }, [walletAddress]);
 
+  // Wrap signer for Polymarket SDK compatibility (ethers v5 _signTypedData)
+  const wrappedSigner = useMemo(() => {
+    if (!signer) return null;
+    return wrapSignerForPolymarket(signer);
+  }, [signer]);
+
   // Create temporary ClobClient for credential derivation
   const createTempClobClient = useCallback(() => {
-    if (!signer) return null;
-    return new ClobClient(CLOB_API_URL, POLYGON_CHAIN_ID, signer as any);
-  }, [signer]);
+    if (!wrappedSigner) return null;
+    return new ClobClient(CLOB_API_URL, POLYGON_CHAIN_ID, wrappedSigner);
+  }, [wrappedSigner]);
 
   // Derive or create user API credentials
   const deriveApiCredentials = useCallback(async (): Promise<UserApiCredentials> => {
@@ -175,7 +204,7 @@ export function useTradingSession() {
 
   // Create authenticated ClobClient with builder config for order placement
   const clobClient = useMemo(() => {
-    if (!signer || !walletAddress || !tradingSession?.apiCredentials) {
+    if (!wrappedSigner || !walletAddress || !tradingSession?.apiCredentials) {
       return null;
     }
 
@@ -185,20 +214,18 @@ export function useTradingSession() {
       : "/api/polymarket/sign";
 
     // Builder config with remote server signing for order attribution
-    // Must include 'name' field for remote signing to work
     const builderConfig = new BuilderConfig({
       remoteBuilderConfig: {
-        name: "builder",
         url: remoteSigningUrl,
       },
     });
 
-    // Create authenticated ClobClient
+    // Create authenticated ClobClient with wrapped signer (ethers v5 compatibility)
     // signatureType 0 = EOA signature (user signing directly)
     return new ClobClient(
       CLOB_API_URL,
       POLYGON_CHAIN_ID,
-      signer as any,
+      wrappedSigner,
       tradingSession.apiCredentials,
       0, // signatureType = 0 for EOA
       walletAddress, // funder = user's wallet
@@ -206,7 +233,7 @@ export function useTradingSession() {
       false,
       builderConfig
     );
-  }, [signer, walletAddress, tradingSession?.apiCredentials]);
+  }, [wrappedSigner, walletAddress, tradingSession?.apiCredentials]);
 
   return {
     tradingSession,
