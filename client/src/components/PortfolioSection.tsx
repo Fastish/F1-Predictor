@@ -1,4 +1,5 @@
-import { TrendingUp, TrendingDown, Wallet, PiggyBank, BarChart3, Loader2, Car, User, ExternalLink, Clock, CheckCircle, XCircle, RefreshCw, ShoppingCart, Trash2, Globe } from "lucide-react";
+import { useState } from "react";
+import { TrendingUp, TrendingDown, Wallet, PiggyBank, BarChart3, Loader2, Car, User, ExternalLink, Clock, CheckCircle, XCircle, RefreshCw, ShoppingCart, Trash2, Globe, DollarSign, LogOut } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -8,6 +9,9 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
+import { usePolymarketPositions, type PolymarketPosition } from "@/hooks/usePolymarketPositions";
+import { useTradingSession } from "@/hooks/useTradingSession";
+import { PolymarketBetModal } from "@/components/PolymarketBetModal";
 
 interface PolymarketOrder {
   id: string;
@@ -120,6 +124,11 @@ export function PortfolioSection() {
   const { walletAddress, connectWallet, isConnecting } = useWallet();
   const { userId } = useMarket();
   const { toast } = useToast();
+  const [selectedPosition, setSelectedPosition] = useState<PolymarketPosition | null>(null);
+  const [sellModalOpen, setSellModalOpen] = useState(false);
+  
+  const { tradingSession, isTradingSessionComplete } = useTradingSession();
+  const { data: positionsData, isLoading: isLoadingPositions, refetch: refetchPositions, error: positionsError, isError: isPositionsError } = usePolymarketPositions();
 
   const { data: usdcBalance, isLoading: isLoadingBalance } = useQuery<string>({
     queryKey: ["polygon-usdc-balance", walletAddress],
@@ -406,28 +415,123 @@ export function PortfolioSection() {
             </Card>
 
             <Card className="mb-6">
-              <CardHeader>
+              <CardHeader className="flex flex-row items-center justify-between gap-4">
                 <CardTitle className="flex items-center gap-2">
                   <BarChart3 className="h-5 w-5" />
                   Your Positions
+                  {positionsData?.positions && positionsData.positions.length > 0 && (
+                    <Badge variant="secondary" className="ml-2">
+                      {positionsData.positions.length}
+                    </Badge>
+                  )}
                 </CardTitle>
+                <div className="flex items-center gap-2">
+                  {positionsData?.totalValue !== undefined && positionsData.totalValue > 0 && (
+                    <div className="text-right">
+                      <div className="text-sm text-muted-foreground">Total Value</div>
+                      <div className="text-lg font-bold">${positionsData.totalValue.toFixed(2)}</div>
+                    </div>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => refetchPositions()}
+                    disabled={isLoadingPositions}
+                    data-testid="button-refresh-positions"
+                  >
+                    <RefreshCw className={`h-4 w-4 ${isLoadingPositions ? "animate-spin" : ""}`} />
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
-                <div className="rounded-md bg-muted/50 p-6 text-center">
-                  <p className="text-muted-foreground mb-4">
-                    Your Polymarket positions will appear here after placing bets.
-                    Positions are tracked on the Polygon blockchain.
-                  </p>
-                  <a
-                    href="https://polymarket.com/portfolio"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-primary hover:underline"
-                  >
-                    <ExternalLink className="h-4 w-4" />
-                    View on Polymarket
-                  </a>
-                </div>
+                {isLoadingPositions ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-8 w-8 animate-spin" />
+                  </div>
+                ) : isPositionsError ? (
+                  <div className="rounded-md bg-red-500/10 p-6 text-center">
+                    <p className="text-red-600 dark:text-red-400 mb-2">Failed to load positions</p>
+                    <p className="text-muted-foreground text-sm mb-4">
+                      {positionsError instanceof Error ? positionsError.message : "Unknown error"}
+                    </p>
+                    <Button size="sm" variant="outline" onClick={() => refetchPositions()}>
+                      <RefreshCw className="h-4 w-4 mr-1" />
+                      Retry
+                    </Button>
+                  </div>
+                ) : !isTradingSessionComplete ? (
+                  <div className="rounded-md bg-muted/50 p-6 text-center">
+                    <p className="text-muted-foreground mb-4">
+                      Initialize your trading session to view positions.
+                    </p>
+                  </div>
+                ) : positionsData?.positions && positionsData.positions.length > 0 ? (
+                  <div className="space-y-3">
+                    {positionsData.positions.map((position, index) => (
+                      <div
+                        key={`${position.tokenId}-${index}`}
+                        className="flex items-center justify-between p-4 rounded-md bg-muted/30 hover-elevate"
+                        data-testid={`position-row-${position.tokenId}`}
+                      >
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{position.outcome}</span>
+                            <Badge variant="outline" size="sm">
+                              {position.size.toFixed(2)} shares
+                            </Badge>
+                          </div>
+                          <div className="text-sm text-muted-foreground mt-1">
+                            Avg: {(position.averagePrice * 100).toFixed(1)}c | Current: {(position.currentPrice * 100).toFixed(1)}c
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <div className="text-right">
+                            <div className="font-medium">${position.value.toFixed(2)}</div>
+                            <div className={`text-sm flex items-center gap-1 ${position.pnl >= 0 ? "text-green-600" : "text-red-600"}`}>
+                              {position.pnl >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                              ${Math.abs(position.pnl).toFixed(2)} ({position.pnlPercent >= 0 ? "+" : ""}{position.pnlPercent.toFixed(1)}%)
+                            </div>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setSelectedPosition(position);
+                              setSellModalOpen(true);
+                            }}
+                            data-testid={`button-sell-position-${position.tokenId}`}
+                          >
+                            <LogOut className="h-4 w-4 mr-1" />
+                            Sell
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                    {positionsData.totalPnl !== undefined && (
+                      <div className="flex justify-between items-center pt-3 border-t mt-4">
+                        <span className="text-sm text-muted-foreground">Total P&L</span>
+                        <span className={`font-bold ${positionsData.totalPnl >= 0 ? "text-green-600" : "text-red-600"}`}>
+                          {positionsData.totalPnl >= 0 ? "+" : ""}${positionsData.totalPnl.toFixed(2)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="rounded-md bg-muted/50 p-6 text-center">
+                    <p className="text-muted-foreground mb-4">
+                      No positions found. Place bets in the Markets page to see them here.
+                    </p>
+                    <a
+                      href="https://polymarket.com/portfolio"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-primary hover:underline"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                      View on Polymarket
+                    </a>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -489,6 +593,28 @@ export function PortfolioSection() {
           </>
         )}
       </div>
+
+      {selectedPosition && (
+        <PolymarketBetModal
+          open={sellModalOpen}
+          onClose={() => {
+            setSellModalOpen(false);
+            setSelectedPosition(null);
+          }}
+          outcome={{
+            id: selectedPosition.tokenId,
+            name: selectedPosition.outcome,
+            tokenId: selectedPosition.tokenId,
+            price: selectedPosition.currentPrice,
+            volume: "0",
+            conditionId: selectedPosition.conditionId || "",
+            questionId: "",
+          }}
+          userBalance={cashBalance}
+          mode="sell"
+          position={selectedPosition}
+        />
+      )}
     </section>
   );
 }

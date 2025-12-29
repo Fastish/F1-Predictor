@@ -1605,6 +1605,66 @@ export async function registerRoutes(
     res.json({ logged: true });
   });
 
+  // Fetch user positions from Polymarket API
+  app.get("/api/polymarket/positions/:walletAddress", async (req, res) => {
+    try {
+      const { walletAddress } = req.params;
+      
+      if (!walletAddress || !/^0x[a-fA-F0-9]{40}$/.test(walletAddress)) {
+        return res.status(400).json({ error: "Invalid wallet address" });
+      }
+
+      // Fetch positions from Polymarket Gamma API
+      const positionsUrl = `https://gamma-api.polymarket.com/positions?user=${walletAddress.toLowerCase()}`;
+      console.log("Fetching Polymarket positions:", positionsUrl);
+      
+      const positionsResponse = await fetch(positionsUrl, {
+        headers: { "Accept": "application/json" }
+      });
+
+      if (!positionsResponse.ok) {
+        console.error("Polymarket positions API error:", positionsResponse.status, await positionsResponse.text());
+        return res.json({ positions: [], totalValue: 0, totalPnl: 0 });
+      }
+
+      const rawPositions = await positionsResponse.json();
+      console.log("Raw positions response:", JSON.stringify(rawPositions).substring(0, 500));
+
+      // Transform positions to our format
+      const positions = (rawPositions || []).map((pos: any) => {
+        const size = parseFloat(pos.size || pos.shares || "0");
+        const avgPrice = parseFloat(pos.averagePrice || pos.avgPrice || "0");
+        const currentPrice = parseFloat(pos.currentPrice || pos.price || avgPrice);
+        const value = size * currentPrice;
+        const cost = size * avgPrice;
+        const pnl = value - cost;
+        const pnlPercent = cost > 0 ? (pnl / cost) * 100 : 0;
+
+        return {
+          tokenId: pos.tokenId || pos.asset || "",
+          outcome: pos.outcome || pos.title || "Unknown",
+          size,
+          averagePrice: avgPrice,
+          currentPrice,
+          pnl,
+          pnlPercent,
+          value,
+          conditionId: pos.conditionId || "",
+          marketSlug: pos.slug || pos.marketSlug || "",
+        };
+      }).filter((p: any) => p.size > 0);
+
+      const totalValue = positions.reduce((sum: number, p: any) => sum + p.value, 0);
+      const totalPnl = positions.reduce((sum: number, p: any) => sum + p.pnl, 0);
+
+      console.log(`Found ${positions.length} active positions for ${walletAddress}`);
+      res.json({ positions, totalValue, totalPnl });
+    } catch (error: any) {
+      console.error("Failed to fetch positions:", error);
+      res.status(500).json({ error: "Failed to fetch positions", details: error.message });
+    }
+  });
+
   // Diagnostic: Check wallet approval status on-chain
   app.get("/api/polymarket/check-approvals/:walletAddress", async (req, res) => {
     try {
