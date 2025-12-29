@@ -13,6 +13,8 @@ import {
   approveCTFForExchange,
   approveCTFForNegRiskExchange,
   transferUSDCToProxy,
+  revokeAllUSDCApprovals,
+  revokeAllCTFApprovals,
   POLYMARKET_CONTRACTS,
 } from "@/lib/polymarketDeposit";
 import { 
@@ -22,14 +24,14 @@ import {
   isExternalWalletAvailable,
 } from "@/lib/polymarketGasless";
 import { ethers } from "ethers";
-import { Check, Loader2, AlertCircle, ExternalLink, ArrowRight, Wallet, Shield, ChevronRight, Zap, Copy, ArrowDown, DollarSign } from "lucide-react";
+import { Check, Loader2, AlertCircle, ExternalLink, ArrowRight, Wallet, Shield, ChevronRight, Zap, Copy, ArrowDown, DollarSign, RotateCcw } from "lucide-react";
 
 interface PolymarketDepositWizardProps {
   open: boolean;
   onClose: () => void;
 }
 
-type Step = "check" | "approve_usdc" | "approve_ctf" | "deposit" | "complete" | "error";
+type Step = "check" | "approve_usdc" | "approve_ctf" | "deposit" | "complete" | "revoke" | "error";
 
 interface DepositStatus {
   usdcBalance: string;
@@ -292,6 +294,37 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
     } catch (err) {
       console.error("Deposit failed:", err);
       setError(err instanceof Error ? err.message : "Deposit failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRevoke = async () => {
+    setLoading(true);
+    setError(null);
+    setTxHash(null);
+    
+    try {
+      if (!signer) {
+        throw new Error("No signer available");
+      }
+      
+      const result1 = await revokeAllUSDCApprovals(signer);
+      if (!result1.success) {
+        throw new Error(result1.error || "Failed to revoke USDC approvals");
+      }
+      
+      const result2 = await revokeAllCTFApprovals(signer);
+      if (!result2.success) {
+        throw new Error(result2.error || "Failed to revoke CTF approvals");
+      }
+      
+      setTxHash(result2.txHash || result1.txHash || null);
+      
+      await checkStatus();
+    } catch (err) {
+      console.error("Revoke failed:", err);
+      setError(err instanceof Error ? err.message : "Revoke failed");
     } finally {
       setLoading(false);
     }
@@ -818,9 +851,81 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
               </a>
             )}
 
-            <Button onClick={onClose} className="w-full" data-testid="button-done-deposit">
-              Done
-            </Button>
+            <div className="flex gap-2">
+              <Button onClick={onClose} className="flex-1" data-testid="button-done-deposit">
+                Done
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={() => setStep("revoke")}
+                data-testid="button-revoke-approvals"
+              >
+                <RotateCcw className="h-4 w-4 mr-2" />
+                Reset
+              </Button>
+            </div>
+          </div>
+        );
+
+      case "revoke":
+        return (
+          <div className="space-y-4">
+            <div className="flex items-start gap-3 p-4 bg-amber-500/10 rounded-lg">
+              <RotateCcw className="h-5 w-5 text-amber-500 mt-0.5" />
+              <div>
+                <p className="font-medium text-sm">Revoke All Approvals</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  This will revoke all USDC and CTF approvals, allowing you to test the gasless approval flow again.
+                  You&apos;ll need to pay gas for 5 transactions.
+                </p>
+              </div>
+            </div>
+
+            {error && (
+              <div className="flex items-center gap-2 p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+                <AlertCircle className="h-4 w-4 text-destructive" />
+                <p className="text-sm text-destructive">{error}</p>
+              </div>
+            )}
+
+            {txHash && (
+              <a
+                href={`https://polygonscan.com/tx/${txHash}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 text-sm text-primary hover:underline"
+              >
+                View transaction
+                <ExternalLink className="h-3 w-3" />
+              </a>
+            )}
+
+            <div className="flex gap-2">
+              <Button 
+                variant="outline" 
+                onClick={() => setStep("complete")} 
+                className="flex-1"
+                disabled={loading}
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleRevoke} 
+                disabled={loading}
+                className="flex-1"
+                variant="destructive"
+                data-testid="button-confirm-revoke"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Revoking...
+                  </>
+                ) : (
+                  "Revoke Approvals"
+                )}
+              </Button>
+            </div>
           </div>
         );
 
@@ -854,6 +959,7 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
       case "approve_ctf": return 3;
       case "deposit": return 4;
       case "complete": return 5;
+      case "revoke": return 5;
       default: return 1;
     }
   };

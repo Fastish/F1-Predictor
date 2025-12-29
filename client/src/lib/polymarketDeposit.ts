@@ -232,6 +232,53 @@ export async function transferUSDCToProxy(
   }
 }
 
+export async function revokeAllUSDCApprovals(
+  signer: ethers.Signer
+): Promise<{ success: boolean; txHash?: string; error?: string }> {
+  try {
+    const usdc = new ethers.Contract(POLYMARKET_CONTRACTS.USDC, ERC20_ABI, signer);
+    
+    const tx1 = await usdc.approve(POLYMARKET_CONTRACTS.CTF_EXCHANGE, 0);
+    await tx1.wait();
+    
+    const tx2 = await usdc.approve(POLYMARKET_CONTRACTS.NEG_RISK_CTF_EXCHANGE, 0);
+    await tx2.wait();
+    
+    const tx3 = await usdc.approve(POLYMARKET_CONTRACTS.CTF, 0);
+    const receipt = await tx3.wait();
+    
+    return { success: true, txHash: receipt.hash };
+  } catch (error) {
+    console.error("USDC revoke failed:", error);
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : "Revoke failed" 
+    };
+  }
+}
+
+export async function revokeAllCTFApprovals(
+  signer: ethers.Signer
+): Promise<{ success: boolean; txHash?: string; error?: string }> {
+  try {
+    const ctf = new ethers.Contract(POLYMARKET_CONTRACTS.CTF, ERC1155_ABI, signer);
+    
+    const tx1 = await ctf.setApprovalForAll(POLYMARKET_CONTRACTS.CTF_EXCHANGE, false);
+    await tx1.wait();
+    
+    const tx2 = await ctf.setApprovalForAll(POLYMARKET_CONTRACTS.NEG_RISK_CTF_EXCHANGE, false);
+    const receipt = await tx2.wait();
+    
+    return { success: true, txHash: receipt.hash };
+  } catch (error) {
+    console.error("CTF revoke failed:", error);
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : "Revoke failed" 
+    };
+  }
+}
+
 export async function checkDepositRequirements(
   provider: ethers.Provider,
   walletAddress: string,
