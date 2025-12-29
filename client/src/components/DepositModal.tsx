@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -10,8 +10,10 @@ import { useWallet } from "@/context/WalletContext";
 import { useTradingSession } from "@/hooks/useTradingSession";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
-import { Copy, Wallet, AlertCircle, Loader2, LogOut, Mail, ExternalLink, RotateCcw } from "lucide-react";
+import { Copy, Wallet, AlertCircle, Loader2, LogOut, Mail, ExternalLink, RotateCcw, Key, CheckCircle2, Settings } from "lucide-react";
 import { SiPolygon } from "react-icons/si";
+import { PolymarketDepositWizard } from "./PolymarketDepositWizard";
+import { checkDepositRequirements } from "@/lib/polymarketDeposit";
 
 interface DepositModalProps {
   open: boolean;
@@ -29,10 +31,69 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
     connectExternalWallet,
     disconnectWallet,
     getUsdcBalance,
+    provider,
   } = useWallet();
-  const { tradingSession, endTradingSession, isTradingSessionComplete } = useTradingSession();
+  const { 
+    endTradingSession, 
+    isTradingSessionComplete,
+    initializeTradingSession,
+    isInitializing,
+    currentStep,
+    sessionError,
+    safeAddress,
+  } = useTradingSession();
   const { toast } = useToast();
   const [email, setEmail] = useState("");
+  const [showDepositWizard, setShowDepositWizard] = useState(false);
+  const [approvalStatus, setApprovalStatus] = useState<{ needsApproval: boolean; checked: boolean }>({ needsApproval: false, checked: false });
+  const [autoInitAttempted, setAutoInitAttempted] = useState(false);
+
+  // Check approval status when wallet is connected
+  useEffect(() => {
+    const checkApproval = async () => {
+      if (!walletAddress || !provider) {
+        setApprovalStatus({ needsApproval: false, checked: false });
+        return;
+      }
+      try {
+        const isMagic = walletType === "magic";
+        const status = await checkDepositRequirements(provider, walletAddress, isMagic);
+        setApprovalStatus({ needsApproval: status.needsApproval, checked: true });
+      } catch (error) {
+        console.error("Failed to check approval status:", error);
+        setApprovalStatus({ needsApproval: false, checked: true });
+      }
+    };
+    if (open && walletAddress) {
+      checkApproval();
+    }
+  }, [open, walletAddress, provider, walletType]);
+
+  // Reset auto-init flag when modal closes or wallet disconnects
+  useEffect(() => {
+    if (!open || !walletAddress) {
+      setAutoInitAttempted(false);
+    }
+  }, [open, walletAddress]);
+
+  // Auto-initialize trading session for external wallets when connected
+  useEffect(() => {
+    const autoInitSession = async () => {
+      if (walletType === "external" && walletAddress && !isTradingSessionComplete && !isInitializing && !autoInitAttempted && open) {
+        setAutoInitAttempted(true);
+        try {
+          await initializeTradingSession();
+        } catch (error) {
+          console.error("Auto-init session failed:", error);
+          toast({
+            title: "Session Setup",
+            description: "Trading session setup was cancelled or failed. Click 'Initialize Trading Session' to try again.",
+          });
+        }
+      }
+    };
+    autoInitSession();
+  }, [walletType, walletAddress, isTradingSessionComplete, isInitializing, autoInitAttempted, open, initializeTradingSession, toast]);
 
   const handleResetSession = () => {
     endTradingSession();
@@ -249,41 +310,110 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
                 </div>
               </div>
 
-              {isTradingSessionComplete && (
-                <div className="rounded-md border border-dashed p-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="text-sm">
-                      <p className="font-medium">Trading Session Active</p>
-                      <p className="text-xs text-muted-foreground">
-                        API credentials stored for this wallet
-                      </p>
+              {walletType === "external" && (
+                <div className="space-y-3 pt-2 border-t">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Trading Setup</p>
+                  
+                  {isInitializing ? (
+                    <div className="flex items-center gap-2 rounded-md bg-blue-500/10 p-3 text-sm">
+                      <Loader2 className="h-4 w-4 text-blue-500 animate-spin flex-shrink-0" />
+                      <div>
+                        <p className="text-blue-600 dark:text-blue-400 font-medium">
+                          {currentStep === "credentials" ? "Deriving API Credentials..." : "Initializing Trading Session..."}
+                        </p>
+                        <p className="text-muted-foreground text-xs mt-0.5">Please sign the message in your wallet</p>
+                      </div>
                     </div>
+                  ) : isTradingSessionComplete ? (
+                    <div className="flex items-center gap-2 rounded-md bg-green-500/10 p-3 text-sm">
+                      <CheckCircle2 className="h-4 w-4 text-green-500 flex-shrink-0" />
+                      <div className="flex-1">
+                        <p className="text-green-600 dark:text-green-400 font-medium">Trading Session Active</p>
+                        {safeAddress && (
+                          <p className="text-muted-foreground text-xs mt-0.5">
+                            Safe: {safeAddress.slice(0, 6)}...{safeAddress.slice(-4)}
+                          </p>
+                        )}
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleResetSession}
+                        data-testid="button-reset-session"
+                      >
+                        <RotateCcw className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  ) : sessionError ? (
+                    <div className="flex items-start gap-2 rounded-md bg-orange-500/10 p-3 text-sm border border-orange-500/20">
+                      <AlertCircle className="h-4 w-4 text-orange-500 mt-0.5 flex-shrink-0" />
+                      <div className="flex-1">
+                        <p className="text-orange-600 dark:text-orange-400 font-medium">Setup Required</p>
+                        <p className="text-muted-foreground text-xs mt-1">{sessionError}</p>
+                        <a 
+                          href="https://polymarket.com"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-xs text-orange-600 dark:text-orange-400 hover:underline mt-2"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                          Complete setup on Polymarket
+                        </a>
+                      </div>
+                    </div>
+                  ) : (
                     <Button
                       variant="outline"
-                      size="sm"
-                      onClick={handleResetSession}
-                      data-testid="button-reset-session"
+                      onClick={() => initializeTradingSession()}
+                      disabled={isInitializing}
+                      className="w-full"
+                      data-testid="button-init-session"
                     >
-                      <RotateCcw className="h-3.5 w-3.5 mr-1" />
-                      Reset
+                      <Key className="h-4 w-4 mr-2" />
+                      Initialize Trading Session
                     </Button>
-                  </div>
+                  )}
+
+                  {approvalStatus.checked && approvalStatus.needsApproval && (
+                    <div 
+                      className="flex items-center gap-2 rounded-md bg-yellow-500/10 p-3 text-sm cursor-pointer border border-yellow-500/20"
+                      onClick={() => setShowDepositWizard(true)}
+                      data-testid="banner-approval-needed"
+                    >
+                      <AlertCircle className="h-4 w-4 text-yellow-500 flex-shrink-0" />
+                      <div className="flex-1">
+                        <span className="text-yellow-600 dark:text-yellow-400 font-medium">USDC Approval Required</span>
+                        <p className="text-muted-foreground text-xs mt-0.5">Click here to approve USDC for trading</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {approvalStatus.checked && !approvalStatus.needsApproval && isTradingSessionComplete && (
+                    <div className="flex items-center gap-2 rounded-md bg-green-500/10 p-2 text-sm">
+                      <CheckCircle2 className="h-4 w-4 text-green-500 flex-shrink-0" />
+                      <span className="text-green-600 dark:text-green-400 text-xs">USDC approved for trading</span>
+                    </div>
+                  )}
+
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowDepositWizard(true)}
+                    className="w-full text-muted-foreground"
+                    data-testid="button-setup-trading"
+                  >
+                    <Settings className="h-4 w-4 mr-2" />
+                    Manage Trading Approvals
+                  </Button>
                 </div>
               )}
 
-              <div className="text-sm text-muted-foreground">
+              <div className="text-sm text-muted-foreground pt-2 border-t">
                 <div className="flex items-start gap-2">
                   <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-                  <div className="space-y-1">
-                    <span>
-                      To add funds, send USDC on Polygon network to your connected wallet address.
-                    </span>
-                    {!isTradingSessionComplete && (
-                      <p className="text-xs">
-                        Having trouble trading? Try connecting your wallet again or resetting the session.
-                      </p>
-                    )}
-                  </div>
+                  <span>
+                    To add funds, send USDC.e on Polygon network to your connected wallet address.
+                  </span>
                 </div>
               </div>
             </div>
@@ -380,6 +510,20 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
           )}
         </div>
       </DialogContent>
+
+      <PolymarketDepositWizard
+        open={showDepositWizard}
+        onClose={() => {
+          setShowDepositWizard(false);
+          // Recheck approval status after wizard closes
+          if (walletAddress && provider) {
+            const isMagic = walletType === "magic";
+            checkDepositRequirements(provider, walletAddress, isMagic)
+              .then(status => setApprovalStatus({ needsApproval: status.needsApproval, checked: true }))
+              .catch(() => {});
+          }
+        }}
+      />
     </Dialog>
   );
 }

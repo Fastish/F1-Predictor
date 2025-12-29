@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, TrendingUp, TrendingDown, AlertCircle, ExternalLink, Wallet, Settings, Key } from "lucide-react";
+import { Loader2, TrendingUp, TrendingDown, AlertCircle, ExternalLink, Wallet } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useMarket } from "@/context/MarketContext";
@@ -96,14 +96,7 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
   
   // Trading session with ClobClient for order placement
   const { 
-    tradingSession, 
     isTradingSessionComplete, 
-    isProxyDeployed,
-    safeAddress,
-    initializeTradingSession, 
-    isInitializing,
-    currentStep,
-    sessionError,
     invalidateSession,
     clobClient 
   } = useTradingSession();
@@ -133,28 +126,6 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
   const shares = parsedAmount > 0 && selectedPrice > 0 ? parsedAmount / selectedPrice : 0;
   const potentialPayout = shares * 1; // Each share pays $1 if wins
   const potentialProfit = potentialPayout - parsedAmount;
-
-  // Initialize trading session (derive user API credentials)
-  const handleInitializeSession = async () => {
-    try {
-      toast({
-        title: "Initializing Trading Session",
-        description: "Please sign the message to derive your API credentials...",
-      });
-      await initializeTradingSession();
-      toast({
-        title: "Session Ready",
-        description: "You can now place orders on Polymarket",
-      });
-    } catch (error) {
-      console.error("Session init error:", error);
-      toast({
-        title: "Session Failed",
-        description: error instanceof Error ? error.message : "Failed to initialize trading session",
-        variant: "destructive",
-      });
-    }
-  };
 
   const handlePlaceBet = async () => {
     if (!userId) {
@@ -588,7 +559,19 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
             </div>
           )}
 
-          {approvalStatus.checked && approvalStatus.needsApproval && walletAddress && (
+          {walletAddress && !isTradingSessionComplete && (
+            <div className="flex items-start gap-2 rounded-md bg-orange-500/10 p-3 text-sm border border-orange-500/20">
+              <AlertCircle className="h-4 w-4 text-orange-500 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="text-orange-600 dark:text-orange-400 font-medium">Trading Setup Required</p>
+                <p className="text-muted-foreground text-xs mt-1">
+                  Please complete the trading setup in the wallet connection screen.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {approvalStatus.checked && approvalStatus.needsApproval && walletAddress && isTradingSessionComplete && (
             <div 
               className="flex items-center gap-2 rounded-md bg-yellow-500/10 p-3 text-sm cursor-pointer border border-yellow-500/20"
               onClick={() => setShowDepositWizard(true)}
@@ -597,77 +580,9 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
               <AlertCircle className="h-4 w-4 text-yellow-500 flex-shrink-0" />
               <div className="flex-1">
                 <span className="text-yellow-600 dark:text-yellow-400 font-medium">USDC Approval Required</span>
-                <p className="text-muted-foreground text-xs mt-0.5">Click here to approve USDC for Polymarket trading</p>
+                <p className="text-muted-foreground text-xs mt-0.5">Click to approve USDC for trading</p>
               </div>
             </div>
-          )}
-
-          {walletAddress && !isTradingSessionComplete && (
-            <Button
-              variant="outline"
-              onClick={handleInitializeSession}
-              disabled={isInitializing}
-              className="w-full"
-              data-testid="button-init-session"
-            >
-              {isInitializing ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  {currentStep === "credentials" ? "Deriving Credentials..." : "Initializing..."}
-                </>
-              ) : (
-                <>
-                  <Key className="h-4 w-4 mr-2" />
-                  Initialize Trading Session
-                </>
-              )}
-            </Button>
-          )}
-
-          {walletAddress && !isProxyDeployed && tradingSession?.hasApiCredentials && (
-            <div className="space-y-2">
-              <div className="flex items-start gap-2 rounded-md bg-orange-500/10 p-3 text-sm border border-orange-500/20">
-                <AlertCircle className="h-4 w-4 text-orange-500 mt-0.5 flex-shrink-0" />
-                <div>
-                  <p className="text-orange-600 dark:text-orange-400 font-medium">Polymarket Account Setup Required</p>
-                  <p className="text-muted-foreground text-xs mt-1">
-                    To trade, you need to make your first trade on polymarket.com. This creates your trading wallet.
-                  </p>
-                  <a 
-                    href="https://polymarket.com/event/f1-constructors-champion"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-xs text-orange-600 dark:text-orange-400 hover:underline mt-2"
-                  >
-                    <ExternalLink className="h-3 w-3" />
-                    Go to Polymarket to complete setup
-                  </a>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {walletAddress && isTradingSessionComplete && safeAddress && (
-            <div className="flex items-center gap-2 rounded-md bg-green-500/10 p-2 text-sm">
-              <Key className="h-4 w-4 text-green-500 flex-shrink-0" />
-              <span className="text-green-600 dark:text-green-400">Trading session active</span>
-              <span className="text-muted-foreground text-xs ml-auto">
-                Safe: {safeAddress.slice(0, 6)}...{safeAddress.slice(-4)}
-              </span>
-            </div>
-          )}
-
-          {walletAddress && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowDepositWizard(true)}
-              className="w-full"
-              data-testid="button-setup-trading"
-            >
-              <Settings className="h-4 w-4 mr-2" />
-              Setup Polymarket Trading Approvals
-            </Button>
           )}
 
           <div className="flex gap-2">

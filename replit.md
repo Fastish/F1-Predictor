@@ -120,10 +120,19 @@ Polymarket requires external wallets (MetaMask, Rainbow) to trade through Safe p
 
 **Trading Session Flow** (`client/src/hooks/useTradingSession.ts`):
 1. User connects external wallet (MetaMask, Rainbow, etc.)
-2. Session initialization derives user API credentials (deriveApiKey/createApiKey)
-3. System queries Polymarket API for user's Safe proxy address
-4. If Safe address exists: ClobClient created with signatureType=2, funder=safeAddress
-5. If no Safe address: User redirected to polymarket.com to complete first trade and deploy Safe
+2. DepositModal auto-initializes trading session when external wallet connects
+3. Session initialization derives user API credentials (deriveApiKey/createApiKey)
+4. System derives Safe proxy address directly from EOA address (deterministic)
+5. ClobClient created with signatureType=2, funder=safeAddress
+6. If no Safe address or session fails: Toast notification shown, manual retry button available
+
+**UX Flow** (as of Dec 2024):
+- Trading session initialization moved from PolymarketBetModal to DepositModal
+- External wallets auto-trigger session init when DepositModal opens
+- autoInitAttempted flag resets on modal close, allowing retry on reopen
+- USDC approval status checked and displayed in DepositModal
+- PolymarketDepositWizard accessible from DepositModal for managing approvals
+- Bet modal simplified: shows warning if session incomplete, no setup UI
 
 **TradingSession Schema**:
 - `eoaAddress`: User's wallet address (EOA)
