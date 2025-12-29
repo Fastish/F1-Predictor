@@ -7,9 +7,10 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useMarket } from "@/context/MarketContext";
 import { useWallet } from "@/context/WalletContext";
+import { useTradingSession } from "@/hooks/useTradingSession";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
-import { Copy, Wallet, AlertCircle, Loader2, LogOut, Mail, ExternalLink } from "lucide-react";
+import { Copy, Wallet, AlertCircle, Loader2, LogOut, Mail, ExternalLink, RotateCcw } from "lucide-react";
 import { SiPolygon } from "react-icons/si";
 
 interface DepositModalProps {
@@ -29,8 +30,17 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
     disconnectWallet,
     getUsdcBalance,
   } = useWallet();
+  const { tradingSession, endTradingSession, isTradingSessionComplete } = useTradingSession();
   const { toast } = useToast();
   const [email, setEmail] = useState("");
+
+  const handleResetSession = () => {
+    endTradingSession();
+    toast({
+      title: "Trading Session Reset",
+      description: "API credentials have been cleared. You'll need to set up trading again when placing your next order.",
+    });
+  };
 
   const { data: usdcBalance, isLoading: isLoadingBalance, refetch: refetchBalance } = useQuery({
     queryKey: ["polygon-usdc-balance", walletAddress],
@@ -233,12 +243,41 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
                 </div>
               </div>
 
+              {isTradingSessionComplete && (
+                <div className="rounded-md border border-dashed p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-sm">
+                      <p className="font-medium">Trading Session Active</p>
+                      <p className="text-xs text-muted-foreground">
+                        API credentials stored for this wallet
+                      </p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleResetSession}
+                      data-testid="button-reset-session"
+                    >
+                      <RotateCcw className="h-3.5 w-3.5 mr-1" />
+                      Reset
+                    </Button>
+                  </div>
+                </div>
+              )}
+
               <div className="text-sm text-muted-foreground">
                 <div className="flex items-start gap-2">
                   <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-                  <span>
-                    To add funds, send USDC on Polygon network to your connected wallet address.
-                  </span>
+                  <div className="space-y-1">
+                    <span>
+                      To add funds, send USDC on Polygon network to your connected wallet address.
+                    </span>
+                    {!isTradingSessionComplete && (
+                      <p className="text-xs">
+                        Having trouble trading? Try connecting your wallet again or resetting the session.
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
