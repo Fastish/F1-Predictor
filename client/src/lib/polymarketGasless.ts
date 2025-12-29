@@ -125,9 +125,6 @@ export async function getSafeAddress(): Promise<SafeAddressResult> {
     const client = await createRelayClient();
     const eoaAddress = await signer.getAddress();
     
-    // Check if proxy is deployed on-chain (pass EOA address, not Safe address)
-    const deployed = await client.getDeployed(eoaAddress);
-    
     // Get contract config for Polygon to get Safe factory address
     const config = getContractConfig(POLYGON_CHAIN_ID);
     
@@ -135,8 +132,13 @@ export async function getSafeAddress(): Promise<SafeAddressResult> {
     const safeAddress = deriveSafe(eoaAddress, config.SafeContracts.SafeFactory);
     console.log(`Derived Safe address for ${eoaAddress}: ${safeAddress}`);
     
+    // Check if proxy is deployed on-chain using Safe address (not EOA)
+    const deployed = await client.getDeployed(safeAddress);
+    
     if (deployed) {
       console.log(`Safe is deployed at ${safeAddress}`);
+      // Update cache
+      cachedDeploymentStatus = { safeAddress, deployed: true };
       return {
         safeAddress,
         proxyDeployed: true,
@@ -166,8 +168,22 @@ export async function deploySafeIfNeeded(): Promise<SafeAddressResult> {
     const client = await createRelayClient();
     const eoaAddress = await signer.getAddress();
     
-    // Check if proxy is deployed (pass EOA address)
-    const deployed = await client.getDeployed(eoaAddress);
+    // Derive Safe address first
+    const config = getContractConfig(POLYGON_CHAIN_ID);
+    const safeAddress = deriveSafe(eoaAddress, config.SafeContracts.SafeFactory);
+    
+    // Check cached status first
+    if (cachedDeploymentStatus?.safeAddress === safeAddress && cachedDeploymentStatus?.deployed) {
+      console.log(`Safe already deployed (cached): ${safeAddress}`);
+      return {
+        safeAddress,
+        proxyDeployed: true,
+        eoaAddress,
+      };
+    }
+    
+    // Check if proxy is deployed using Safe address (not EOA)
+    const deployed = await client.getDeployed(safeAddress);
     if (!deployed) {
       console.log("Deploying Polymarket proxy wallet...");
       const deployResult = await client.deploy();
@@ -180,9 +196,8 @@ export async function deploySafeIfNeeded(): Promise<SafeAddressResult> {
       console.log("Wallet deployed:", deployedTx.transactionHash);
     }
     
-    // Get contract config and derive Safe address after deployment confirmed
-    const config = getContractConfig(POLYGON_CHAIN_ID);
-    const safeAddress = deriveSafe(eoaAddress, config.SafeContracts.SafeFactory);
+    // Update cache
+    cachedDeploymentStatus = { safeAddress, deployed: true };
     
     return {
       safeAddress,
@@ -195,6 +210,9 @@ export async function deploySafeIfNeeded(): Promise<SafeAddressResult> {
   }
 }
 
+// Cache deployment status to avoid re-checking/re-deploying within same session
+let cachedDeploymentStatus: { safeAddress: string; deployed: boolean } | null = null;
+
 export async function executeGaslessTransactions(
   transactions: Transaction[]
 ): Promise<GaslessResult> {
@@ -205,22 +223,39 @@ export async function executeGaslessTransactions(
     }
     
     const client = await createRelayClient();
-    const address = await signer.getAddress();
+    const eoaAddress = await signer.getAddress();
     
-    const deployed = await client.getDeployed(address);
-    if (!deployed) {
-      console.log("Deploying Polymarket proxy wallet...");
-      const deployResult = await client.deploy();
-      console.log("Wallet deployment initiated:", deployResult.transactionID);
+    // Derive the Safe address deterministically
+    const config = getContractConfig(POLYGON_CHAIN_ID);
+    const safeAddress = deriveSafe(eoaAddress, config.SafeContracts.SafeFactory);
+    
+    // Check cached deployment status first (same session optimization)
+    let isDeployed = cachedDeploymentStatus?.safeAddress === safeAddress && cachedDeploymentStatus?.deployed;
+    
+    if (!isDeployed) {
+      // Check deployment using the Safe address, not EOA
+      const deployed = await client.getDeployed(safeAddress);
+      console.log(`Safe deployment check for ${safeAddress}: ${deployed}`);
       
-      const deployedTx = await deployResult.wait();
-      if (!deployedTx) {
-        return {
-          success: false,
-          error: "Wallet deployment failed",
-        };
+      if (!deployed) {
+        console.log("Deploying Polymarket proxy wallet...");
+        const deployResult = await client.deploy();
+        console.log("Wallet deployment initiated:", deployResult.transactionID);
+        
+        const deployedTx = await deployResult.wait();
+        if (!deployedTx) {
+          return {
+            success: false,
+            error: "Wallet deployment failed",
+          };
+        }
+        console.log("Wallet deployed:", deployedTx.transactionHash);
       }
-      console.log("Wallet deployed:", deployedTx.transactionHash);
+      
+      // Cache the deployment status
+      cachedDeploymentStatus = { safeAddress, deployed: true };
+    } else {
+      console.log(`Using cached deployment status for ${safeAddress}`);
     }
     
     const result = await client.execute(transactions);
