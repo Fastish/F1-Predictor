@@ -60,7 +60,11 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
   };
 
   const handleMagicLogin = async () => {
+    console.log("[DepositModal Debug] handleMagicLogin called");
+    console.log("[DepositModal Debug] email:", email);
+    
     if (!email) {
+      console.log("[DepositModal Debug] No email provided, showing toast");
       toast({
         title: "Email Required",
         description: "Please enter your email address.",
@@ -69,7 +73,9 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
       return;
     }
 
+    console.log("[DepositModal Debug] About to call connectWithMagic with email:", email);
     const success = await connectWithMagic(email);
+    console.log("[DepositModal Debug] connectWithMagic returned:", success);
     if (success) {
       if (userId) {
         try {
