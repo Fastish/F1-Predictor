@@ -199,6 +199,7 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance }: Poly
           totalCost: parsedAmount,
           polymarketOrderId: result.orderId,
           status: result.orderId ? "open" : "failed",
+          postOrderResponse: result.rawResponse,
         });
 
         toast({

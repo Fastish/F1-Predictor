@@ -13,6 +13,7 @@ export interface OrderResult {
   success: boolean;
   orderId?: string;
   error?: string;
+  rawResponse?: any;
 }
 
 export function usePlaceOrder(
@@ -63,6 +64,7 @@ export function usePlaceOrder(
         return {
           success: true,
           orderId,
+          rawResponse: result,
         };
       } catch (err: any) {
         console.error("Failed to place order:", err);

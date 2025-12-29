@@ -1494,10 +1494,15 @@ export async function registerRoutes(
   // Record a client-submitted Polymarket order (for client-side signing flow)
   app.post("/api/polymarket/record-order", async (req, res) => {
     try {
-      const { userId, tokenId, marketName, outcome, side, price, size, totalCost, polymarketOrderId, status } = req.body;
+      const { userId, tokenId, marketName, outcome, side, price, size, totalCost, polymarketOrderId, status, postOrderResponse } = req.body;
       
       if (!userId || !tokenId || !outcome || !side || price === undefined || size === undefined) {
         return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      // Log the full postOrder response for debugging
+      if (postOrderResponse) {
+        console.log("DEBUG: Full postOrder response from Polymarket:", JSON.stringify(postOrderResponse, null, 2));
       }
 
       const savedOrder = await storage.createPolymarketOrder({
@@ -1517,6 +1522,7 @@ export async function registerRoutes(
       console.log("Client-submitted Polymarket order recorded:", {
         orderId: savedOrder.id,
         polymarketOrderId,
+        status,
         tokenId,
         side,
         outcome,
