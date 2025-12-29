@@ -10,9 +10,10 @@ import { useWallet } from "@/context/WalletContext";
 import { useTradingSession } from "@/hooks/useTradingSession";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
-import { Copy, Wallet, AlertCircle, Loader2, LogOut, Mail, ExternalLink, RotateCcw, Key, CheckCircle2, Settings } from "lucide-react";
+import { Copy, Wallet, AlertCircle, Loader2, LogOut, Mail, ExternalLink, RotateCcw, Key, CheckCircle2, Settings, ArrowRightLeft } from "lucide-react";
 import { SiPolygon } from "react-icons/si";
 import { PolymarketDepositWizard } from "./PolymarketDepositWizard";
+import { SwapModal } from "./SwapModal";
 import { checkDepositRequirements } from "@/lib/polymarketDeposit";
 
 interface DepositModalProps {
@@ -45,6 +46,7 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
   const { toast } = useToast();
   const [email, setEmail] = useState("");
   const [showDepositWizard, setShowDepositWizard] = useState(false);
+  const [showSwapModal, setShowSwapModal] = useState(false);
   const [approvalStatus, setApprovalStatus] = useState<{ needsApproval: boolean; checked: boolean }>({ needsApproval: false, checked: false });
   const [autoInitAttempted, setAutoInitAttempted] = useState(false);
 
@@ -408,12 +410,23 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
                 </div>
               )}
 
-              <div className="text-sm text-muted-foreground pt-2 border-t">
-                <div className="flex items-start gap-2">
-                  <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-                  <span>
-                    To add funds, send USDC.e on Polygon network to your connected wallet address.
-                  </span>
+              <div className="pt-2 border-t space-y-3">
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => setShowSwapModal(true)}
+                  data-testid="button-swap-tokens"
+                >
+                  <ArrowRightLeft className="h-4 w-4 mr-2" />
+                  Swap USDC / USDC.e
+                </Button>
+                <div className="text-sm text-muted-foreground">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                    <span>
+                      To add funds, send USDC.e on Polygon to your wallet, or use the swap to convert USDC.
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -523,6 +536,11 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
               .catch(() => {});
           }
         }}
+      />
+      
+      <SwapModal
+        open={showSwapModal}
+        onOpenChange={setShowSwapModal}
       />
     </Dialog>
   );

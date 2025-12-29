@@ -839,6 +839,217 @@ export async function registerRoutes(
     }
   });
 
+  // ========================================
+  // 0x Swap API Endpoints (USDC <-> USDC.e)
+  // ========================================
+  
+  // Token addresses on Polygon
+  const USDC_NATIVE = "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359"; // Native USDC
+  const USDC_BRIDGED = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"; // USDC.e (bridged)
+  
+  // Check if 0x API is configured
+  app.get("/api/swap/status", async (req, res) => {
+    const hasApiKey = !!process.env.ZEROX_API_KEY;
+    res.json({ 
+      available: hasApiKey,
+      tokens: {
+        usdc: USDC_NATIVE,
+        usdce: USDC_BRIDGED,
+      }
+    });
+  });
+  
+  // Helper to convert human-readable amount to base units (6 decimals for USDC)
+  // Uses ethers.parseUnits for battle-tested precision handling
+  async function parseUsdcAmount(amount: string): Promise<string | null> {
+    try {
+      const { parseUnits } = await import("ethers");
+      const cleanAmount = amount.trim();
+      // Validate format: positive decimal number, no scientific notation
+      if (!/^\d+(\.\d+)?$/.test(cleanAmount)) {
+        return null;
+      }
+      const baseUnits = parseUnits(cleanAmount, 6);
+      // Reject zero or excessively large amounts (> 10 billion USDC)
+      if (baseUnits <= 0n || baseUnits > parseUnits("10000000000", 6)) {
+        return null;
+      }
+      return baseUnits.toString();
+    } catch {
+      return null;
+    }
+  }
+  
+  // Get swap price (for display purposes, no transaction data)
+  app.get("/api/swap/price", async (req, res) => {
+    try {
+      const { direction, amount, taker } = req.query;
+      
+      if (!direction || !amount || !taker) {
+        return res.status(400).json({ error: "direction, amount, and taker are required" });
+      }
+      
+      // Validate direction
+      if (direction !== "deposit" && direction !== "withdraw") {
+        return res.status(400).json({ error: "direction must be 'deposit' or 'withdraw'" });
+      }
+      
+      // Validate taker address format
+      if (typeof taker !== "string" || !/^0x[a-fA-F0-9]{40}$/.test(taker)) {
+        return res.status(400).json({ error: "taker must be a valid Ethereum address" });
+      }
+      
+      // Validate and convert amount to base units
+      const sellAmount = await parseUsdcAmount(amount as string);
+      if (!sellAmount) {
+        return res.status(400).json({ error: "amount must be a positive number with up to 6 decimals" });
+      }
+      
+      const apiKey = process.env.ZEROX_API_KEY;
+      if (!apiKey) {
+        return res.status(503).json({ error: "0x API not configured" });
+      }
+      
+      // Direction: "deposit" = USDC -> USDC.e, "withdraw" = USDC.e -> USDC
+      const sellToken = direction === "deposit" ? USDC_NATIVE : USDC_BRIDGED;
+      const buyToken = direction === "deposit" ? USDC_BRIDGED : USDC_NATIVE;
+      
+      const params = new URLSearchParams({
+        chainId: "137",
+        sellToken,
+        buyToken,
+        sellAmount,
+        taker: taker as string,
+      });
+      
+      const response = await fetch(
+        `https://api.0x.org/swap/allowance-holder/price?${params.toString()}`,
+        {
+          headers: {
+            "0x-api-key": apiKey,
+            "0x-version": "v2",
+          },
+        }
+      );
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("0x price API error:", response.status, errorText);
+        return res.status(response.status).json({ error: "Failed to get price", details: errorText });
+      }
+      
+      const data = await response.json();
+      
+      // Convert amounts back to human-readable format (6 decimals)
+      res.json({
+        liquidityAvailable: data.liquidityAvailable,
+        sellAmount: parseFloat(data.sellAmount) / 1e6,
+        buyAmount: parseFloat(data.buyAmount) / 1e6,
+        sellToken: data.sellToken,
+        buyToken: data.buyToken,
+        direction,
+        estimatedGas: data.estimatedGas,
+      });
+    } catch (error) {
+      console.error("Swap price error:", error);
+      res.status(500).json({ error: "Failed to get swap price" });
+    }
+  });
+  
+  // Get swap quote (includes transaction data for execution)
+  app.get("/api/swap/quote", async (req, res) => {
+    try {
+      const { direction, amount, taker, slippageBps } = req.query;
+      
+      if (!direction || !amount || !taker) {
+        return res.status(400).json({ error: "direction, amount, and taker are required" });
+      }
+      
+      // Validate direction
+      if (direction !== "deposit" && direction !== "withdraw") {
+        return res.status(400).json({ error: "direction must be 'deposit' or 'withdraw'" });
+      }
+      
+      // Validate taker address format
+      if (typeof taker !== "string" || !/^0x[a-fA-F0-9]{40}$/.test(taker)) {
+        return res.status(400).json({ error: "taker must be a valid Ethereum address" });
+      }
+      
+      // Validate and convert amount to base units
+      const sellAmount = await parseUsdcAmount(amount as string);
+      if (!sellAmount) {
+        return res.status(400).json({ error: "amount must be a positive number with up to 6 decimals" });
+      }
+      
+      // Validate slippageBps if provided (must be 1-10000)
+      let validSlippageBps = "50"; // 0.5% default
+      if (slippageBps) {
+        const parsed = parseInt(slippageBps as string, 10);
+        if (isNaN(parsed) || parsed < 1 || parsed > 10000) {
+          return res.status(400).json({ error: "slippageBps must be between 1 and 10000" });
+        }
+        validSlippageBps = String(parsed);
+      }
+      
+      const apiKey = process.env.ZEROX_API_KEY;
+      if (!apiKey) {
+        return res.status(503).json({ error: "0x API not configured" });
+      }
+      
+      // Direction: "deposit" = USDC -> USDC.e, "withdraw" = USDC.e -> USDC
+      const sellToken = direction === "deposit" ? USDC_NATIVE : USDC_BRIDGED;
+      const buyToken = direction === "deposit" ? USDC_BRIDGED : USDC_NATIVE;
+      
+      const params = new URLSearchParams({
+        chainId: "137",
+        sellToken,
+        buyToken,
+        sellAmount,
+        taker: taker as string,
+        slippageBps: validSlippageBps,
+      });
+      
+      const response = await fetch(
+        `https://api.0x.org/swap/allowance-holder/quote?${params.toString()}`,
+        {
+          headers: {
+            "0x-api-key": apiKey,
+            "0x-version": "v2",
+          },
+        }
+      );
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("0x quote API error:", response.status, errorText);
+        return res.status(response.status).json({ error: "Failed to get quote", details: errorText });
+      }
+      
+      const data = await response.json();
+      
+      if (!data.liquidityAvailable) {
+        return res.status(400).json({ error: "No liquidity available for this swap" });
+      }
+      
+      // Return full quote data including transaction
+      res.json({
+        liquidityAvailable: data.liquidityAvailable,
+        sellAmount: parseFloat(data.sellAmount) / 1e6,
+        buyAmount: parseFloat(data.buyAmount) / 1e6,
+        sellToken: data.sellToken,
+        buyToken: data.buyToken,
+        direction,
+        allowanceTarget: data.allowanceTarget,
+        transaction: data.transaction,
+        issues: data.issues,
+        fees: data.fees,
+      });
+    } catch (error) {
+      console.error("Swap quote error:", error);
+      res.status(500).json({ error: "Failed to get swap quote" });
+    }
+  });
+
   // Remote BuilderConfig endpoint for @polymarket/builder-signing-sdk
   // The SDK will call this URL with { method, path, body?, timestamp? } and expect back the auth headers
   app.post("/api/polymarket/builder-sign", async (req, res) => {
