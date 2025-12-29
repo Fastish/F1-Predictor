@@ -642,14 +642,13 @@ export async function registerRoutes(
   });
 
   // Generate builder signature for order attribution (server-side to protect credentials)
-  // This is the endpoint that ClobClient's remoteBuilderConfig calls
-  // Matches the wagmi-safe-builder-example format exactly
+  // Uses BuilderSigner class exactly like official Polymarket builder-signing-server
   app.post("/api/polymarket/sign", async (req, res) => {
     try {
       const { method, path, body: requestBody } = req.body;
       
-      if (!method || !path || requestBody === undefined) {
-        return res.status(400).json({ error: "Missing required parameters: method, path, body" });
+      if (!method || !path) {
+        return res.status(400).json({ error: "Missing required parameters: method, path" });
       }
 
       const builderApiKey = process.env.POLY_BUILDER_API_KEY;
@@ -660,35 +659,23 @@ export async function registerRoutes(
         return res.status(500).json({ error: "Builder credentials not configured" });
       }
 
-      // Use the official Polymarket SDK for signature generation
-      const { buildHmacSignature } = await import("@polymarket/builder-signing-sdk");
+      // Use BuilderSigner class exactly like official Polymarket server
+      const { BuilderSigner } = await import("@polymarket/builder-signing-sdk");
       
-      const sigTimestamp = Date.now().toString();
-      const signature = buildHmacSignature(
-        builderSecret,
-        parseInt(sigTimestamp),
-        method,
-        path,
-        requestBody
-      );
+      const signer = new BuilderSigner(builderApiKey, builderSecret, builderPassphrase);
+      const payload = signer.createBuilderHeaderPayload(method, path, requestBody || "");
 
-      console.log("Builder sign request:", { method, path, bodyLength: requestBody?.length || 0 });
-      console.log("Generated signature (first 20):", signature.substring(0, 20) + "...");
+      console.log("Builder sign request:", { method, path, bodyLength: (requestBody || "").length });
 
-      // Return headers in the exact format ClobClient expects (at root level)
-      res.json({
-        POLY_BUILDER_SIGNATURE: signature,
-        POLY_BUILDER_TIMESTAMP: sigTimestamp,
-        POLY_BUILDER_API_KEY: builderApiKey,
-        POLY_BUILDER_PASSPHRASE: builderPassphrase,
-      });
+      // Return the payload directly (same format as official server)
+      res.json(payload);
     } catch (error) {
       console.error("Signing error:", error);
       res.status(500).json({ error: "Failed to sign message" });
     }
   });
 
-  // Legacy endpoint - redirects to new format
+  // Same endpoint used by RelayClient's remoteBuilderConfig
   app.post("/api/polymarket/builder-sign", async (req, res) => {
     try {
       const { method, path, body } = req.body;
@@ -697,25 +684,27 @@ export async function registerRoutes(
         return res.status(400).json({ error: "method and path are required" });
       }
 
-      const { generateBuilderSignature, hasBuilderCredentials } = await import("./polymarket");
+      const builderApiKey = process.env.POLY_BUILDER_API_KEY;
+      const builderSecret = process.env.POLY_BUILDER_SECRET;
+      const builderPassphrase = process.env.POLY_BUILDER_PASSPHRASE;
       
-      if (!hasBuilderCredentials()) {
+      if (!builderApiKey || !builderSecret || !builderPassphrase) {
         return res.status(503).json({ 
           error: "Builder credentials not configured",
           available: false 
         });
       }
 
-      const headers = await generateBuilderSignature(method, path, body || "");
+      // Use BuilderSigner class exactly like official Polymarket server
+      const { BuilderSigner } = await import("@polymarket/builder-signing-sdk");
       
-      if (!headers) {
-        return res.status(500).json({ error: "Failed to generate builder signature" });
-      }
+      const signer = new BuilderSigner(builderApiKey, builderSecret, builderPassphrase);
+      const payload = signer.createBuilderHeaderPayload(method, path, body || "");
 
-      res.json({ 
-        available: true,
-        headers 
-      });
+      console.log("Builder-sign request:", { method, path, bodyLength: (body || "").length });
+
+      // Return the payload directly
+      res.json(payload);
     } catch (error) {
       console.error("Failed to generate builder signature:", error);
       res.status(500).json({ error: "Failed to generate builder signature" });
