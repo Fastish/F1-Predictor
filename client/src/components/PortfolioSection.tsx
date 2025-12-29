@@ -13,7 +13,6 @@ import { format } from "date-fns";
 import { usePolymarketPositions, type PolymarketPosition } from "@/hooks/usePolymarketPositions";
 import { useTradingSession } from "@/hooks/useTradingSession";
 import { PolymarketBetModal } from "@/components/PolymarketBetModal";
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Area, AreaChart } from "recharts";
 
 interface PolymarketOrder {
   id: string;
@@ -33,57 +32,6 @@ interface PolymarketOrder {
   lastSyncedAt: string | null;
 }
 
-type TimePeriod = "1D" | "1W" | "1M" | "ALL";
-
-function generateMockChartData(period: TimePeriod, currentValue: number): { time: string; value: number }[] {
-  const now = new Date();
-  const data: { time: string; value: number }[] = [];
-  
-  let points: number;
-  let intervalMs: number;
-  
-  switch (period) {
-    case "1D":
-      points = 24;
-      intervalMs = 60 * 60 * 1000;
-      break;
-    case "1W":
-      points = 7;
-      intervalMs = 24 * 60 * 60 * 1000;
-      break;
-    case "1M":
-      points = 30;
-      intervalMs = 24 * 60 * 60 * 1000;
-      break;
-    case "ALL":
-      points = 90;
-      intervalMs = 24 * 60 * 60 * 1000;
-      break;
-  }
-  
-  const startValue = currentValue * (0.7 + Math.random() * 0.2);
-  const valueRange = currentValue - startValue;
-  
-  for (let i = 0; i < points; i++) {
-    const time = new Date(now.getTime() - (points - i - 1) * intervalMs);
-    const progress = i / (points - 1);
-    const noise = (Math.random() - 0.5) * valueRange * 0.1;
-    const value = startValue + progress * valueRange + noise;
-    
-    data.push({
-      time: period === "1D" 
-        ? format(time, "h:mm a")
-        : format(time, "MMM d"),
-      value: Math.max(0, value),
-    });
-  }
-  
-  if (data.length > 0) {
-    data[data.length - 1].value = currentValue;
-  }
-  
-  return data;
-}
 
 function getStatusBadge(status: string) {
   switch (status) {
@@ -128,92 +76,42 @@ function getStatusBadge(status: string) {
   }
 }
 
-function PortfolioChart({ portfolioValue }: { portfolioValue: number }) {
-  const [period, setPeriod] = useState<TimePeriod>("1W");
-  
-  const chartData = useMemo(() => {
-    return generateMockChartData(period, portfolioValue);
-  }, [period, portfolioValue]);
-  
-  const minValue = Math.min(...chartData.map(d => d.value));
-  const maxValue = Math.max(...chartData.map(d => d.value));
-  const change = chartData.length > 1 
-    ? chartData[chartData.length - 1].value - chartData[0].value 
-    : 0;
-  const changePercent = chartData.length > 1 && chartData[0].value > 0
-    ? ((chartData[chartData.length - 1].value - chartData[0].value) / chartData[0].value) * 100
-    : 0;
-  const isPositive = change >= 0;
+function PortfolioChart({ portfolioValue, totalPnl, cashBalance }: { portfolioValue: number; totalPnl: number; cashBalance: number }) {
+  const isPositive = totalPnl >= 0;
+  const costBasis = portfolioValue - totalPnl;
+  const pnlPercent = costBasis > 0 ? (totalPnl / costBasis) * 100 : 0;
+  const totalValue = portfolioValue + cashBalance;
 
   return (
     <Card className="mb-6">
-      <CardHeader className="flex flex-row items-start justify-between gap-4 pb-2">
-        <div>
-          <CardTitle className="text-sm font-medium text-muted-foreground">
-            Portfolio Value
-          </CardTitle>
-          <div className="text-3xl font-bold mt-1">${portfolioValue.toFixed(2)}</div>
-          <div className={`flex items-center gap-1 text-sm ${isPositive ? "text-green-600" : "text-red-600"}`}>
-            {isPositive ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
-            {isPositive ? "+" : ""}{change.toFixed(2)} ({isPositive ? "+" : ""}{changePercent.toFixed(1)}%)
+      <CardContent className="pt-6">
+        <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+          <div>
+            <div className="text-sm font-medium text-muted-foreground mb-1">
+              Total Value
+            </div>
+            <div className="text-4xl font-bold tabular-nums" data-testid="text-total-value">
+              ${totalValue.toFixed(2)}
+            </div>
+            {totalPnl !== 0 && (
+              <div className={`flex items-center gap-1 text-sm mt-1 ${isPositive ? "text-green-600" : "text-red-600"}`}>
+                {isPositive ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
+                <span>
+                  {isPositive ? "+" : ""}${totalPnl.toFixed(2)} ({isPositive ? "+" : ""}{pnlPercent.toFixed(1)}%) all time
+                </span>
+              </div>
+            )}
           </div>
-        </div>
-        <div className="flex gap-1">
-          {(["1D", "1W", "1M", "ALL"] as TimePeriod[]).map((p) => (
-            <Button
-              key={p}
-              size="sm"
-              variant={period === p ? "default" : "ghost"}
-              onClick={() => setPeriod(p)}
-              data-testid={`button-period-${p.toLowerCase()}`}
-            >
-              {p}
-            </Button>
-          ))}
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="h-48">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-              <defs>
-                <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={isPositive ? "#22c55e" : "#ef4444"} stopOpacity={0.3}/>
-                  <stop offset="95%" stopColor={isPositive ? "#22c55e" : "#ef4444"} stopOpacity={0}/>
-                </linearGradient>
-              </defs>
-              <XAxis 
-                dataKey="time" 
-                axisLine={false} 
-                tickLine={false}
-                tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
-                interval="preserveStartEnd"
-              />
-              <YAxis 
-                domain={[minValue * 0.95, maxValue * 1.05]}
-                axisLine={false}
-                tickLine={false}
-                tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
-                tickFormatter={(v) => `$${v.toFixed(0)}`}
-                width={50}
-              />
-              <Tooltip 
-                contentStyle={{ 
-                  backgroundColor: "hsl(var(--card))", 
-                  border: "1px solid hsl(var(--border))",
-                  borderRadius: "6px",
-                }}
-                formatter={(value: number) => [`$${value.toFixed(2)}`, "Value"]}
-              />
-              <Area 
-                type="monotone" 
-                dataKey="value" 
-                stroke={isPositive ? "#22c55e" : "#ef4444"} 
-                strokeWidth={2}
-                fill="url(#colorValue)"
-              />
-            </AreaChart>
-          </ResponsiveContainer>
+          <div className="flex gap-6 text-sm">
+            <div>
+              <div className="text-muted-foreground">Positions</div>
+              <div className="font-semibold tabular-nums">${portfolioValue.toFixed(2)}</div>
+            </div>
+            <div>
+              <div className="text-muted-foreground">Cash</div>
+              <div className="font-semibold tabular-nums">${cashBalance.toFixed(2)}</div>
+            </div>
+          </div>
         </div>
       </CardContent>
     </Card>
@@ -328,7 +226,11 @@ export function PortfolioSection() {
           </Card>
         ) : (
           <>
-            <PortfolioChart portfolioValue={portfolioValue + (cashBalance || 0)} />
+            <PortfolioChart 
+              portfolioValue={portfolioValue} 
+              totalPnl={positionsData?.totalPnl || 0} 
+              cashBalance={cashBalance || 0} 
+            />
 
             <Tabs defaultValue="positions" className="w-full">
               <TabsList className="mb-4">
