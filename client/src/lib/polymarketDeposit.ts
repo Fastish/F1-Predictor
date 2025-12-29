@@ -146,6 +146,31 @@ export async function approveUSDCForNegRiskExchange(
   }
 }
 
+// Approve USDC for CTF Contract (required for splitting positions)
+export async function approveUSDCForCTFContract(
+  signer: ethers.Signer,
+  amount?: string
+): Promise<{ success: boolean; txHash?: string; error?: string }> {
+  try {
+    const usdc = new ethers.Contract(POLYMARKET_CONTRACTS.USDC, ERC20_ABI, signer);
+    
+    const approveAmount = amount 
+      ? ethers.parseUnits(amount, 6)
+      : ethers.MaxUint256;
+    
+    const tx = await usdc.approve(POLYMARKET_CONTRACTS.CTF, approveAmount);
+    const receipt = await tx.wait();
+    
+    return { success: true, txHash: receipt.hash };
+  } catch (error) {
+    console.error("USDC approval for CTF contract failed:", error);
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : "Approval failed" 
+    };
+  }
+}
+
 export async function approveCTFForExchange(
   signer: ethers.Signer
 ): Promise<{ success: boolean; txHash?: string; error?: string }> {
@@ -216,6 +241,7 @@ export async function checkDepositRequirements(
   nativeUsdcBalance: string;
   ctfExchangeAllowance: string;
   negRiskExchangeAllowance: string;
+  ctfContractAllowance: string;
   ctfApprovedForExchange: boolean;
   ctfApprovedForNegRisk: boolean;
   proxyAddress: string | null;
@@ -234,6 +260,12 @@ export async function checkDepositRequirements(
     provider, 
     walletAddress, 
     POLYMARKET_CONTRACTS.NEG_RISK_CTF_EXCHANGE
+  );
+  // CTF Contract also needs USDC approval for splitting positions
+  const ctfContractAllowance = await getUSDCAllowance(
+    provider,
+    walletAddress,
+    POLYMARKET_CONTRACTS.CTF
   );
   
   const ctfApprovedForExchange = await getCTFApproval(
@@ -258,8 +290,10 @@ export async function checkDepositRequirements(
   }
   
   // Check if allowance is effectively zero (needs approval)
+  // Include CTF contract allowance as it's required for splitting positions
   const needsApproval = parseFloat(ctfExchangeAllowance) < 1 || 
-                        parseFloat(negRiskExchangeAllowance) < 1;
+                        parseFloat(negRiskExchangeAllowance) < 1 ||
+                        parseFloat(ctfContractAllowance) < 1;
   const needsCTFApproval = !ctfApprovedForExchange || !ctfApprovedForNegRisk;
   
   return {
@@ -267,6 +301,7 @@ export async function checkDepositRequirements(
     nativeUsdcBalance,
     ctfExchangeAllowance,
     negRiskExchangeAllowance,
+    ctfContractAllowance,
     ctfApprovedForExchange,
     ctfApprovedForNegRisk,
     proxyAddress,

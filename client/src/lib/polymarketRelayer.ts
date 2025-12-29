@@ -126,6 +126,16 @@ export async function approveUSDCForTradingGasless(
       }),
       value: "0",
     },
+    // CTF Contract also needs USDC approval for splitting positions
+    {
+      to: POLYMARKET_CONTRACTS.USDC,
+      data: encodeFunctionData({
+        abi: ERC20_ABI,
+        functionName: "approve",
+        args: [POLYMARKET_CONTRACTS.CTF, maxUint256],
+      }),
+      value: "0",
+    },
   ];
   
   const result = await executeViaRelayer(

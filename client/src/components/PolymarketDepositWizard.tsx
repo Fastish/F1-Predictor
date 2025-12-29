@@ -9,6 +9,7 @@ import {
   checkDepositRequirements, 
   approveUSDCForExchange,
   approveUSDCForNegRiskExchange,
+  approveUSDCForCTFContract,
   approveCTFForExchange,
   approveCTFForNegRiskExchange,
   transferUSDCToProxy,
@@ -35,6 +36,7 @@ interface DepositStatus {
   nativeUsdcBalance: string;
   ctfExchangeAllowance: string;
   negRiskExchangeAllowance: string;
+  ctfContractAllowance: string;
   ctfApprovedForExchange: boolean;
   ctfApprovedForNegRisk: boolean;
   proxyAddress: string | null;
@@ -149,7 +151,13 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
           throw new Error(result2.error || "Failed to approve USDC for NegRisk Exchange");
         }
         
-        setTxHash(result2.txHash || result1.txHash || null);
+        // Approve CTF Contract (required for splitting positions)
+        const result3 = await approveUSDCForCTFContract(signer);
+        if (!result3.success) {
+          throw new Error(result3.error || "Failed to approve USDC for CTF Contract");
+        }
+        
+        setTxHash(result3.txHash || result2.txHash || result1.txHash || null);
       }
       
       // Re-check status to determine next step
