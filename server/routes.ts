@@ -758,6 +758,66 @@ export async function registerRoutes(
     }
   });
 
+  // Generate a curl command for testing builder credentials directly
+  // This helps debug authentication issues by letting you test outside the app
+  app.get("/api/polymarket/debug-curl", async (req, res) => {
+    try {
+      const builderApiKey = process.env.POLY_BUILDER_API_KEY;
+      const builderSecret = process.env.POLY_BUILDER_SECRET;
+      const builderPassphrase = process.env.POLY_BUILDER_PASSPHRASE;
+      
+      if (!builderApiKey || !builderSecret || !builderPassphrase) {
+        return res.status(503).json({ error: "Builder credentials not configured" });
+      }
+
+      // Create a simple test request to GET /auth/api-keys (requires builder auth)
+      const { buildHmacSignature } = await import("@polymarket/builder-signing-sdk");
+      
+      const timestamp = Date.now();
+      const method = "GET";
+      const path = "/auth/api-keys";
+      const body = "";
+      
+      const signature = buildHmacSignature(
+        builderSecret,
+        timestamp,
+        method,
+        path,
+        body
+      );
+
+      // Generate the curl command
+      const curlCommand = `curl -X GET "https://clob.polymarket.com/auth/api-keys" \\
+  -H "Content-Type: application/json" \\
+  -H "POLY_BUILDER_API_KEY: ${builderApiKey}" \\
+  -H "POLY_BUILDER_PASSPHRASE: ${builderPassphrase}" \\
+  -H "POLY_BUILDER_SIGNATURE: ${signature}" \\
+  -H "POLY_BUILDER_TIMESTAMP: ${timestamp}"`;
+
+      console.log("=== DEBUG CURL COMMAND ===");
+      console.log(curlCommand);
+      console.log("=== END DEBUG CURL ===");
+
+      res.json({
+        message: "Run this curl command to test your builder credentials",
+        note: "This tests the /auth/api-keys endpoint which requires builder authentication",
+        curlCommand,
+        headers: {
+          POLY_BUILDER_API_KEY: builderApiKey,
+          POLY_BUILDER_PASSPHRASE: builderPassphrase,
+          POLY_BUILDER_SIGNATURE: signature,
+          POLY_BUILDER_TIMESTAMP: timestamp.toString(),
+        },
+        timestamp,
+        path,
+        method,
+      });
+    } catch (error: any) {
+      console.error("Debug curl error:", error);
+      res.status(500).json({ error: error.message || String(error) });
+    }
+  });
+
   // ============ Polymarket Relayer Client (Server-Side Proxy) ============
   
   // Check if relayer credentials are available
