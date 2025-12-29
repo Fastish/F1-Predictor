@@ -48,12 +48,21 @@ export function usePlaceOrder(
 
         // Post the order to Polymarket with proper OrderType enum
         const result = await clobClient.postOrder(signedOrder, OrderType.GTC);
-        console.log("Order posted successfully:", result);
+        console.log("Order posted successfully:", JSON.stringify(result, null, 2));
+
+        // Extract order ID from response - Polymarket uses different field names
+        const orderId = (result as any).orderID || (result as any).orderId || (result as any).id || (result as any).order_id;
+        
+        if (!orderId) {
+          console.warn("Order posted but no order ID returned. Full response:", result);
+        } else {
+          console.log("Extracted Polymarket order ID:", orderId);
+        }
 
         setIsPlacing(false);
         return {
           success: true,
-          orderId: (result as any).orderID || (result as any).id,
+          orderId,
         };
       } catch (err: any) {
         console.error("Failed to place order:", err);

@@ -182,6 +182,12 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance }: Poly
       });
 
       if (result.success) {
+        console.log("Order successful, recording with orderId:", result.orderId);
+        
+        if (!result.orderId) {
+          console.warn("WARNING: Order succeeded but no orderId returned from Polymarket");
+        }
+        
         await apiRequest("POST", "/api/polymarket/record-order", {
           userId,
           tokenId: selectedTokenId,
@@ -192,12 +198,15 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance }: Poly
           size: shares,
           totalCost: parsedAmount,
           polymarketOrderId: result.orderId,
-          status: "open",
+          status: result.orderId ? "open" : "failed",
         });
 
         toast({
-          title: "Order Placed",
-          description: "Your bet has been submitted to Polymarket",
+          title: result.orderId ? "Order Placed" : "Order Issue",
+          description: result.orderId 
+            ? "Your bet has been submitted to Polymarket" 
+            : "Order may not have been submitted properly - check your orders",
+          variant: result.orderId ? "default" : "destructive",
         });
 
         queryClient.invalidateQueries({ queryKey: ["/api/polymarket"] });
