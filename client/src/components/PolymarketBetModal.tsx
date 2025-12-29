@@ -56,6 +56,7 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance }: Poly
   const [amount, setAmount] = useState("");
   const [isPlacingOrderLocal, setIsPlacingOrderLocal] = useState(false);
   const [showDepositWizard, setShowDepositWizard] = useState(false);
+  const [pendingRetry, setPendingRetry] = useState(false);
   const [approvalStatus, setApprovalStatus] = useState<{ needsApproval: boolean; checked: boolean }>({ needsApproval: false, checked: false });
   const { toast } = useToast();
   const { userId } = useMarket();
@@ -253,12 +254,23 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance }: Poly
         console.log("Error analysis:", { errorMsg, rawError, isAllowanceError, isBalanceError, fullError });
         
         if (isAllowanceError) {
-          toast({
-            title: "Setup Required",
-            description: "Your wallet needs USDC approvals or doesn't have enough balance. Opening setup wizard...",
-            variant: "destructive",
-          });
-          setShowDepositWizard(true);
+          // Before showing wizard, verify approvals are actually missing
+          // Check on-chain status first
+          if (approvalStatus.checked && !approvalStatus.needsApproval) {
+            // Approvals are already done - this is likely a different issue
+            toast({
+              title: "Order Rejected",
+              description: "Polymarket rejected the order. This may be due to insufficient balance, invalid credentials, or a temporary issue. Try resetting your trading session.",
+              variant: "destructive",
+            });
+          } else {
+            toast({
+              title: "Setup Required",
+              description: "Your wallet needs USDC approvals. Opening setup wizard - your order will retry when you're done.",
+            });
+            setPendingRetry(true);
+            setShowDepositWizard(true);
+          }
         } else if (isBalanceError) {
           toast({
             title: "Insufficient Balance",
@@ -492,7 +504,17 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance }: Poly
 
       <PolymarketDepositWizard
         open={showDepositWizard}
-        onClose={() => setShowDepositWizard(false)}
+        onClose={() => {
+          setShowDepositWizard(false);
+          // If there's a pending retry, prompt user to retry the order
+          if (pendingRetry) {
+            setPendingRetry(false);
+            toast({
+              title: "Ready to Trade",
+              description: "Approvals complete. Click the bet button again to place your order.",
+            });
+          }
+        }}
       />
     </Dialog>
   );
