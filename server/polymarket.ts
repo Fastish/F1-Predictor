@@ -318,11 +318,11 @@ export interface BuilderSignatureHeaders {
   POLY_BUILDER_TIMESTAMP: string;
 }
 
-export function generateBuilderSignature(
+export async function generateBuilderSignature(
   method: string,
   path: string,
   body: string = ""
-): BuilderSignatureHeaders | null {
+): Promise<BuilderSignatureHeaders | null> {
   const apiKey = process.env.POLY_BUILDER_API_KEY;
   const secret = process.env.POLY_BUILDER_SECRET;
   const passphrase = process.env.POLY_BUILDER_PASSPHRASE;
@@ -332,19 +332,23 @@ export function generateBuilderSignature(
     return null;
   }
 
-  const timestamp = String(Date.now());
-  const message = timestamp + method.toUpperCase() + path + body;
+  // Use the official Polymarket SDK for signature generation
+  const { buildHmacSignature } = await import("@polymarket/builder-signing-sdk");
   
-  const secretBuffer = Buffer.from(secret, "base64");
-  const signature = createHmac("sha256", secretBuffer)
-    .update(message)
-    .digest("hex");
+  const timestamp = Date.now();
+  const signature = buildHmacSignature(
+    secret,
+    timestamp,
+    method.toUpperCase(),
+    path,
+    body
+  );
 
   return {
     POLY_BUILDER_API_KEY: apiKey,
     POLY_BUILDER_PASSPHRASE: passphrase,
     POLY_BUILDER_SIGNATURE: signature,
-    POLY_BUILDER_TIMESTAMP: timestamp,
+    POLY_BUILDER_TIMESTAMP: String(timestamp),
   };
 }
 

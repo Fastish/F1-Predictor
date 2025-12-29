@@ -706,7 +706,7 @@ export async function registerRoutes(
         });
       }
 
-      const headers = generateBuilderSignature(method, path, body || "");
+      const headers = await generateBuilderSignature(method, path, body || "");
       
       if (!headers) {
         return res.status(500).json({ error: "Failed to generate builder signature" });
