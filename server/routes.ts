@@ -643,9 +643,10 @@ export async function registerRoutes(
 
   // Generate builder signature for order attribution (server-side to protect credentials)
   // Uses BuilderSigner class exactly like official Polymarket builder-signing-server
+  // Matches SDK's RemoteSignerPayload: { method, path, body?, timestamp? }
   app.post("/api/polymarket/sign", async (req, res) => {
     try {
-      const { method, path, body: requestBody } = req.body;
+      const { method, path, body: requestBody, timestamp } = req.body;
       
       if (!method || !path) {
         return res.status(400).json({ error: "Missing required parameters: method, path" });
@@ -663,9 +664,10 @@ export async function registerRoutes(
       const { BuilderSigner } = await import("@polymarket/builder-signing-sdk");
       
       const signer = new BuilderSigner(builderApiKey, builderSecret, builderPassphrase);
-      const payload = signer.createBuilderHeaderPayload(method, path, requestBody || "");
+      // Pass timestamp if provided by SDK (4th parameter)
+      const payload = signer.createBuilderHeaderPayload(method, path, requestBody || "", timestamp);
 
-      console.log("Builder sign request:", { method, path, bodyLength: (requestBody || "").length });
+      console.log("Builder sign request:", { method, path, bodyLength: (requestBody || "").length, timestamp });
 
       // Return the payload directly (same format as official server)
       res.json(payload);
@@ -676,9 +678,13 @@ export async function registerRoutes(
   });
 
   // Same endpoint used by RelayClient's remoteBuilderConfig
+  // Matches SDK's RemoteSignerPayload: { method, path, body?, timestamp? }
   app.post("/api/polymarket/builder-sign", async (req, res) => {
     try {
-      const { method, path, body } = req.body;
+      const { method, path, body, timestamp } = req.body;
+      
+      console.log("=== BUILDER-SIGN REQUEST ===");
+      console.log("Full request body:", JSON.stringify(req.body, null, 2));
       
       if (!method || !path) {
         return res.status(400).json({ error: "method and path are required" });
@@ -689,21 +695,26 @@ export async function registerRoutes(
       const builderPassphrase = process.env.POLY_BUILDER_PASSPHRASE;
       
       if (!builderApiKey || !builderSecret || !builderPassphrase) {
+        console.log("Builder credentials missing!");
         return res.status(503).json({ 
           error: "Builder credentials not configured",
           available: false 
         });
       }
 
+      console.log("Builder credentials found, API key prefix:", builderApiKey.substring(0, 10) + "...");
+
       // Use BuilderSigner class exactly like official Polymarket server
       const { BuilderSigner } = await import("@polymarket/builder-signing-sdk");
       
       const signer = new BuilderSigner(builderApiKey, builderSecret, builderPassphrase);
-      const payload = signer.createBuilderHeaderPayload(method, path, body || "");
+      // Pass timestamp if provided by SDK (4th parameter)
+      const payload = signer.createBuilderHeaderPayload(method, path, body || "", timestamp);
 
-      console.log("Builder-sign request:", { method, path, bodyLength: (body || "").length });
+      console.log("Generated payload:", JSON.stringify(payload, null, 2));
+      console.log("=== END BUILDER-SIGN ===");
 
-      // Return the payload directly
+      // Return the payload directly (BuilderHeaderPayload format)
       res.json(payload);
     } catch (error) {
       console.error("Failed to generate builder signature:", error);
