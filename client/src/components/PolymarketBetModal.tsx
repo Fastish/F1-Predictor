@@ -219,14 +219,35 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance }: Poly
           size: shares,
           totalCost: parsedAmount,
           polymarketOrderId: result.orderId,
-          status: result.orderId ? "open" : "failed",
+          status: result.orderId ? "open" : "pending",
           postOrderResponse: result.rawResponse,
         });
 
-        // Check if the failure was due to allowance issues
-        const rawError = result.rawResponse?.error;
-        const isAllowanceError = rawError && 
-          (rawError.includes("allowance") || rawError.includes("balance"));
+        toast({
+          title: result.orderId ? "Order Placed" : "Order Submitted",
+          description: result.orderId 
+            ? "Your bet has been submitted to Polymarket" 
+            : "Order submitted - check your orders for confirmation",
+        });
+
+        queryClient.invalidateQueries({ queryKey: ["/api/polymarket"] });
+        if (userId) {
+          queryClient.invalidateQueries({ queryKey: ["/api/polymarket/orders", userId] });
+        }
+        onClose();
+      } else {
+        console.error("Order failed with result:", JSON.stringify(result, null, 2));
+        
+        // Check if the failure was due to allowance/approval issues
+        const errorMsg = result.error || "";
+        const rawError = typeof result.rawResponse?.error === "string" ? result.rawResponse.error : "";
+        const fullError = errorMsg + " " + rawError;
+        const isAllowanceError = 
+          fullError.toLowerCase().includes("allowance") || 
+          fullError.toLowerCase().includes("insufficient") ||
+          fullError.toLowerCase().includes("not approved");
+        
+        console.log("Error analysis:", { errorMsg, rawError, isAllowanceError, fullError });
         
         if (isAllowanceError) {
           toast({
@@ -237,25 +258,11 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance }: Poly
           setShowDepositWizard(true);
         } else {
           toast({
-            title: result.orderId ? "Order Placed" : "Order Issue",
-            description: result.orderId 
-              ? "Your bet has been submitted to Polymarket" 
-              : "Order may not have been submitted properly - check your orders",
-            variant: result.orderId ? "default" : "destructive",
+            title: "Order Failed",
+            description: result.error || "Failed to place order on Polymarket",
+            variant: "destructive",
           });
         }
-
-        queryClient.invalidateQueries({ queryKey: ["/api/polymarket"] });
-        if (userId) {
-          queryClient.invalidateQueries({ queryKey: ["/api/polymarket/orders", userId] });
-        }
-        onClose();
-      } else {
-        toast({
-          title: "Order Failed",
-          description: result.error || "Failed to place order on Polymarket",
-          variant: "destructive",
-        });
       }
     } catch (error) {
       console.error("Error placing bet:", error);
