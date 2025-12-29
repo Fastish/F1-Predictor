@@ -10,7 +10,7 @@ import { useWallet } from "@/context/WalletContext";
 import { useTradingSession } from "@/hooks/useTradingSession";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
-import { Copy, Wallet, AlertCircle, Loader2, LogOut, Mail, ExternalLink, RotateCcw, Key, CheckCircle2, Settings, ArrowRightLeft } from "lucide-react";
+import { Copy, Wallet, AlertCircle, Loader2, LogOut, Mail, ExternalLink, RotateCcw, Key, CheckCircle2, ArrowRightLeft } from "lucide-react";
 import { SiPolygon } from "react-icons/si";
 import { PolymarketDepositWizard } from "./PolymarketDepositWizard";
 import { SwapModal } from "./SwapModal";
@@ -378,35 +378,30 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
 
                   {approvalStatus.checked && approvalStatus.needsApproval && (
                     <div 
-                      className="flex items-center gap-2 rounded-md bg-yellow-500/10 p-3 text-sm cursor-pointer border border-yellow-500/20"
-                      onClick={() => setShowDepositWizard(true)}
+                      className="flex items-center gap-2 rounded-md bg-yellow-500/10 p-3 text-sm border border-yellow-500/20"
                       data-testid="banner-approval-needed"
                     >
                       <AlertCircle className="h-4 w-4 text-yellow-500 flex-shrink-0" />
                       <div className="flex-1">
                         <span className="text-yellow-600 dark:text-yellow-400 font-medium">USDC Approval Required</span>
-                        <p className="text-muted-foreground text-xs mt-0.5">Click here to approve USDC for trading</p>
+                        <p className="text-muted-foreground text-xs mt-0.5">Approve USDC spending to start trading</p>
                       </div>
+                      <Button
+                        size="sm"
+                        onClick={() => setShowDepositWizard(true)}
+                        data-testid="button-approve-now"
+                      >
+                        Approve
+                      </Button>
                     </div>
                   )}
 
-                  {approvalStatus.checked && !approvalStatus.needsApproval && isTradingSessionComplete && (
+                  {approvalStatus.checked && !approvalStatus.needsApproval && (
                     <div className="flex items-center gap-2 rounded-md bg-green-500/10 p-2 text-sm">
                       <CheckCircle2 className="h-4 w-4 text-green-500 flex-shrink-0" />
                       <span className="text-green-600 dark:text-green-400 text-xs">USDC approved for trading</span>
                     </div>
                   )}
-
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowDepositWizard(true)}
-                    className="w-full text-muted-foreground"
-                    data-testid="button-setup-trading"
-                  >
-                    <Settings className="h-4 w-4 mr-2" />
-                    Manage Trading Approvals
-                  </Button>
                 </div>
               )}
 
