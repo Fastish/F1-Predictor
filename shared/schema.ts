@@ -746,3 +746,25 @@ export const insertPolymarketOrderSchema = createInsertSchema(polymarketOrders).
 // Polymarket Order Types
 export type InsertPolymarketOrder = z.infer<typeof insertPolymarketOrderSchema>;
 export type PolymarketOrder = typeof polymarketOrders.$inferSelect;
+
+// =====================================================
+// PORTFOLIO HISTORY - Time series snapshots
+// =====================================================
+
+export const portfolioHistory = pgTable("portfolio_history", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  walletAddress: text("wallet_address").notNull(),
+  positionsValue: real("positions_value").notNull(),
+  cashBalance: real("cash_balance").notNull(),
+  totalValue: real("total_value").notNull(),
+  totalPnl: real("total_pnl").notNull().default(0),
+  recordedAt: timestamp("recorded_at").notNull().defaultNow(),
+});
+
+export const insertPortfolioHistorySchema = createInsertSchema(portfolioHistory).omit({
+  id: true,
+  recordedAt: true,
+});
+
+export type InsertPortfolioHistory = z.infer<typeof insertPortfolioHistorySchema>;
+export type PortfolioHistory = typeof portfolioHistory.$inferSelect;

@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { TrendingUp, TrendingDown, Wallet, PiggyBank, BarChart3, Loader2, Car, User, ExternalLink, Clock, CheckCircle, XCircle, RefreshCw, ShoppingCart, Trash2, Globe, DollarSign, LogOut } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +13,7 @@ import { format } from "date-fns";
 import { usePolymarketPositions, type PolymarketPosition } from "@/hooks/usePolymarketPositions";
 import { useTradingSession } from "@/hooks/useTradingSession";
 import { PolymarketBetModal } from "@/components/PolymarketBetModal";
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 
 interface PolymarketOrder {
   id: string;
@@ -76,16 +77,71 @@ function getStatusBadge(status: string) {
   }
 }
 
-function PortfolioChart({ portfolioValue, totalPnl, cashBalance }: { portfolioValue: number; totalPnl: number; cashBalance: number }) {
+type TimePeriod = "1D" | "1W" | "1M" | "ALL";
+
+interface PortfolioHistoryPoint {
+  id: string;
+  walletAddress: string;
+  positionsValue: number;
+  cashBalance: number;
+  totalValue: number;
+  totalPnl: number;
+  recordedAt: string;
+}
+
+function PortfolioChart({ 
+  portfolioValue, 
+  totalPnl, 
+  cashBalance, 
+  safeAddress 
+}: { 
+  portfolioValue: number; 
+  totalPnl: number; 
+  cashBalance: number; 
+  safeAddress: string | undefined;
+}) {
+  const [period, setPeriod] = useState<TimePeriod>("1W");
+  
   const isPositive = totalPnl >= 0;
   const costBasis = portfolioValue - totalPnl;
   const pnlPercent = costBasis > 0 ? (totalPnl / costBasis) * 100 : 0;
   const totalValue = portfolioValue + cashBalance;
 
+  const normalizedAddress = safeAddress?.toLowerCase() ?? "";
+  
+  const { data: historyData = [] } = useQuery<PortfolioHistoryPoint[]>({
+    queryKey: ["/api/portfolio/history", normalizedAddress, period],
+    enabled: !!safeAddress && normalizedAddress.length > 0,
+    refetchInterval: 60000,
+  });
+
+  const chartData = useMemo(() => {
+    if (historyData.length === 0) return [];
+    return historyData.map((point) => ({
+      time: format(new Date(point.recordedAt), period === "1D" ? "h:mm a" : "MMM d"),
+      value: point.totalValue,
+    }));
+  }, [historyData, period]);
+
+  const hasHistory = chartData.length >= 2;
+  
+  const periodChange = useMemo(() => {
+    if (!hasHistory) return { change: 0, percent: 0 };
+    const first = chartData[0].value;
+    const last = chartData[chartData.length - 1].value;
+    const change = last - first;
+    const percent = first > 0 ? (change / first) * 100 : 0;
+    return { change, percent };
+  }, [chartData, hasHistory]);
+
+  const minValue = hasHistory ? Math.min(...chartData.map(d => d.value)) : 0;
+  const maxValue = hasHistory ? Math.max(...chartData.map(d => d.value)) : 100;
+  const periodIsPositive = periodChange.change >= 0;
+
   return (
     <Card className="mb-6">
       <CardContent className="pt-6">
-        <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-4">
           <div>
             <div className="text-sm font-medium text-muted-foreground mb-1">
               Total Value
@@ -93,26 +149,99 @@ function PortfolioChart({ portfolioValue, totalPnl, cashBalance }: { portfolioVa
             <div className="text-4xl font-bold tabular-nums" data-testid="text-total-value">
               ${totalValue.toFixed(2)}
             </div>
-            {totalPnl !== 0 && (
+            {hasHistory ? (
+              <div className={`flex items-center gap-1 text-sm mt-1 ${periodIsPositive ? "text-green-600" : "text-red-600"}`}>
+                {periodIsPositive ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
+                <span>
+                  {periodIsPositive ? "+" : ""}${periodChange.change.toFixed(2)} ({periodIsPositive ? "+" : ""}{periodChange.percent.toFixed(1)}%)
+                </span>
+              </div>
+            ) : totalPnl !== 0 && (
               <div className={`flex items-center gap-1 text-sm mt-1 ${isPositive ? "text-green-600" : "text-red-600"}`}>
                 {isPositive ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
                 <span>
-                  {isPositive ? "+" : ""}${totalPnl.toFixed(2)} ({isPositive ? "+" : ""}{pnlPercent.toFixed(1)}%) all time
+                  {isPositive ? "+" : ""}${totalPnl.toFixed(2)} all time
                 </span>
               </div>
             )}
           </div>
-          <div className="flex gap-6 text-sm">
-            <div>
-              <div className="text-muted-foreground">Positions</div>
-              <div className="font-semibold tabular-nums">${portfolioValue.toFixed(2)}</div>
+          <div className="flex flex-col items-end gap-2">
+            <div className="flex gap-1">
+              {(["1D", "1W", "1M", "ALL"] as TimePeriod[]).map((p) => (
+                <Button
+                  key={p}
+                  size="sm"
+                  variant={period === p ? "default" : "ghost"}
+                  onClick={() => setPeriod(p)}
+                  data-testid={`button-period-${p.toLowerCase()}`}
+                >
+                  {p}
+                </Button>
+              ))}
             </div>
-            <div>
-              <div className="text-muted-foreground">Cash</div>
-              <div className="font-semibold tabular-nums">${cashBalance.toFixed(2)}</div>
+            <div className="flex gap-6 text-sm">
+              <div className="text-right">
+                <div className="text-muted-foreground">Positions</div>
+                <div className="font-semibold tabular-nums">${portfolioValue.toFixed(2)}</div>
+              </div>
+              <div className="text-right">
+                <div className="text-muted-foreground">Cash</div>
+                <div className="font-semibold tabular-nums">${cashBalance.toFixed(2)}</div>
+              </div>
             </div>
           </div>
         </div>
+        
+        {hasHistory ? (
+          <div className="h-48">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={periodIsPositive ? "#22c55e" : "#ef4444"} stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor={periodIsPositive ? "#22c55e" : "#ef4444"} stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <XAxis 
+                  dataKey="time" 
+                  axisLine={false} 
+                  tickLine={false}
+                  tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+                  interval="preserveStartEnd"
+                />
+                <YAxis 
+                  domain={[minValue * 0.95, maxValue * 1.05]}
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+                  tickFormatter={(v) => `$${v.toFixed(0)}`}
+                  width={50}
+                />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: "hsl(var(--card))", 
+                    border: "1px solid hsl(var(--border))",
+                    borderRadius: "6px",
+                  }}
+                  formatter={(value: number) => [`$${value.toFixed(2)}`, "Value"]}
+                />
+                <Area 
+                  type="monotone" 
+                  dataKey="value" 
+                  stroke={periodIsPositive ? "#22c55e" : "#ef4444"} 
+                  strokeWidth={2}
+                  fill="url(#colorValue)"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        ) : (
+          <div className="h-32 flex items-center justify-center bg-muted/30 rounded-md">
+            <p className="text-sm text-muted-foreground">
+              Portfolio history will appear here as you use the app
+            </p>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -146,6 +275,42 @@ export function PortfolioSection() {
   });
 
   const portfolioValue = positionsData?.totalValue || 0;
+  const totalPnl = positionsData?.totalPnl || 0;
+
+  const lastSnapshotRef = useRef<string>("");
+  
+  useEffect(() => {
+    if (!safeAddress || isLoadingPositions || isLoadingBalance) return;
+    if (cashBalance === undefined) return;
+    
+    const totalValue = portfolioValue + (cashBalance || 0);
+    const snapshotKey = `${safeAddress}-${totalValue.toFixed(2)}`;
+    
+    if (snapshotKey === lastSnapshotRef.current) return;
+    
+    const now = Date.now();
+    const lastSaveTime = parseInt(localStorage.getItem(`portfolio-snapshot-time-${safeAddress}`) || "0");
+    if (now - lastSaveTime < 5 * 60 * 1000) return;
+    
+    lastSnapshotRef.current = snapshotKey;
+    localStorage.setItem(`portfolio-snapshot-time-${safeAddress}`, now.toString());
+    
+    const normalizedAddress = safeAddress.toLowerCase();
+    apiRequest("POST", "/api/portfolio/snapshot", {
+      walletAddress: safeAddress,
+      positionsValue: portfolioValue,
+      cashBalance: cashBalance || 0,
+      totalValue,
+      totalPnl,
+    }).then(() => {
+      queryClient.invalidateQueries({ 
+        predicate: (query) => {
+          const key = query.queryKey;
+          return Array.isArray(key) && key[0] === "/api/portfolio/history" && key[1] === normalizedAddress;
+        }
+      });
+    }).catch(console.error);
+  }, [safeAddress, portfolioValue, cashBalance, totalPnl, isLoadingPositions, isLoadingBalance]);
 
   const { data: orders = [], isLoading: isLoadingOrders } = useQuery<PolymarketOrder[]>({
     queryKey: ["/api/polymarket/orders", userId],
@@ -192,23 +357,7 @@ export function PortfolioSection() {
   return (
     <section className="py-12">
       <div className="mx-auto max-w-7xl px-4">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold" data-testid="text-portfolio-title">Portfolio</h2>
-          <div className="flex items-center gap-4">
-            <div className="text-right">
-              <div className="text-sm text-muted-foreground">Cash</div>
-              <div className="font-bold tabular-nums">
-                {isLoadingBalance ? "..." : `$${(cashBalance || 0).toFixed(2)}`}
-              </div>
-            </div>
-            <div className="text-right">
-              <div className="text-sm text-muted-foreground">Portfolio</div>
-              <div className="font-bold tabular-nums">
-                {isLoadingPositions ? "..." : `$${portfolioValue.toFixed(2)}`}
-              </div>
-            </div>
-          </div>
-        </div>
+        <h2 className="text-2xl font-bold mb-6" data-testid="text-portfolio-title">Portfolio</h2>
 
         {!hasWallet ? (
           <Card>
@@ -228,8 +377,9 @@ export function PortfolioSection() {
           <>
             <PortfolioChart 
               portfolioValue={portfolioValue} 
-              totalPnl={positionsData?.totalPnl || 0} 
+              totalPnl={totalPnl} 
               cashBalance={cashBalance || 0} 
+              safeAddress={safeAddress}
             />
 
             <Tabs defaultValue="positions" className="w-full">

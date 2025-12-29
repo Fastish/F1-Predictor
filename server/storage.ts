@@ -1,7 +1,7 @@
 import { 
   users, teams, drivers, holdings, transactions, deposits, priceHistory, seasons, payouts, markets, orderFills,
   championshipPools, championshipOutcomes, poolTrades, poolPositions, poolPayouts, zkProofs, poolPriceHistory,
-  raceMarkets, raceMarketOutcomes, polymarketOrders,
+  raceMarkets, raceMarketOutcomes, polymarketOrders, portfolioHistory,
   type User, type InsertUser, 
   type Team, type InsertTeam,
   type Driver, type InsertDriver,
@@ -22,11 +22,12 @@ import {
   type RaceMarket, type InsertRaceMarket,
   type RaceMarketOutcome, type InsertRaceMarketOutcome,
   type PolymarketOrder, type InsertPolymarketOrder,
+  type PortfolioHistory, type InsertPortfolioHistory,
   type BuySharesRequest,
   type SellSharesRequest
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc, asc, sql, inArray } from "drizzle-orm";
+import { eq, and, desc, asc, sql, inArray, gte } from "drizzle-orm";
 
 export interface IStorage {
   // Users
@@ -171,6 +172,10 @@ export interface IStorage {
   getPolymarketOrder(id: string): Promise<PolymarketOrder | undefined>;
   updatePolymarketOrder(id: string, updates: Partial<PolymarketOrder>): Promise<PolymarketOrder | undefined>;
   deletePolymarketOrder(id: string): Promise<void>;
+  
+  // Portfolio History
+  savePortfolioSnapshot(snapshot: InsertPortfolioHistory): Promise<PortfolioHistory>;
+  getPortfolioHistory(walletAddress: string, period: string): Promise<PortfolioHistory[]>;
 }
 
 // Initial F1 2026 teams data - all teams start at equal $0.10 price
@@ -1253,6 +1258,45 @@ export class DatabaseStorage implements IStorage {
 
   async deletePolymarketOrder(id: string): Promise<void> {
     await db.delete(polymarketOrders).where(eq(polymarketOrders.id, id));
+  }
+
+  // ============ Portfolio History ============
+  
+  async savePortfolioSnapshot(snapshot: InsertPortfolioHistory): Promise<PortfolioHistory> {
+    const [created] = await db.insert(portfolioHistory).values(snapshot).returning();
+    return created;
+  }
+
+  async getPortfolioHistory(walletAddress: string, period: string): Promise<PortfolioHistory[]> {
+    const now = new Date();
+    let startDate: Date;
+    
+    switch (period) {
+      case "1D":
+        startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+        break;
+      case "1W":
+        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        break;
+      case "1M":
+        startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        break;
+      case "ALL":
+      default:
+        startDate = new Date(0);
+        break;
+    }
+
+    return await db
+      .select()
+      .from(portfolioHistory)
+      .where(
+        and(
+          eq(portfolioHistory.walletAddress, walletAddress),
+          gte(portfolioHistory.recordedAt, startDate)
+        )
+      )
+      .orderBy(asc(portfolioHistory.recordedAt));
   }
 }
 

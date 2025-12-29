@@ -1851,6 +1851,48 @@ export async function registerRoutes(
     }
   });
 
+  // ============ Portfolio History Routes ============
+
+  // Save portfolio snapshot
+  app.post("/api/portfolio/snapshot", async (req, res) => {
+    try {
+      const { insertPortfolioHistorySchema } = await import("@shared/schema");
+      
+      const parsed = insertPortfolioHistorySchema.safeParse({
+        ...req.body,
+        walletAddress: req.body.walletAddress?.toLowerCase(),
+      });
+      
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Invalid snapshot data", details: parsed.error.issues });
+      }
+
+      const snapshot = await storage.savePortfolioSnapshot(parsed.data);
+      res.json({ success: true, snapshot });
+    } catch (error) {
+      console.error("Failed to save portfolio snapshot:", error);
+      res.status(500).json({ error: "Failed to save portfolio snapshot" });
+    }
+  });
+
+  // Get portfolio history
+  app.get("/api/portfolio/history/:walletAddress/:period", async (req, res) => {
+    try {
+      const { walletAddress, period } = req.params;
+      const periodFilter = ["1D", "1W", "1M", "ALL"].includes(period) ? period : "1W";
+      
+      const history = await storage.getPortfolioHistory(
+        walletAddress.toLowerCase(),
+        periodFilter
+      );
+
+      res.json(history);
+    } catch (error) {
+      console.error("Failed to get portfolio history:", error);
+      res.status(500).json({ error: "Failed to get portfolio history" });
+    }
+  });
+
   // ============ CLOB (Central Limit Order Book) Routes ============
   // @deprecated - CLOB system is legacy. Use /api/pools/* endpoints instead.
   // The LMSR pool system (pool-routes.ts) is the active trading system.
