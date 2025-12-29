@@ -234,12 +234,12 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
                   <div className="p-3 rounded-md bg-background border">
                     <div className="flex items-center justify-between gap-2">
                       <div className="text-sm">
-                        <p className="text-muted-foreground">USDC Balance</p>
+                        <p className="text-muted-foreground">Cash Available</p>
                         {isLoadingBalance ? (
                           <p className="font-bold text-lg">Loading...</p>
                         ) : (
                           <p className="font-bold text-lg tabular-nums" data-testid="text-usdc-balance">
-                            ${parseFloat(usdcBalance || "0").toFixed(2)}
+                            ${parseFloat(usdcBalance || "0").toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-xs font-normal text-muted-foreground">USDC.e</span>
                           </p>
                         )}
                       </div>
