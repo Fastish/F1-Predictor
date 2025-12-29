@@ -44,24 +44,29 @@ export function Header() {
   }, [walletAddress, walletType]);
   
   const safeAddress = tradingSession?.safeAddress || derivedSafeAddress;
-  const balanceAddress = walletType === "magic" ? walletAddress : safeAddress;
-
-  const { data: cashBalance, isLoading: isLoadingCash } = useQuery({
-    queryKey: ["polymarket-cash-balance", balanceAddress, walletType],
+  
+  // For external wallets, show EOA balance (user's wallet) as primary
+  // For Magic wallets, show the wallet balance directly
+  const { data: eoaBalance, isLoading: isLoadingEoa } = useQuery({
+    queryKey: ["polygon-usdc-balance", walletAddress],
     queryFn: async () => {
-      if (!balanceAddress) return 0;
+      if (!walletAddress) return 0;
       const { ethers } = await import("ethers");
       const provider = new ethers.JsonRpcProvider("https://polygon-rpc.com");
       const USDC_ADDRESS = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174";
       const contract = new ethers.Contract(USDC_ADDRESS, ["function balanceOf(address) view returns (uint256)"], provider);
-      const balance = await contract.balanceOf(balanceAddress);
+      const balance = await contract.balanceOf(walletAddress);
       return parseFloat(ethers.formatUnits(balance, 6));
     },
-    enabled: !!balanceAddress,
+    enabled: !!walletAddress,
     staleTime: 0,
     gcTime: 0,
     refetchInterval: 30000,
   });
+  
+  // Show EOA balance as the primary "cash" balance
+  const cashBalance = eoaBalance || 0;
+  const isLoadingCash = isLoadingEoa;
 
   const portfolioValue = positionsData?.totalValue || 0;
 

@@ -259,18 +259,19 @@ export function PortfolioSection() {
 
   const safeAddress = tradingSession?.safeAddress;
   
+  // Query the EOA wallet balance (user's connected wallet) for display
   const { data: cashBalance, isLoading: isLoadingBalance } = useQuery<number>({
-    queryKey: ["polymarket-cash-balance", safeAddress],
+    queryKey: ["polygon-usdc-balance", walletAddress],
     queryFn: async () => {
-      if (!safeAddress) return 0;
+      if (!walletAddress) return 0;
       const { ethers } = await import("ethers");
       const provider = new ethers.JsonRpcProvider("https://polygon-rpc.com");
       const USDC_ADDRESS = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174";
       const contract = new ethers.Contract(USDC_ADDRESS, ["function balanceOf(address) view returns (uint256)"], provider);
-      const balance = await contract.balanceOf(safeAddress);
+      const balance = await contract.balanceOf(walletAddress);
       return parseFloat(ethers.formatUnits(balance, 6));
     },
-    enabled: !!safeAddress && isTradingSessionComplete,
+    enabled: !!walletAddress,
     refetchInterval: 30000,
   });
 
