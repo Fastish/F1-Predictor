@@ -103,8 +103,13 @@ export function useTradingSession() {
     }
     const stored = loadSession(walletAddress);
     setTradingSession(stored);
-    if (stored?.hasApiCredentials) {
+    // Mark as complete if we have credentials AND a Safe address
+    // proxyDeployed status is informational - we'll let the server reject if not deployed
+    if (stored?.hasApiCredentials && stored?.safeAddress) {
       setCurrentStep("complete");
+    } else if (stored?.hasApiCredentials && !stored?.safeAddress) {
+      // Has credentials but no Safe - needs to reinitialize
+      setCurrentStep("idle");
     }
   }, [walletAddress]);
 
@@ -193,11 +198,22 @@ export function useTradingSession() {
 
       // Fetch the user's Safe proxy address from Polymarket RelayClient
       console.log("Fetching Safe address from Polymarket...");
-      const { safeAddress, proxyDeployed } = await fetchSafeAddress();
+      let safeAddress: string | null = null;
+      let proxyDeployed = false;
+      
+      try {
+        const safeResult = await fetchSafeAddress();
+        safeAddress = safeResult.safeAddress;
+        proxyDeployed = safeResult.proxyDeployed;
+        console.log("Safe address result:", { safeAddress, proxyDeployed });
+      } catch (safeError) {
+        console.error("Failed to fetch Safe address:", safeError);
+        // Continue anyway - we'll try to proceed without the Safe check
+      }
 
-      if (!safeAddress || !proxyDeployed) {
-        // User needs to set up their proxy on Polymarket first
-        console.warn("No proxy wallet found. User needs to complete setup on polymarket.com");
+      if (!safeAddress) {
+        // Can't derive Safe address - user needs to set up on polymarket.com
+        console.warn("Could not derive Safe address. User needs to complete setup on polymarket.com");
         const partialSession: TradingSession = {
           eoaAddress: walletAddress,
           signatureType: SIGNATURE_TYPE_BROWSER_WALLET,
@@ -208,18 +224,25 @@ export function useTradingSession() {
         };
         setTradingSession(partialSession);
         saveSession(walletAddress, partialSession);
-        setSessionError("Polymarket proxy wallet not found. Please make your first trade on polymarket.com to set up your account.");
+        setSessionError("Could not set up trading. Please visit polymarket.com to create your account first.");
         setCurrentStep("error");
         setIsInitializing(false);
         return partialSession;
       }
+      
+      // If we have a Safe address but proxy not deployed, still save it but warn user
+      if (!proxyDeployed) {
+        console.warn("Safe address derived but proxy not yet deployed on-chain");
+      }
 
       // Create complete session with Safe address
+      // Even if proxyDeployed check returned false, we'll try to proceed
+      // The Polymarket server will reject if proxy truly isn't deployed
       const newSession: TradingSession = {
         eoaAddress: walletAddress,
         safeAddress: safeAddress,
         signatureType: SIGNATURE_TYPE_BROWSER_WALLET,
-        proxyDeployed: true,
+        proxyDeployed: proxyDeployed, // Use actual value from check
         hasApiCredentials: true,
         apiCredentials: apiCreds,
         lastChecked: Date.now(),
@@ -266,7 +289,9 @@ export function useTradingSession() {
     }
 
     // Require Safe address for trading (signatureType=2)
-    if (!tradingSession.safeAddress || !tradingSession.proxyDeployed) {
+    // Note: We only require safeAddress to exist, not proxyDeployed
+    // If proxy isn't deployed, Polymarket server will reject the order
+    if (!tradingSession.safeAddress) {
       console.warn("ClobClient not created: No Safe address available. User needs to set up proxy on polymarket.com");
       return null;
     }
@@ -297,7 +322,7 @@ export function useTradingSession() {
       false,
       builderConfig
     );
-  }, [wrappedSigner, walletAddress, tradingSession?.apiCredentials, tradingSession?.safeAddress, tradingSession?.proxyDeployed]);
+  }, [wrappedSigner, walletAddress, tradingSession?.apiCredentials, tradingSession?.safeAddress]);
 
   return {
     tradingSession,
