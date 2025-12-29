@@ -1,4 +1,4 @@
-import { Wallet, TrendingUp, Menu, Plus, Loader2, Briefcase, Flag, DollarSign, PieChart } from "lucide-react";
+import { Wallet, TrendingUp, Menu, Plus, Loader2, Briefcase, Flag, DollarSign, PieChart, LogOut, Check } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -11,12 +11,18 @@ import {
   SheetContent,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { DepositModal } from "./DepositModal";
 import { useTradingSession } from "@/hooks/useTradingSession";
 import { usePolymarketPositions } from "@/hooks/usePolymarketPositions";
 
 export function Header() {
-  const { walletAddress } = useWallet();
+  const { walletAddress, disconnectWallet } = useWallet();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [depositOpen, setDepositOpen] = useState(false);
   const { tradingSession, isTradingSessionComplete } = useTradingSession();
@@ -69,17 +75,6 @@ export function Header() {
         </div>
 
         <div className="flex items-center gap-2">
-          <Link href="/positions" className="hidden md:block">
-            <Button
-              variant={location === "/positions" ? "secondary" : "ghost"}
-              size="sm"
-              data-testid="button-nav-positions"
-            >
-              <Briefcase className="mr-1 h-4 w-4" />
-              Positions
-            </Button>
-          </Link>
-          
           {walletAddress && isTradingSessionComplete && (
             <div className="hidden sm:flex items-center gap-2">
               <Badge variant="outline" className="gap-1 px-3 py-1.5">
@@ -95,25 +90,55 @@ export function Header() {
                   </>
                 )}
               </Badge>
-              <Badge variant="outline" className="gap-1 px-3 py-1.5">
-                <PieChart className="h-3.5 w-3.5" />
-                <span className="text-xs text-muted-foreground">Portfolio:</span>
-                <span className="font-semibold tabular-nums" data-testid="text-portfolio-value">
-                  ${portfolioValue.toFixed(2)}
-                </span>
-              </Badge>
+              <Link href="/portfolio">
+                <Badge 
+                  variant="outline" 
+                  className="gap-1 px-3 py-1.5 cursor-pointer hover-elevate"
+                  data-testid="link-portfolio"
+                >
+                  <PieChart className="h-3.5 w-3.5" />
+                  <span className="text-xs text-muted-foreground">Portfolio:</span>
+                  <span className="font-semibold tabular-nums" data-testid="text-portfolio-value">
+                    ${portfolioValue.toFixed(2)}
+                  </span>
+                </Badge>
+              </Link>
             </div>
           )}
           
-          <Button 
-            size="sm" 
-            variant="outline"
-            onClick={() => setDepositOpen(true)}
-            data-testid="button-deposit"
-          >
-            <Plus className="h-4 w-4 mr-1" />
-            {walletAddress ? "Add Funds" : "Connect Wallet"}
-          </Button>
+          {walletAddress ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  data-testid="button-connected"
+                >
+                  <Check className="h-4 w-4 mr-1" />
+                  Connected
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem 
+                  onClick={() => disconnectWallet()}
+                  data-testid="button-disconnect"
+                >
+                  <LogOut className="h-4 w-4 mr-2" />
+                  Disconnect
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <Button 
+              size="sm" 
+              variant="outline"
+              onClick={() => setDepositOpen(true)}
+              data-testid="button-connect-wallet"
+            >
+              <Plus className="h-4 w-4 mr-1" />
+              Connect Wallet
+            </Button>
+          )}
           
           <ThemeToggle />
           
@@ -138,15 +163,15 @@ export function Header() {
                     Races
                   </Button>
                 </Link>
-                <Link href="/positions">
+                <Link href="/portfolio">
                   <Button
-                    variant={location === "/positions" ? "secondary" : "ghost"}
+                    variant={location === "/portfolio" ? "secondary" : "ghost"}
                     className="justify-start w-full"
                     onClick={() => setMobileMenuOpen(false)}
-                    data-testid="button-mobile-nav-positions"
+                    data-testid="button-mobile-nav-portfolio"
                   >
-                    <Briefcase className="mr-2 h-4 w-4" />
-                    Positions
+                    <PieChart className="mr-2 h-4 w-4" />
+                    Portfolio
                   </Button>
                 </Link>
               </nav>

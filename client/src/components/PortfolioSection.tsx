@@ -256,39 +256,6 @@ export function PortfolioSection() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between gap-4 pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Constructor Markets
-              </CardTitle>
-              <Car className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold tabular-nums">
-                {constructors.length}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Teams available to trade
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between gap-4 pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Driver Markets
-              </CardTitle>
-              <User className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold tabular-nums">
-                {drivers.length}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Drivers available to trade
-              </p>
-            </CardContent>
-          </Card>
         </div>
 
         {!hasWallet ? (

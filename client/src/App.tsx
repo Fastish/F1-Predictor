@@ -21,7 +21,7 @@ function Router() {
       <Route path="/markets" component={Markets} />
       <Route path="/races" component={Races} />
       <Route path="/races/:id" component={RaceDetail} />
-      <Route path="/positions" component={Positions} />
+      <Route path="/portfolio" component={Positions} />
       <Route path="/admin" component={Admin} />
       <Route component={NotFound} />
     </Switch>
