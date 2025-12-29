@@ -1594,6 +1594,85 @@ export async function registerRoutes(
     }
   });
 
+  // Diagnostic: Check wallet approval status on-chain
+  app.get("/api/polymarket/check-approvals/:walletAddress", async (req, res) => {
+    try {
+      const { walletAddress } = req.params;
+      const { ethers } = await import("ethers");
+      
+      const POLYGON_RPC = "https://polygon-rpc.com";
+      const provider = new ethers.JsonRpcProvider(POLYGON_RPC);
+      
+      const CONTRACTS = {
+        CTF_EXCHANGE: "0x4bFb41d5B3570DeFd03C39a9A4D8dE6Bd8B8982E",
+        NEG_RISK_CTF_EXCHANGE: "0xC5d563A36AE78145C45a50134d48A1215220f80a",
+        USDC: "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
+        CTF: "0x4d97dcd97ec945f40cf65f87097ace5ea0476045",
+      };
+      
+      const ERC20_ABI = [
+        "function allowance(address owner, address spender) view returns (uint256)",
+        "function balanceOf(address account) view returns (uint256)"
+      ];
+      const ERC1155_ABI = [
+        "function isApprovedForAll(address account, address operator) view returns (bool)"
+      ];
+      
+      const usdc = new ethers.Contract(CONTRACTS.USDC, ERC20_ABI, provider);
+      const ctf = new ethers.Contract(CONTRACTS.CTF, ERC1155_ABI, provider);
+      
+      // Check USDC balance
+      const usdcBalance = await usdc.balanceOf(walletAddress);
+      const usdcBalanceFormatted = ethers.formatUnits(usdcBalance, 6);
+      
+      // Check USDC allowances for each exchange
+      const ctfExchangeAllowance = await usdc.allowance(walletAddress, CONTRACTS.CTF_EXCHANGE);
+      const negRiskExchangeAllowance = await usdc.allowance(walletAddress, CONTRACTS.NEG_RISK_CTF_EXCHANGE);
+      const ctfContractAllowance = await usdc.allowance(walletAddress, CONTRACTS.CTF);
+      
+      // Check CTF approvals (ERC1155 setApprovalForAll)
+      const ctfApprovedForExchange = await ctf.isApprovedForAll(walletAddress, CONTRACTS.CTF_EXCHANGE);
+      const ctfApprovedForNegRisk = await ctf.isApprovedForAll(walletAddress, CONTRACTS.NEG_RISK_CTF_EXCHANGE);
+      
+      const result = {
+        walletAddress,
+        usdcBalance: usdcBalanceFormatted,
+        approvals: {
+          ctfExchange: {
+            address: CONTRACTS.CTF_EXCHANGE,
+            usdcAllowance: ethers.formatUnits(ctfExchangeAllowance, 6),
+            hasApproval: ctfExchangeAllowance > 0n
+          },
+          negRiskExchange: {
+            address: CONTRACTS.NEG_RISK_CTF_EXCHANGE,
+            usdcAllowance: ethers.formatUnits(negRiskExchangeAllowance, 6),
+            hasApproval: negRiskExchangeAllowance > 0n
+          },
+          ctfContract: {
+            address: CONTRACTS.CTF,
+            usdcAllowance: ethers.formatUnits(ctfContractAllowance, 6),
+            hasApproval: ctfContractAllowance > 0n
+          }
+        },
+        ctfTokenApprovals: {
+          ctfExchange: ctfApprovedForExchange,
+          negRiskExchange: ctfApprovedForNegRisk
+        },
+        summary: {
+          allUSDCApprovalsSet: ctfExchangeAllowance > 0n && negRiskExchangeAllowance > 0n && ctfContractAllowance > 0n,
+          allCTFApprovalsSet: ctfApprovedForExchange && ctfApprovedForNegRisk,
+          readyToTrade: ctfExchangeAllowance > 0n && negRiskExchangeAllowance > 0n && ctfContractAllowance > 0n && ctfApprovedForExchange && ctfApprovedForNegRisk
+        }
+      };
+      
+      console.log("Approval check for", walletAddress, ":", JSON.stringify(result, null, 2));
+      res.json(result);
+    } catch (error: any) {
+      console.error("Failed to check approvals:", error);
+      res.status(500).json({ error: "Failed to check approvals", details: error.message });
+    }
+  });
+
   // Delete a Polymarket order (for failed/local orders)
   app.delete("/api/polymarket/orders/:orderId", async (req, res) => {
     try {
