@@ -11,12 +11,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, TrendingUp, TrendingDown, AlertCircle, ExternalLink, Wallet, Settings } from "lucide-react";
+import { Loader2, TrendingUp, TrendingDown, AlertCircle, ExternalLink, Wallet, Settings, Key } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useMarket } from "@/context/MarketContext";
 import { useWallet } from "@/context/WalletContext";
-import { usePolymarketTrading } from "@/hooks/usePolymarketTrading";
+import { useTradingSession } from "@/hooks/useTradingSession";
+import { usePlaceOrder } from "@/hooks/usePlaceOrder";
 import { PolymarketDepositWizard } from "./PolymarketDepositWizard";
 
 interface PolymarketOutcome {
@@ -52,12 +53,25 @@ interface PolymarketBetModalProps {
 export function PolymarketBetModal({ open, onClose, outcome, userBalance }: PolymarketBetModalProps) {
   const [side, setSide] = useState<"YES" | "NO">("YES");
   const [amount, setAmount] = useState("");
-  const [isPlacingOrder, setIsPlacingOrder] = useState(false);
+  const [isPlacingOrderLocal, setIsPlacingOrderLocal] = useState(false);
   const [showDepositWizard, setShowDepositWizard] = useState(false);
   const { toast } = useToast();
   const { userId } = useMarket();
   const { signer, walletAddress, walletType } = useWallet();
-  const { placeBuilderOrder, isPlacingOrder: hookIsPlacing } = usePolymarketTrading();
+  
+  // Trading session with ClobClient for order placement
+  const { 
+    tradingSession, 
+    isTradingSessionComplete, 
+    initializeTradingSession, 
+    isInitializing,
+    currentStep,
+    sessionError,
+    invalidateSession,
+    clobClient 
+  } = useTradingSession();
+  
+  const { placeOrder, isPlacing } = usePlaceOrder(clobClient, invalidateSession);
 
   const { data: orderBook, isLoading: orderBookLoading } = useQuery<OrderBook>({
     queryKey: ["/api/polymarket/orderbook", outcome.tokenId],
@@ -83,6 +97,28 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance }: Poly
   const potentialPayout = shares * 1; // Each share pays $1 if wins
   const potentialProfit = potentialPayout - parsedAmount;
 
+  // Initialize trading session (derive user API credentials)
+  const handleInitializeSession = async () => {
+    try {
+      toast({
+        title: "Initializing Trading Session",
+        description: "Please sign the message to derive your API credentials...",
+      });
+      await initializeTradingSession();
+      toast({
+        title: "Session Ready",
+        description: "You can now place orders on Polymarket",
+      });
+    } catch (error) {
+      console.error("Session init error:", error);
+      toast({
+        title: "Session Failed",
+        description: error instanceof Error ? error.message : "Failed to initialize trading session",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handlePlaceBet = async () => {
     if (!userId) {
       toast({
@@ -97,6 +133,15 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance }: Poly
       toast({
         title: "Wallet Not Connected",
         description: "Please connect your wallet to place bets on Polymarket",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!isTradingSessionComplete || !clobClient) {
+      toast({
+        title: "Trading Session Required",
+        description: "Please initialize your trading session first",
         variant: "destructive",
       });
       return;
@@ -120,7 +165,7 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance }: Poly
       return;
     }
 
-    setIsPlacingOrder(true);
+    setIsPlacingOrderLocal(true);
 
     try {
       toast({
@@ -128,11 +173,12 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance }: Poly
         description: "Please sign the order in your wallet...",
       });
 
-      const result = await placeBuilderOrder({
+      const result = await placeOrder({
         tokenId: selectedTokenId,
         price: selectedPrice,
         size: shares,
         side: "BUY",
+        negRisk: true, // F1 markets are negative risk
       });
 
       if (result.success) {
@@ -174,7 +220,7 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance }: Poly
         variant: "destructive",
       });
     } finally {
-      setIsPlacingOrder(false);
+      setIsPlacingOrderLocal(false);
     }
   };
 
@@ -290,6 +336,35 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance }: Poly
             </div>
           )}
 
+          {walletAddress && !isTradingSessionComplete && (
+            <Button
+              variant="outline"
+              onClick={handleInitializeSession}
+              disabled={isInitializing}
+              className="w-full"
+              data-testid="button-init-session"
+            >
+              {isInitializing ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  {currentStep === "credentials" ? "Deriving Credentials..." : "Initializing..."}
+                </>
+              ) : (
+                <>
+                  <Key className="h-4 w-4 mr-2" />
+                  Initialize Trading Session
+                </>
+              )}
+            </Button>
+          )}
+
+          {walletAddress && isTradingSessionComplete && (
+            <div className="flex items-center gap-2 rounded-md bg-green-500/10 p-2 text-sm">
+              <Key className="h-4 w-4 text-green-500 flex-shrink-0" />
+              <span className="text-green-600 dark:text-green-400">Trading session active</span>
+            </div>
+          )}
+
           {walletAddress && (
             <Button
               variant="outline"
@@ -309,17 +384,19 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance }: Poly
             </Button>
             <Button
               onClick={handlePlaceBet}
-              disabled={parsedAmount <= 0 || parsedAmount > userBalance || isPlacingOrder || !walletAddress}
+              disabled={parsedAmount <= 0 || parsedAmount > userBalance || isPlacing || isPlacingOrderLocal || !walletAddress || !isTradingSessionComplete}
               className="flex-1"
               data-testid="button-confirm-bet"
             >
-              {isPlacingOrder ? (
+              {isPlacing || isPlacingOrderLocal ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Signing...
                 </>
               ) : !walletAddress ? (
                 "Connect Wallet"
+              ) : !isTradingSessionComplete ? (
+                "Initialize Session First"
               ) : (
                 `Bet $${parsedAmount.toFixed(2)} on ${side}`
               )}

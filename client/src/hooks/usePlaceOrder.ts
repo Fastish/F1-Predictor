@@ -15,7 +15,10 @@ export interface OrderResult {
   error?: string;
 }
 
-export function usePlaceOrder(clobClient: ClobClient | null) {
+export function usePlaceOrder(
+  clobClient: ClobClient | null,
+  onCredentialError?: () => void
+) {
   const [isPlacing, setIsPlacing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -57,10 +60,17 @@ export function usePlaceOrder(clobClient: ClobClient | null) {
         const errorMessage = err.message || "Failed to place order";
         setError(errorMessage);
         setIsPlacing(false);
+
+        // Check if this is a credential error (401 Unauthorized)
+        if (err.message?.includes("401") || err.message?.includes("Unauthorized") || 
+            err.message?.includes("Invalid API") || err.message?.includes("expired")) {
+          onCredentialError?.();
+        }
+
         return { success: false, error: errorMessage };
       }
     },
-    [clobClient]
+    [clobClient, onCredentialError]
   );
 
   const cancelOrder = useCallback(

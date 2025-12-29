@@ -163,16 +163,33 @@ export function useTradingSession() {
     setSessionError(null);
   }, [walletAddress]);
 
+  // Clear session on credential error (expired/revoked)
+  const invalidateSession = useCallback(() => {
+    if (!walletAddress) return;
+    console.log("Invalidating session due to credential error");
+    clearSession(walletAddress);
+    setTradingSession(null);
+    setCurrentStep("idle");
+    setSessionError("Session expired. Please reinitialize.");
+  }, [walletAddress]);
+
   // Create authenticated ClobClient with builder config for order placement
   const clobClient = useMemo(() => {
     if (!signer || !walletAddress || !tradingSession?.apiCredentials) {
       return null;
     }
 
+    // Get remote signing URL (with full origin for client-side)
+    const remoteSigningUrl = typeof window !== "undefined"
+      ? `${window.location.origin}/api/polymarket/sign`
+      : "/api/polymarket/sign";
+
     // Builder config with remote server signing for order attribution
+    // Must include 'name' field for remote signing to work
     const builderConfig = new BuilderConfig({
       remoteBuilderConfig: {
-        url: "/api/polymarket/sign",
+        name: "builder",
+        url: remoteSigningUrl,
       },
     });
 
@@ -199,6 +216,7 @@ export function useTradingSession() {
     isTradingSessionComplete: !!tradingSession?.hasApiCredentials,
     initializeTradingSession,
     endTradingSession,
+    invalidateSession,
     clobClient,
   };
 }
