@@ -1594,6 +1594,17 @@ export async function registerRoutes(
     }
   });
 
+  // Debug logging endpoint for client-side Polymarket errors
+  app.post("/api/polymarket/debug-log", async (req, res) => {
+    const { event, data, error, walletAddress, timestamp } = req.body;
+    console.log(`[CLIENT DEBUG ${timestamp || new Date().toISOString()}] ${event}:`, {
+      walletAddress,
+      data: data ? JSON.stringify(data).substring(0, 500) : undefined,
+      error: error ? JSON.stringify(error).substring(0, 1000) : undefined,
+    });
+    res.json({ logged: true });
+  });
+
   // Diagnostic: Check wallet approval status on-chain
   app.get("/api/polymarket/check-approvals/:walletAddress", async (req, res) => {
     try {

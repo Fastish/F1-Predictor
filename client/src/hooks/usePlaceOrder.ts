@@ -1,6 +1,19 @@
 import { useState, useCallback } from "react";
 import { ClobClient, Side, OrderType } from "@polymarket/clob-client";
 
+// Helper to log debug info to server for visibility
+async function logToServer(event: string, data?: any, error?: any, walletAddress?: string) {
+  try {
+    await fetch("/api/polymarket/debug-log", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ event, data, error, walletAddress, timestamp: new Date().toISOString() }),
+    });
+  } catch (e) {
+    // Ignore logging errors
+  }
+}
+
 export interface OrderParams {
   tokenId: string;
   price: number;
@@ -34,6 +47,7 @@ export function usePlaceOrder(
 
       try {
         console.log("Creating order with ClobClient:", params);
+        await logToServer("ORDER_START", { params });
 
         // Use ClobClient's createOrder method with proper types
         const orderArgs = {
@@ -46,10 +60,12 @@ export function usePlaceOrder(
         // Create the signed order
         const signedOrder = await clobClient.createOrder(orderArgs);
         console.log("Signed order created:", signedOrder);
+        await logToServer("ORDER_SIGNED", { signedOrder: { ...signedOrder, signature: signedOrder.signature?.substring(0, 20) + "..." } });
 
         // Post the order to Polymarket with proper OrderType enum
         const result = await clobClient.postOrder(signedOrder, OrderType.GTC);
         console.log("postOrder response:", JSON.stringify(result, null, 2));
+        await logToServer("ORDER_RESPONSE", { result });
 
         // Check if the response contains an error (Polymarket returns errors in response body)
         const resultAny = result as any;
@@ -82,6 +98,18 @@ export function usePlaceOrder(
       } catch (err: any) {
         console.error("Failed to place order:", err);
         const errorMessage = err.message || "Failed to place order";
+        
+        // Log full error details to server for debugging
+        await logToServer("ORDER_ERROR", undefined, {
+          message: errorMessage,
+          name: err.name,
+          stack: err.stack?.substring(0, 500),
+          response: err.response,
+          data: err.data,
+          status: err.status,
+          code: err.code,
+        });
+        
         setError(errorMessage);
         setIsPlacing(false);
 
