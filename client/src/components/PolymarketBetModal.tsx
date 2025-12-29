@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Dialog,
@@ -19,6 +19,7 @@ import { useWallet } from "@/context/WalletContext";
 import { useTradingSession } from "@/hooks/useTradingSession";
 import { usePlaceOrder } from "@/hooks/usePlaceOrder";
 import { PolymarketDepositWizard } from "./PolymarketDepositWizard";
+import { checkDepositRequirements } from "@/lib/polymarketDeposit";
 
 interface PolymarketOutcome {
   id: string;
@@ -55,9 +56,29 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance }: Poly
   const [amount, setAmount] = useState("");
   const [isPlacingOrderLocal, setIsPlacingOrderLocal] = useState(false);
   const [showDepositWizard, setShowDepositWizard] = useState(false);
+  const [approvalStatus, setApprovalStatus] = useState<{ needsApproval: boolean; checked: boolean }>({ needsApproval: false, checked: false });
   const { toast } = useToast();
   const { userId } = useMarket();
-  const { signer, walletAddress, walletType } = useWallet();
+  const { signer, walletAddress, walletType, provider } = useWallet();
+  
+  // Check approval status when modal opens
+  useEffect(() => {
+    const checkApproval = async () => {
+      if (!open || !walletAddress || !provider) {
+        setApprovalStatus({ needsApproval: false, checked: false });
+        return;
+      }
+      try {
+        const isMagic = walletType === "magic";
+        const status = await checkDepositRequirements(provider, walletAddress, isMagic);
+        setApprovalStatus({ needsApproval: status.needsApproval, checked: true });
+      } catch (error) {
+        console.error("Failed to check approval status:", error);
+        setApprovalStatus({ needsApproval: false, checked: true });
+      }
+    };
+    checkApproval();
+  }, [open, walletAddress, provider, walletType]);
   
   // Trading session with ClobClient for order placement
   const { 
@@ -202,13 +223,27 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance }: Poly
           postOrderResponse: result.rawResponse,
         });
 
-        toast({
-          title: result.orderId ? "Order Placed" : "Order Issue",
-          description: result.orderId 
-            ? "Your bet has been submitted to Polymarket" 
-            : "Order may not have been submitted properly - check your orders",
-          variant: result.orderId ? "default" : "destructive",
-        });
+        // Check if the failure was due to allowance issues
+        const rawError = result.rawResponse?.error;
+        const isAllowanceError = rawError && 
+          (rawError.includes("allowance") || rawError.includes("balance"));
+        
+        if (isAllowanceError) {
+          toast({
+            title: "Approval Required",
+            description: "You need to approve USDC for Polymarket trading. Opening setup wizard...",
+            variant: "destructive",
+          });
+          setShowDepositWizard(true);
+        } else {
+          toast({
+            title: result.orderId ? "Order Placed" : "Order Issue",
+            description: result.orderId 
+              ? "Your bet has been submitted to Polymarket" 
+              : "Order may not have been submitted properly - check your orders",
+            variant: result.orderId ? "default" : "destructive",
+          });
+        }
 
         queryClient.invalidateQueries({ queryKey: ["/api/polymarket"] });
         if (userId) {
@@ -343,6 +378,20 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance }: Poly
               <p className="text-muted-foreground">
                 Connect your wallet to place bets on Polymarket
               </p>
+            </div>
+          )}
+
+          {approvalStatus.checked && approvalStatus.needsApproval && walletAddress && (
+            <div 
+              className="flex items-center gap-2 rounded-md bg-yellow-500/10 p-3 text-sm cursor-pointer border border-yellow-500/20"
+              onClick={() => setShowDepositWizard(true)}
+              data-testid="banner-approval-needed"
+            >
+              <AlertCircle className="h-4 w-4 text-yellow-500 flex-shrink-0" />
+              <div className="flex-1">
+                <span className="text-yellow-600 dark:text-yellow-400 font-medium">USDC Approval Required</span>
+                <p className="text-muted-foreground text-xs mt-0.5">Click here to approve USDC for Polymarket trading</p>
+              </div>
             </div>
           )}
 
