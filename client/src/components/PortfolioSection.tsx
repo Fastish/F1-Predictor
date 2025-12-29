@@ -470,17 +470,29 @@ export function PortfolioSection() {
                     {positionsData.positions.map((position, index) => (
                       <div
                         key={`${position.tokenId}-${index}`}
-                        className="flex items-center justify-between p-4 rounded-md bg-muted/30 hover-elevate"
+                        className="flex items-center gap-4 p-4 rounded-md bg-muted/30 hover-elevate"
                         data-testid={`position-row-${position.tokenId}`}
                       >
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium">{position.outcome}</span>
-                            <Badge variant="outline" size="sm">
-                              {position.size.toFixed(2)} shares
-                            </Badge>
+                        {position.icon && (
+                          <img
+                            src={position.icon}
+                            alt=""
+                            className="w-12 h-12 rounded-md object-cover flex-shrink-0"
+                          />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-sm line-clamp-2">
+                            {position.title || "Unknown Market"}
                           </div>
-                          <div className="text-sm text-muted-foreground mt-1">
+                          <div className="flex items-center gap-2 mt-1">
+                            <Badge variant={position.outcome === "Yes" ? "default" : "secondary"} size="sm">
+                              {position.outcome}
+                            </Badge>
+                            <span className="text-sm text-muted-foreground">
+                              {position.size.toFixed(2)} shares
+                            </span>
+                          </div>
+                          <div className="text-xs text-muted-foreground mt-1">
                             Avg: {(position.averagePrice * 100).toFixed(1)}c | Current: {(position.currentPrice * 100).toFixed(1)}c
                           </div>
                         </div>

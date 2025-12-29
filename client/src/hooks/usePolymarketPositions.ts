@@ -14,6 +14,9 @@ export interface PolymarketPosition {
   conditionId?: string;
   marketSlug?: string;
   side?: "YES" | "NO";
+  title?: string;
+  icon?: string;
+  eventSlug?: string;
 }
 
 export interface PositionsResponse {

@@ -1642,7 +1642,7 @@ export async function registerRoutes(
 
         return {
           tokenId: pos.asset || "",
-          outcome: pos.outcome || pos.title || "Unknown",
+          outcome: pos.outcome || "Yes",
           size,
           averagePrice: avgPrice,
           currentPrice,
@@ -1651,7 +1651,9 @@ export async function registerRoutes(
           value,
           conditionId: pos.conditionId || "",
           marketSlug: pos.slug || pos.eventSlug || "",
-          title: pos.title || "",
+          title: pos.title || "Unknown Market",
+          icon: pos.icon || "",
+          eventSlug: pos.eventSlug || "",
         };
       }).filter((p: any) => p.size > 0);
 
