@@ -1614,8 +1614,8 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Invalid wallet address" });
       }
 
-      // Fetch positions from Polymarket Gamma API
-      const positionsUrl = `https://gamma-api.polymarket.com/positions?user=${walletAddress.toLowerCase()}`;
+      // Fetch positions from Polymarket Data API
+      const positionsUrl = `https://data-api.polymarket.com/positions?user=${walletAddress.toLowerCase()}`;
       console.log("Fetching Polymarket positions:", positionsUrl);
       
       const positionsResponse = await fetch(positionsUrl, {
@@ -1630,18 +1630,18 @@ export async function registerRoutes(
       const rawPositions = await positionsResponse.json();
       console.log("Raw positions response:", JSON.stringify(rawPositions).substring(0, 500));
 
-      // Transform positions to our format
+      // Transform positions from Data API format to our format
+      // Data API returns: asset, size, avgPrice, curPrice, cashPnl, percentPnl, currentValue, title, outcome, slug, conditionId
       const positions = (rawPositions || []).map((pos: any) => {
-        const size = parseFloat(pos.size || pos.shares || "0");
-        const avgPrice = parseFloat(pos.averagePrice || pos.avgPrice || "0");
-        const currentPrice = parseFloat(pos.currentPrice || pos.price || avgPrice);
-        const value = size * currentPrice;
-        const cost = size * avgPrice;
-        const pnl = value - cost;
-        const pnlPercent = cost > 0 ? (pnl / cost) * 100 : 0;
+        const size = parseFloat(pos.size || "0");
+        const avgPrice = parseFloat(pos.avgPrice || "0");
+        const currentPrice = parseFloat(pos.curPrice || avgPrice);
+        const value = parseFloat(pos.currentValue || (size * currentPrice).toString());
+        const pnl = parseFloat(pos.cashPnl || "0");
+        const pnlPercent = parseFloat(pos.percentPnl || "0");
 
         return {
-          tokenId: pos.tokenId || pos.asset || "",
+          tokenId: pos.asset || "",
           outcome: pos.outcome || pos.title || "Unknown",
           size,
           averagePrice: avgPrice,
@@ -1650,7 +1650,8 @@ export async function registerRoutes(
           pnlPercent,
           value,
           conditionId: pos.conditionId || "",
-          marketSlug: pos.slug || pos.marketSlug || "",
+          marketSlug: pos.slug || pos.eventSlug || "",
+          title: pos.title || "",
         };
       }).filter((p: any) => p.size > 0);
 
