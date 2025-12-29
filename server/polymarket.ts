@@ -854,25 +854,31 @@ export interface RelayerSignResponse {
   POLY_BUILDER_PASSPHRASE: string;
 }
 
-function signRelayerRequest(request: RelayerSignRequest): RelayerSignResponse | null {
+export function signRelayerRequest(request: RelayerSignRequest & { timestamp?: number }): RelayerSignResponse | null {
   const creds = getBuilderCredentials();
   if (!creds) {
     return null;
   }
 
-  const timestamp = Date.now().toString();
+  // Use provided timestamp or generate new one
+  const timestamp = request.timestamp || Date.now();
+  
+  // Ensure body is a string (SDK may pass object or string)
+  const bodyStr = typeof request.body === 'object' 
+    ? JSON.stringify(request.body) 
+    : (request.body || "");
   
   const signature = buildHmacSignature(
     creds.secret,
-    parseInt(timestamp),
+    timestamp,
     request.method,
     request.path,
-    request.body
+    bodyStr
   );
 
   return {
     POLY_BUILDER_SIGNATURE: signature,
-    POLY_BUILDER_TIMESTAMP: timestamp,
+    POLY_BUILDER_TIMESTAMP: timestamp.toString(),
     POLY_BUILDER_API_KEY: creds.key,
     POLY_BUILDER_PASSPHRASE: creds.passphrase,
   };

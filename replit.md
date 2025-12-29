@@ -112,21 +112,24 @@ The app uses a dual-wallet system:
 - Admin panel section for viewing/syncing Polymarket F1 markets
 
 ### Polymarket Relayer Client (Gasless Transactions)
-**Status: NOT WORKING** - Requires architectural changes to implement properly.
+**Status: IMPLEMENTED** - Uses client-side signing with remote Builder authentication.
 
 The Polymarket relayer (`https://relayer-v2.polymarket.com/`) requires:
 1. **User wallet signature** on each transaction payload (client-side)
 2. **Builder HMAC authentication** on HTTP requests (server-side)
 
-Our current implementation only has server-side code, but the relayer needs the user's connected wallet to sign the transaction request using the `@polymarket/builder-relayer-client` SDK. This signing happens client-side, then the signed payload is sent to the relayer with Builder auth headers.
+**Architecture:**
+- **Client-side** (`client/src/lib/polymarketGasless.ts`):
+  - Uses `@polymarket/builder-relayer-client` SDK with `RelayClient`
+  - Creates `BuilderConfig` with `remoteBuilderConfig` pointing to `/api/polymarket/builder-sign`
+  - User's wallet signs the transaction payload via ethers.js
+  - SDK automatically handles wallet deployment if needed
+  - Exports: `checkGaslessAvailable()`, `approveUSDCGasless()`, `approveCTFGasless()`, `approveAllGasless()`
 
-**To implement properly:**
-1. Use `@polymarket/builder-relayer-client` on the client side
-2. Configure `BuilderConfig` with `remoteBuilderConfig` pointing to our server
-3. Server endpoint generates HMAC signature headers and returns them
-4. Client attaches headers and sends signed transaction to relayer
-
-**Current Fallback**: Users must approve USDC/CTF with their own gas (requires MATIC in wallet).
+- **Server-side** (`server/routes.ts`):
+  - `POST /api/polymarket/builder-sign`: Returns HMAC signature headers for the SDK
+  - `GET /api/polymarket/relayer-status`: Checks if Builder credentials are configured
+  - Uses `@polymarket/builder-signing-sdk` for HMAC signature generation
 
 - **Environment Variables** (Replit Secrets):
   - POLY_BUILDER_API_KEY: Builder program API key
@@ -134,8 +137,9 @@ Our current implementation only has server-side code, but the relayer needs the 
   - POLY_BUILDER_PASSPHRASE: Authentication passphrase
 
 - **Deposit Wizard** (`client/src/components/PolymarketDepositWizard.tsx`):
-  - Guides users through USDC and CTF approvals
-  - Currently uses user-paid gas transactions
+  - Shows "Gasless available!" when Builder credentials are configured
+  - "Gasless Approve" button uses the RelayClient for zero-gas approvals
+  - Falls back to user-paid gas if gasless is unavailable
 
 - **Contract Addresses** (Polygon):
   - USDC: 0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174

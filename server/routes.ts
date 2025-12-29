@@ -818,7 +818,7 @@ export async function registerRoutes(
     }
   });
 
-  // ============ Polymarket Relayer Client (Server-Side Proxy) ============
+  // ============ Polymarket Relayer Client (Remote Signing) ============
   
   // Check if relayer credentials are available
   app.get("/api/polymarket/relayer-status", async (req, res) => {
@@ -827,6 +827,47 @@ export async function registerRoutes(
       res.json({ available: hasRelayerCredentials() });
     } catch (error) {
       res.status(500).json({ error: "Failed to check relayer status" });
+    }
+  });
+
+  // Remote BuilderConfig endpoint for @polymarket/builder-signing-sdk
+  // The SDK will call this URL with { method, path, body?, timestamp? } and expect back the auth headers
+  app.post("/api/polymarket/builder-sign", async (req, res) => {
+    try {
+      const { method, path, body, timestamp } = req.body;
+      
+      if (!method || !path) {
+        return res.status(400).json({ error: "method and path are required" });
+      }
+
+      const { signRelayerRequest, hasRelayerCredentials } = await import("./polymarket");
+      
+      if (!hasRelayerCredentials()) {
+        return res.status(503).json({ error: "Builder credentials not configured" });
+      }
+
+      // Pass through the timestamp if provided by SDK, and handle body serialization
+      const headers = signRelayerRequest({
+        method: method.toUpperCase(),
+        path,
+        body: body, // signRelayerRequest will handle object/string conversion
+        timestamp: timestamp ? parseInt(timestamp, 10) : undefined,
+      });
+      
+      if (!headers) {
+        return res.status(500).json({ error: "Failed to generate signature" });
+      }
+
+      // Return the headers in the format expected by BuilderConfig
+      res.json({
+        POLY_BUILDER_API_KEY: headers.POLY_BUILDER_API_KEY,
+        POLY_BUILDER_TIMESTAMP: headers.POLY_BUILDER_TIMESTAMP,
+        POLY_BUILDER_PASSPHRASE: headers.POLY_BUILDER_PASSPHRASE,
+        POLY_BUILDER_SIGNATURE: headers.POLY_BUILDER_SIGNATURE,
+      });
+    } catch (error) {
+      console.error("Builder signing failed:", error);
+      res.status(500).json({ error: error instanceof Error ? error.message : "Signing failed" });
     }
   });
 

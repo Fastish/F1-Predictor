@@ -47,13 +47,15 @@ interface RelayerExecutionResult {
 export type WalletType = "safe" | "proxy";
 
 export async function checkRelayerAvailable(): Promise<boolean> {
-  // The Polymarket gasless relayer requires client-side transaction signing
-  // using the user's wallet + server-side Builder auth headers. Our current
-  // architecture sends unsigned transactions to the server which can't work.
-  // Until we implement the full RelayClient SDK on the client side with
-  // remote signing for Builder credentials, gasless is not available.
-  // For now, users must approve with their own gas (MATIC).
-  return false;
+  // Delegate to the new gasless implementation
+  try {
+    const response = await fetch("/api/polymarket/relayer-status");
+    if (!response.ok) return false;
+    const data = await response.json();
+    return data.available === true;
+  } catch {
+    return false;
+  }
 }
 
 async function executeViaRelayer(

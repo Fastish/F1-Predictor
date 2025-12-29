@@ -16,11 +16,11 @@ import {
   POLYMARKET_CONTRACTS,
 } from "@/lib/polymarketDeposit";
 import { 
-  checkRelayerAvailable,
-  approveUSDCForTradingGasless,
-  approveCTFForTradingGasless,
-  transferUSDCGasless,
-} from "@/lib/polymarketRelayer";
+  checkGaslessAvailable,
+  approveUSDCGasless,
+  approveCTFGasless,
+  isExternalWalletAvailable,
+} from "@/lib/polymarketGasless";
 import { ethers } from "ethers";
 import { Check, Loader2, AlertCircle, ExternalLink, ArrowRight, Wallet, Shield, ChevronRight, Zap, Copy, ArrowDown, DollarSign } from "lucide-react";
 
@@ -62,7 +62,7 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
   useEffect(() => {
     if (open && walletAddress) {
       checkStatus();
-      checkRelayerAvailable().then(setRelayerAvailable);
+      checkGaslessAvailable().then(setRelayerAvailable);
     }
   }, [open, walletAddress]);
 
@@ -121,12 +121,9 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
     setUsingRelayer(useRelayer);
     
     try {
-      if (useRelayer && relayerAvailable && walletAddress) {
-        // Use gasless relayer for approvals (server-side)
-        const result = await approveUSDCForTradingGasless(
-          walletAddress,
-          walletType === "magic" ? "proxy" : "safe"
-        );
+      if (useRelayer && relayerAvailable) {
+        // Use gasless relayer for approvals (client-side signing with remote Builder auth)
+        const result = await approveUSDCGasless();
         
         if (!result.success) {
           throw new Error(result.error || "Gasless approval failed");
@@ -200,12 +197,9 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
     setUsingRelayer(useRelayer);
     
     try {
-      if (useRelayer && relayerAvailable && walletAddress) {
-        // Use gasless relayer for approvals (server-side)
-        const result = await approveCTFForTradingGasless(
-          walletAddress,
-          walletType === "magic" ? "proxy" : "safe"
-        );
+      if (useRelayer && relayerAvailable) {
+        // Use gasless relayer for approvals (client-side signing with remote Builder auth)
+        const result = await approveCTFGasless();
         
         if (!result.success) {
           throw new Error(result.error || "Gasless approval failed");
@@ -264,13 +258,12 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
     }
   };
 
-  const handleDeposit = async (useRelayer: boolean = false) => {
+  const handleDeposit = async () => {
     if (!depositStatus?.proxyAddress || !depositAmount) return;
     
     setLoading(true);
     setError(null);
     setTxHash(null);
-    setUsingRelayer(useRelayer);
     
     try {
       const amount = parseFloat(depositAmount);
@@ -282,29 +275,17 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
         throw new Error("Insufficient balance");
       }
       
-      let result: { success: boolean; txHash?: string; transactionHash?: string; error?: string };
-      
-      if (useRelayer && relayerAvailable && walletAddress) {
-        // Use gasless relayer for transfer
-        result = await transferUSDCGasless(
-          walletAddress,
-          depositStatus.proxyAddress,
-          depositAmount,
-          walletType === "magic" ? "proxy" : "safe"
-        );
-      } else {
-        // Use direct wallet signing (user pays gas)
-        if (!signer) {
-          throw new Error("No signer available");
-        }
-        result = await transferUSDCToProxy(signer, depositStatus.proxyAddress, depositAmount);
+      // Use direct wallet signing for deposits
+      if (!signer) {
+        throw new Error("No signer available");
       }
+      const result = await transferUSDCToProxy(signer, depositStatus.proxyAddress, depositAmount);
       
       if (!result.success) {
         throw new Error(result.error || "Transfer failed");
       }
       
-      setTxHash(result.txHash || result.transactionHash || null);
+      setTxHash(result.txHash || null);
       
       // Refresh status - let checkStatus determine the next step based on updated balances
       await checkStatus();
@@ -313,7 +294,6 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
       setError(err instanceof Error ? err.message : "Deposit failed");
     } finally {
       setLoading(false);
-      setUsingRelayer(false);
     }
   };
 
@@ -692,57 +672,22 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
               </div>
             )}
 
-            {relayerAvailable && (
-              <div className="flex items-start gap-3 p-3 bg-primary/10 rounded-lg">
-                <Zap className="h-4 w-4 text-primary mt-0.5" />
-                <div className="text-xs">
-                  <span className="font-medium">Gasless available!</span>
-                  <span className="text-muted-foreground ml-1">Polymarket pays the gas fee.</span>
-                </div>
-              </div>
-            )}
-
             <div className="flex gap-2">
-              {relayerAvailable && (
-                <Button 
-                  onClick={() => handleDeposit(true)} 
-                  disabled={loading || !depositAmount || parseFloat(depositAmount) <= 0}
-                  className="flex-1"
-                  data-testid="button-deposit-gasless"
-                >
-                  {loading && usingRelayer ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Transferring...
-                    </>
-                  ) : (
-                    <>
-                      <Zap className="h-4 w-4 mr-2" />
-                      Gasless Deposit
-                    </>
-                  )}
-                </Button>
-              )}
               <Button 
-                onClick={() => handleDeposit(false)} 
+                onClick={() => handleDeposit()} 
                 disabled={loading || !depositAmount || parseFloat(depositAmount) <= 0}
-                variant={relayerAvailable ? "outline" : "default"}
-                className={relayerAvailable ? "" : "flex-1"}
+                className="flex-1"
                 data-testid="button-deposit-usdc"
               >
-                {loading && !usingRelayer ? (
+                {loading ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                     Transferring...
                   </>
                 ) : (
                   <>
-                    {relayerAvailable ? "Pay Gas" : (
-                      <>
-                        <ArrowDown className="h-4 w-4 mr-2" />
-                        Deposit
-                      </>
-                    )}
+                    <ArrowDown className="h-4 w-4 mr-2" />
+                    Deposit
                   </>
                 )}
               </Button>
