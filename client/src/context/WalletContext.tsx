@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
 import { Magic } from "magic-sdk";
 import { ethers } from "ethers";
+import { queryClient } from "@/lib/queryClient";
 
 type WalletType = "magic" | "external" | null;
 
@@ -515,6 +516,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error("Logout error:", error);
     }
+    
+    // Invalidate all wallet-related caches
+    queryClient.removeQueries({ queryKey: ["polymarket-cash-balance"] });
+    queryClient.removeQueries({ queryKey: ["polygon-usdc-balance"] });
+    queryClient.removeQueries({ queryKey: ["polymarket-positions"] });
     
     setWalletAddress(null);
     setWalletType(null);

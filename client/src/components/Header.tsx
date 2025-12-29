@@ -58,6 +58,8 @@ export function Header() {
       return parseFloat(ethers.formatUnits(balance, 6));
     },
     enabled: !!balanceAddress,
+    staleTime: 0,
+    gcTime: 0,
     refetchInterval: 30000,
   });
 
