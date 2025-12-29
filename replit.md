@@ -112,33 +112,30 @@ The app uses a dual-wallet system:
 - Admin panel section for viewing/syncing Polymarket F1 markets
 
 ### Polymarket Relayer Client (Gasless Transactions)
-The app integrates with Polymarket's Builder Relayer for gasless transactions:
+**Status: NOT WORKING** - Requires architectural changes to implement properly.
 
-- **Server-Side Implementation** (`server/polymarket.ts`):
-  - `executeRelayerTransaction()`: Execute batched transactions via relayer
-  - `deployRelayerWallet()`: Deploy Safe/Proxy wallets
-  - Uses @polymarket/builder-signing-sdk for HMAC authentication
-  - Credentials NEVER sent to client - all signing happens server-side
+The Polymarket relayer (`https://relayer-v2.polymarket.com/`) requires:
+1. **User wallet signature** on each transaction payload (client-side)
+2. **Builder HMAC authentication** on HTTP requests (server-side)
 
-- **API Endpoints**:
-  - `POST /api/polymarket/relayer-execute`: Proxy for gasless transaction execution
-  - `POST /api/polymarket/relayer-deploy`: Deploy Polymarket wallets
-  - `GET /api/polymarket/relayer-status`: Check if relayer is configured
+Our current implementation only has server-side code, but the relayer needs the user's connected wallet to sign the transaction request using the `@polymarket/builder-relayer-client` SDK. This signing happens client-side, then the signed payload is sent to the relayer with Builder auth headers.
 
-- **Client-Side** (`client/src/lib/polymarketRelayer.ts`):
-  - `approveUSDCForTradingGasless()`: Approve USDC for both exchanges
-  - `approveCTFForTradingGasless()`: Approve CTF tokens for trading
-  - Simple API calls to server proxy - no credentials exposed
+**To implement properly:**
+1. Use `@polymarket/builder-relayer-client` on the client side
+2. Configure `BuilderConfig` with `remoteBuilderConfig` pointing to our server
+3. Server endpoint generates HMAC signature headers and returns them
+4. Client attaches headers and sends signed transaction to relayer
+
+**Current Fallback**: Users must approve USDC/CTF with their own gas (requires MATIC in wallet).
 
 - **Environment Variables** (Replit Secrets):
   - POLY_BUILDER_API_KEY: Builder program API key
-  - POLY_BUILDER_SECRET: HMAC signing secret
+  - POLY_BUILDER_SECRET: HMAC signing secret  
   - POLY_BUILDER_PASSPHRASE: Authentication passphrase
 
 - **Deposit Wizard** (`client/src/components/PolymarketDepositWizard.tsx`):
   - Guides users through USDC and CTF approvals
-  - Shows "Gasless available!" when relayer is configured
-  - Falls back to user-paid gas if relayer unavailable
+  - Currently uses user-paid gas transactions
 
 - **Contract Addresses** (Polygon):
   - USDC: 0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174

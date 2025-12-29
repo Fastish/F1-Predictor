@@ -878,8 +878,9 @@ function signRelayerRequest(request: RelayerSignRequest): RelayerSignResponse | 
   };
 }
 
-// Polymarket Builder Relayer API base URL (paths include /v2/ prefix)
-const RELAYER_URL = "https://relayer.polymarket.com";
+// Polymarket Builder Relayer API base URL
+// Note: The correct URL is relayer-v2.polymarket.com (not relayer.polymarket.com)
+const RELAYER_URL = "https://relayer-v2.polymarket.com";
 
 interface Transaction {
   to: string;
