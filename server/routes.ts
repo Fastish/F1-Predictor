@@ -683,10 +683,10 @@ export async function registerRoutes(
   });
 
   // Same endpoint used by RelayClient's remoteBuilderConfig
-  // Matches SDK's RemoteSignerPayload: { method, path, body?, timestamp? }
+  // Matches the official Polymarket wagmi-safe-builder-example implementation
   app.post("/api/polymarket/builder-sign", async (req, res) => {
     try {
-      const { method, path: rawPath, body, timestamp } = req.body;
+      const { method, path: rawPath, body: requestBody } = req.body;
       
       console.log("=== BUILDER-SIGN REQUEST ===");
       console.log("Full request body:", JSON.stringify(req.body, null, 2));
@@ -718,22 +718,31 @@ export async function registerRoutes(
 
       console.log("Builder credentials found, API key prefix:", builderApiKey.substring(0, 10) + "...");
 
-      // Use BuilderSigner class exactly like official Polymarket server
-      const { BuilderSigner } = await import("@polymarket/builder-signing-sdk");
+      // Use buildHmacSignature directly - matches official Polymarket example
+      const { buildHmacSignature } = await import("@polymarket/builder-signing-sdk");
       
-      // BuilderSigner expects a credentials object with { key, secret, passphrase }
-      const signer = new BuilderSigner({ 
-        key: builderApiKey, 
-        secret: builderSecret, 
-        passphrase: builderPassphrase 
-      });
-      // Pass timestamp if provided by SDK (4th parameter)
-      const payload = signer.createBuilderHeaderPayload(method, path, body || "", timestamp);
+      // Generate our own timestamp as per the official example
+      const sigTimestamp = Date.now().toString();
+      
+      // Build signature with the exact parameters from official example
+      const signature = buildHmacSignature(
+        builderSecret,
+        parseInt(sigTimestamp),
+        method,
+        path,
+        requestBody || ""
+      );
+
+      const payload = {
+        POLY_BUILDER_SIGNATURE: signature,
+        POLY_BUILDER_TIMESTAMP: sigTimestamp,
+        POLY_BUILDER_API_KEY: builderApiKey,
+        POLY_BUILDER_PASSPHRASE: builderPassphrase,
+      };
 
       console.log("Generated payload:", JSON.stringify(payload, null, 2));
       console.log("=== END BUILDER-SIGN ===");
 
-      // Return the payload directly (BuilderHeaderPayload format)
       res.json(payload);
     } catch (error) {
       console.error("Failed to generate builder signature:", error);
