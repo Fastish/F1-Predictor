@@ -24,8 +24,13 @@ import {
   isExternalWalletAvailable,
   getSafeAddress,
 } from "@/lib/polymarketGasless";
+import { deriveSafe } from "@polymarket/builder-relayer-client/dist/builder/derive";
+import { getContractConfig } from "@polymarket/builder-relayer-client/dist/config";
 import { ethers } from "ethers";
+
 import { Check, Loader2, AlertCircle, ExternalLink, ArrowRight, Wallet, Shield, ChevronRight, Zap, Copy, ArrowDown, DollarSign, RotateCcw } from "lucide-react";
+
+const POLYGON_CHAIN_ID = 137;
 
 interface PolymarketDepositWizardProps {
   open: boolean;
@@ -69,6 +74,17 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
     }
   }, [open, walletAddress]);
 
+  // Helper to derive Safe address deterministically (no signer needed)
+  const deriveSafeAddressFromEOA = (eoaAddress: string): string | null => {
+    try {
+      const config = getContractConfig(POLYGON_CHAIN_ID);
+      return deriveSafe(eoaAddress, config.SafeContracts.SafeFactory);
+    } catch (e) {
+      console.warn("Failed to derive Safe address:", e);
+      return null;
+    }
+  };
+
   const checkStatus = async () => {
     if (!walletAddress || !provider) return;
     
@@ -84,11 +100,12 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
       let rawStatus = await checkDepositRequirements(provider, walletAddress, isMagic);
       
       if (walletType === "external") {
-        try {
-          const safeInfo = await getSafeAddress();
-          if (safeInfo.safeAddress) {
-            console.log(`Checking Safe address for approvals: ${safeInfo.safeAddress}`);
-            const safeStatus = await checkDepositRequirements(provider, safeInfo.safeAddress, false);
+        // Derive Safe address deterministically from EOA (no signer needed)
+        const safeAddress = deriveSafeAddressFromEOA(walletAddress);
+        if (safeAddress) {
+          console.log(`Checking Safe address for approvals: ${safeAddress}`);
+          try {
+            const safeStatus = await checkDepositRequirements(provider, safeAddress, false);
             
             // If Safe has approvals but EOA doesn't, use Safe's approval status
             // This handles the case where user previously did gasless approvals
@@ -111,9 +128,9 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
                 ctfApprovedForNegRisk: safeStatus.ctfApprovedForNegRisk,
               };
             }
+          } catch (e) {
+            console.warn("Failed to check Safe address for approvals:", e);
           }
-        } catch (e) {
-          console.warn("Failed to check Safe address for approvals:", e);
         }
       }
       
