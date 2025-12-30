@@ -739,7 +739,12 @@ export async function registerRoutes(
       // Extract path after /api/polymarket/relayer/
       const fullPath = req.path;
       const relayerPath = fullPath.replace("/api/polymarket/relayer/", "");
-      const relayerUrl = `https://relayer-v2.polymarket.com/${relayerPath}`;
+      
+      // Build URL with query string if present
+      const queryString = req.originalUrl.includes('?') 
+        ? req.originalUrl.substring(req.originalUrl.indexOf('?'))
+        : '';
+      const relayerUrl = `https://relayer-v2.polymarket.com/${relayerPath}${queryString}`;
       
       console.log(`Proxying relayer request: ${req.method} ${relayerUrl}`);
       
