@@ -97,13 +97,13 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
       // User might have approved via direct EOA tx or via gasless (Safe)
       // Consider approved if EITHER address has the approvals
       let rawStatus = await checkDepositRequirements(provider, walletAddress, isMagic);
-      console.log(`[DepositWizard] EOA (${walletAddress}) status:`, {
+      console.log(`[DepositWizard] EOA (${walletAddress}) status:`, JSON.stringify({
         needsApproval: rawStatus.needsApproval,
         needsCTFApproval: rawStatus.needsCTFApproval,
         ctfExchangeAllowance: rawStatus.ctfExchangeAllowance,
         negRiskExchangeAllowance: rawStatus.negRiskExchangeAllowance,
         ctfContractAllowance: rawStatus.ctfContractAllowance,
-      });
+      }, null, 2));
       
       if (walletType === "external") {
         // Derive Safe address deterministically from EOA (no signer needed)
@@ -112,7 +112,7 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
           console.log(`[DepositWizard] Checking Safe address: ${safeAddress}`);
           try {
             const safeStatus = await checkDepositRequirements(provider, safeAddress, false);
-            console.log(`[DepositWizard] Safe status:`, {
+            console.log(`[DepositWizard] Safe status:`, JSON.stringify({
               needsApproval: safeStatus.needsApproval,
               needsCTFApproval: safeStatus.needsCTFApproval,
               ctfExchangeAllowance: safeStatus.ctfExchangeAllowance,
@@ -120,7 +120,7 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
               ctfContractAllowance: safeStatus.ctfContractAllowance,
               ctfApprovedForExchange: safeStatus.ctfApprovedForExchange,
               ctfApprovedForNegRisk: safeStatus.ctfApprovedForNegRisk,
-            });
+            }, null, 2));
             
             // If Safe has approvals but EOA doesn't, use Safe's approval status
             // This handles the case where user previously did gasless approvals
