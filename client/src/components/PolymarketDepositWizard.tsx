@@ -22,6 +22,7 @@ import {
   approveUSDCGasless,
   approveCTFGasless,
   isExternalWalletAvailable,
+  getSafeAddress,
 } from "@/lib/polymarketGasless";
 import { ethers } from "ethers";
 import { Check, Loader2, AlertCircle, ExternalLink, ArrowRight, Wallet, Shield, ChevronRight, Zap, Copy, ArrowDown, DollarSign, RotateCcw } from "lucide-react";
@@ -77,7 +78,44 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
     try {
       const isMagic = walletType === "magic";
       
-      const rawStatus = await checkDepositRequirements(provider, walletAddress, isMagic);
+      // For external wallets, check BOTH EOA and Safe addresses
+      // User might have approved via direct EOA tx or via gasless (Safe)
+      // Consider approved if EITHER address has the approvals
+      let rawStatus = await checkDepositRequirements(provider, walletAddress, isMagic);
+      
+      if (walletType === "external") {
+        try {
+          const safeInfo = await getSafeAddress();
+          if (safeInfo.safeAddress) {
+            console.log(`Checking Safe address for approvals: ${safeInfo.safeAddress}`);
+            const safeStatus = await checkDepositRequirements(provider, safeInfo.safeAddress, false);
+            
+            // If Safe has approvals but EOA doesn't, use Safe's approval status
+            // This handles the case where user previously did gasless approvals
+            if (!safeStatus.needsApproval && rawStatus.needsApproval) {
+              console.log("Using Safe approval status (gasless approvals detected)");
+              rawStatus = {
+                ...rawStatus,
+                needsApproval: false,
+                ctfExchangeAllowance: safeStatus.ctfExchangeAllowance,
+                negRiskExchangeAllowance: safeStatus.negRiskExchangeAllowance,
+                ctfContractAllowance: safeStatus.ctfContractAllowance,
+              };
+            }
+            if (!safeStatus.needsCTFApproval && rawStatus.needsCTFApproval) {
+              console.log("Using Safe CTF approval status (gasless approvals detected)");
+              rawStatus = {
+                ...rawStatus,
+                needsCTFApproval: false,
+                ctfApprovedForExchange: safeStatus.ctfApprovedForExchange,
+                ctfApprovedForNegRisk: safeStatus.ctfApprovedForNegRisk,
+              };
+            }
+          }
+        } catch (e) {
+          console.warn("Failed to check Safe address for approvals:", e);
+        }
+      }
       
       // For Magic wallets, check if proxy has low balance and user has USDC to deposit
       const needsDeposit = isMagic && 
@@ -162,7 +200,23 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
       // Re-check status to determine next step
       if (!walletAddress || !provider) return;
       const isMagic = walletType === "magic";
-      const updatedStatus = await checkDepositRequirements(provider, walletAddress, isMagic);
+      
+      // For external wallets using gasless, check the Safe address (where approvals are done)
+      // For Magic wallets or non-gasless, check the EOA address
+      let addressToCheck = walletAddress;
+      if (useRelayer && walletType === "external") {
+        try {
+          const safeInfo = await getSafeAddress();
+          if (safeInfo.safeAddress) {
+            addressToCheck = safeInfo.safeAddress;
+            console.log(`Checking approvals on Safe address: ${addressToCheck}`);
+          }
+        } catch (e) {
+          console.warn("Failed to get Safe address for approval check:", e);
+        }
+      }
+      
+      const updatedStatus = await checkDepositRequirements(provider, addressToCheck, isMagic);
       const needsDeposit = isMagic && 
         updatedStatus.proxyAddress !== null &&
         parseFloat(updatedStatus.proxyBalance || "0") < 1 && 
@@ -232,7 +286,23 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
       // Re-check status to determine next step
       if (!walletAddress || !provider) return;
       const isMagic = walletType === "magic";
-      const updatedStatus = await checkDepositRequirements(provider, walletAddress, isMagic);
+      
+      // For external wallets using gasless, check the Safe address (where approvals are done)
+      // For Magic wallets or non-gasless, check the EOA address
+      let addressToCheck = walletAddress;
+      if (useRelayer && walletType === "external") {
+        try {
+          const safeInfo = await getSafeAddress();
+          if (safeInfo.safeAddress) {
+            addressToCheck = safeInfo.safeAddress;
+            console.log(`Checking CTF approvals on Safe address: ${addressToCheck}`);
+          }
+        } catch (e) {
+          console.warn("Failed to get Safe address for CTF approval check:", e);
+        }
+      }
+      
+      const updatedStatus = await checkDepositRequirements(provider, addressToCheck, isMagic);
       const needsDeposit = isMagic && 
         updatedStatus.proxyAddress !== null &&
         parseFloat(updatedStatus.proxyBalance || "0") < 1 && 

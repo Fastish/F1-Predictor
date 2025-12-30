@@ -21,10 +21,10 @@ import { DepositModal } from "./DepositModal";
 import { SwapModal } from "./SwapModal";
 import { useTradingSession } from "@/hooks/useTradingSession";
 import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/components/ui/hover-card";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { usePolymarketPositions } from "@/hooks/usePolymarketPositions";
 import { deriveSafe } from "@polymarket/builder-relayer-client/dist/builder/derive";
 import { getContractConfig } from "@polymarket/builder-relayer-client/dist/config";
@@ -108,9 +108,9 @@ export function Header() {
         <div className="flex items-center gap-2">
           {walletAddress && (
             <div className="hidden sm:flex items-center gap-2">
-              <HoverCard openDelay={100} closeDelay={200}>
-                <HoverCardTrigger asChild>
-                  <Badge variant="outline" className="gap-1 px-3 py-1.5 cursor-pointer hover-elevate">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Badge variant="outline" className="gap-1 px-3 py-1.5 cursor-pointer hover-elevate" data-testid="badge-cash-balance">
                     {isLoadingCash ? (
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
                     ) : (
@@ -123,15 +123,15 @@ export function Header() {
                       </>
                     )}
                   </Badge>
-                </HoverCardTrigger>
-                <HoverCardContent className="w-48 p-2" align="center">
+                </PopoverTrigger>
+                <PopoverContent className="w-48 p-2" align="center">
                   <div className="flex flex-col gap-1">
                     <Button 
                       variant="ghost" 
                       size="sm" 
                       className="justify-start"
                       onClick={() => { setSwapDirection("deposit"); setSwapOpen(true); }}
-                      data-testid="button-deposit-cash"
+                      data-testid="button-header-deposit-cash"
                     >
                       <ArrowDownLeft className="h-4 w-4 mr-2" />
                       Deposit Cash
@@ -141,14 +141,14 @@ export function Header() {
                       size="sm" 
                       className="justify-start"
                       onClick={() => { setSwapDirection("withdraw"); setSwapOpen(true); }}
-                      data-testid="button-withdraw-cash"
+                      data-testid="button-header-withdraw-cash"
                     >
                       <ArrowUpRight className="h-4 w-4 mr-2" />
                       Withdraw Cash
                     </Button>
                   </div>
-                </HoverCardContent>
-              </HoverCard>
+                </PopoverContent>
+              </Popover>
               <Link href="/portfolio">
                 <Badge 
                   variant="outline" 
