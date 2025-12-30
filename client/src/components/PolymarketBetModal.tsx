@@ -32,6 +32,13 @@ import { useTradingSession } from "@/hooks/useTradingSession";
 import { usePlaceOrder, type PolymarketOrderType } from "@/hooks/usePlaceOrder";
 import { PolymarketDepositWizard } from "./PolymarketDepositWizard";
 import { checkDepositRequirements } from "@/lib/polymarketDeposit";
+import { ethers } from "ethers";
+
+const USDC_CONTRACT = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174";
+const USDC_ABI = [
+  "function transfer(address to, uint256 amount) returns (bool)",
+  "function balanceOf(address owner) view returns (uint256)",
+];
 
 interface PolymarketOutcome {
   id: string;
@@ -263,6 +270,7 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
     setIsPlacingOrderLocal(true);
 
     try {
+      // Step 1: Place the order on Polymarket
       toast({
         title: "Signing Order",
         description: "Please sign the order in your wallet...",
@@ -304,9 +312,49 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
           postOrderResponse: result.rawResponse,
         });
 
-        // Record platform fee if enabled
-        if (feePercentage > 0 && feeAmount > 0 && walletAddress) {
+        // Step 2: Transfer platform fee AFTER successful order placement
+        if (feePercentage > 0 && feeAmount > 0 && feeConfig?.treasuryAddress && signer && walletAddress) {
+          toast({
+            title: "Collecting Platform Fee",
+            description: `Transferring $${feeAmount.toFixed(2)} fee to platform...`,
+          });
+
           try {
+            const usdcContract = new ethers.Contract(USDC_CONTRACT, USDC_ABI, signer);
+            const feeAmountWei = ethers.parseUnits(feeAmount.toFixed(6), 6);
+            
+            const feeTx = await usdcContract.transfer(feeConfig.treasuryAddress, feeAmountWei);
+            const feeReceipt = await feeTx.wait();
+            
+            if (feeReceipt.status === 1) {
+              console.log("Fee transferred successfully:", feeReceipt.hash);
+              
+              await apiRequest("POST", "/api/fees/record", {
+                walletAddress,
+                orderType: "buy",
+                marketName: outcome.name,
+                tokenId: selectedTokenId,
+                orderAmount: parsedAmount,
+                feePercentage,
+                feeAmount,
+                txHash: feeReceipt.hash,
+                status: "confirmed",
+              });
+            } else {
+              console.error("Fee transfer transaction failed");
+              await apiRequest("POST", "/api/fees/record", {
+                walletAddress,
+                orderType: "buy",
+                marketName: outcome.name,
+                tokenId: selectedTokenId,
+                orderAmount: parsedAmount,
+                feePercentage,
+                feeAmount,
+                status: "failed",
+              });
+            }
+          } catch (feeError: any) {
+            console.error("Fee transfer failed:", feeError);
             await apiRequest("POST", "/api/fees/record", {
               walletAddress,
               orderType: "buy",
@@ -315,11 +363,8 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
               orderAmount: parsedAmount,
               feePercentage,
               feeAmount,
-              status: "confirmed", // Fee is collected with the order
-            });
-          } catch (feeError) {
-            console.error("Failed to record fee:", feeError);
-            // Don't fail the order just because fee recording failed
+              status: "pending",
+            }).catch(() => {});
           }
         }
 
@@ -460,6 +505,11 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
         }
       }
 
+      // Calculate sell proceeds and fee
+      const sellProceeds = sharesToSell * sellPrice;
+      const sellFeeAmount = feePercentage > 0 ? sellProceeds * (feePercentage / 100) : 0;
+
+      // Step 1: Place the sell order
       toast({
         title: "Signing Sell Order",
         description: `Selling at ${(sellPrice * 100).toFixed(1)}c per share...`,
@@ -489,11 +539,67 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
           side: "SELL",
           price: sellPrice,
           size: sharesToSell,
-          totalCost: sharesToSell * sellPrice,
+          totalCost: sellProceeds,
           polymarketOrderId: result.orderId,
           status: result.orderId ? "open" : "pending",
           conditionId: position.conditionId,
         });
+
+        // Step 2: Transfer platform fee AFTER successful order placement
+        if (sellFeeAmount > 0 && feeConfig?.treasuryAddress && signer && walletAddress) {
+          toast({
+            title: "Collecting Platform Fee",
+            description: `Transferring $${sellFeeAmount.toFixed(2)} fee to platform...`,
+          });
+
+          try {
+            const usdcContract = new ethers.Contract(USDC_CONTRACT, USDC_ABI, signer);
+            const feeAmountWei = ethers.parseUnits(sellFeeAmount.toFixed(6), 6);
+            
+            const feeTx = await usdcContract.transfer(feeConfig.treasuryAddress, feeAmountWei);
+            const feeReceipt = await feeTx.wait();
+            
+            if (feeReceipt.status === 1) {
+              console.log("Sell fee transferred successfully:", feeReceipt.hash);
+              
+              await apiRequest("POST", "/api/fees/record", {
+                walletAddress,
+                orderType: "sell",
+                marketName: outcome.name,
+                tokenId: position.tokenId,
+                orderAmount: sellProceeds,
+                feePercentage,
+                feeAmount: sellFeeAmount,
+                txHash: feeReceipt.hash,
+                status: "confirmed",
+              });
+            } else {
+              console.error("Sell fee transfer transaction failed");
+              await apiRequest("POST", "/api/fees/record", {
+                walletAddress,
+                orderType: "sell",
+                marketName: outcome.name,
+                tokenId: position.tokenId,
+                orderAmount: sellProceeds,
+                feePercentage,
+                feeAmount: sellFeeAmount,
+                status: "failed",
+              });
+            }
+          } catch (feeError: any) {
+            console.error("Sell fee transfer failed:", feeError);
+            await apiRequest("POST", "/api/fees/record", {
+              walletAddress,
+              orderType: "sell",
+              marketName: outcome.name,
+              tokenId: position.tokenId,
+              orderAmount: sellProceeds,
+              feePercentage,
+              feeAmount: sellFeeAmount,
+              status: "pending",
+            }).catch(() => {});
+          }
+        }
 
         toast({
           title: "Sell Order Placed",
