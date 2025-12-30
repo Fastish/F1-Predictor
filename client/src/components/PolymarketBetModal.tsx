@@ -79,8 +79,10 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
   const [side, setSide] = useState<"YES" | "NO">("YES");
   const [amount, setAmount] = useState("");
   const [sellShares, setSellShares] = useState("");
-  const [orderType, setOrderType] = useState<PolymarketOrderType>("FOK");
+  const [orderType, setOrderType] = useState<PolymarketOrderType>("GTC"); // Default to GTC like Polymarket
   const [gtdExpiration, setGtdExpiration] = useState<string>("");
+  const [limitPrice, setLimitPrice] = useState<string>(""); // Manual limit price input
+  const [sellLimitPrice, setSellLimitPrice] = useState<string>(""); // Limit price for sell orders
   const [isPlacingOrderLocal, setIsPlacingOrderLocal] = useState(false);
   const [showDepositWizard, setShowDepositWizard] = useState(false);
   const [pendingRetry, setPendingRetry] = useState(false);
@@ -89,11 +91,13 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
   const { userId } = useMarket();
   const { signer, walletAddress, walletType, provider } = useWallet();
   
-  // Reset GTD expiration when modal closes or order type changes
+  // Reset state when modal closes
   useEffect(() => {
     if (!open) {
       setGtdExpiration("");
-      setOrderType("FOK");
+      setOrderType("GTC"); // Default to GTC like Polymarket
+      setLimitPrice("");
+      setSellLimitPrice("");
     }
   }, [open]);
   
@@ -148,18 +152,55 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
   const yesPrice = midpoint?.mid ?? outcome.price;
   const noPrice = outcome.noPrice ?? (1 - yesPrice);
 
+  // Get best bid from orderbook for limit price initialization
+  const sortedBidsForPrice = orderBook?.bids ? [...orderBook.bids].sort((a, b) => parseFloat(b.price) - parseFloat(a.price)) : [];
+  const bestBidPrice = sortedBidsForPrice[0] ? parseFloat(sortedBidsForPrice[0].price) : null;
+  const sortedAsksForPrice = orderBook?.asks ? [...orderBook.asks].sort((a, b) => parseFloat(a.price) - parseFloat(b.price)) : [];
+  const bestAskPrice = sortedAsksForPrice[0] ? parseFloat(sortedAsksForPrice[0].price) : null;
+
+  // Initialize limit price when orderbook loads or side changes (for buy orders)
+  // Default to best bid + 1 cent to increase fill probability
+  useEffect(() => {
+    if (open && !isSellMode && orderBook && !limitPrice) {
+      const midPrice = midpoint?.mid ?? outcome.price;
+      // For buying: set limit slightly above best bid (or use mid price + 1 cent)
+      const suggestedPrice = bestBidPrice 
+        ? Math.min(bestBidPrice + 0.01, 0.99) // Don't exceed 99 cents
+        : Math.min(midPrice + 0.01, 0.99);
+      setLimitPrice(suggestedPrice.toFixed(2));
+    }
+  }, [open, orderBook, isSellMode, side]);
+
+  // Initialize sell limit price when position loads
+  useEffect(() => {
+    if (open && isSellMode && position && !sellLimitPrice) {
+      // For selling: set limit slightly below best ask (or use current price - 1 cent)
+      const suggestedPrice = bestAskPrice 
+        ? Math.max(bestAskPrice - 0.01, 0.01) // Don't go below 1 cent
+        : Math.max(position.currentPrice - 0.01, 0.01);
+      setSellLimitPrice(suggestedPrice.toFixed(2));
+    }
+  }, [open, isSellMode, position, bestAskPrice]);
+
   const selectedPrice = side === "YES" ? yesPrice : noPrice;
   const selectedTokenId = side === "YES" 
     ? (outcome.yesTokenId || outcome.tokenId) 
     : (outcome.noTokenId || outcome.tokenId);
   const parsedAmount = parseFloat(amount) || 0;
   
+  // Parse limit prices
+  const parsedLimitPrice = parseFloat(limitPrice) || 0;
+  const parsedSellLimitPrice = parseFloat(sellLimitPrice) || 0;
+  
+  // Use limit price for calculations when order type is GTC or GTD
+  const effectivePrice = orderType === "FOK" ? selectedPrice : (parsedLimitPrice > 0 ? parsedLimitPrice : selectedPrice);
+  
   // Fee calculations
   const feePercentage = feeConfig?.feePercentage ?? 0;
   const feeAmount = parsedAmount * (feePercentage / 100);
   const totalCost = parsedAmount + feeAmount;
   
-  const shares = parsedAmount > 0 && selectedPrice > 0 ? parsedAmount / selectedPrice : 0;
+  const shares = parsedAmount > 0 && effectivePrice > 0 ? parsedAmount / effectivePrice : 0;
   const potentialPayout = shares * 1; // Each share pays $1 if wins
   const potentialProfit = potentialPayout - totalCost;
 
@@ -234,7 +275,7 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
       
       const result = await placeOrder({
         tokenId: selectedTokenId,
-        price: selectedPrice,
+        price: effectivePrice,
         size: shares,
         side: "BUY",
         negRisk: true, // F1 markets are negative risk
@@ -255,7 +296,7 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
           marketName: outcome.name,
           outcome: side,
           side: "BUY",
-          price: selectedPrice,
+          price: effectivePrice,
           size: shares,
           totalCost: parsedAmount,
           polymarketOrderId: result.orderId,
@@ -389,23 +430,33 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
     setIsPlacingOrderLocal(true);
 
     try {
-      toast({
-        title: "Fetching Best Price",
-        description: "Getting current market price...",
-      });
-
-      const orderbookResponse = await fetch(`/api/polymarket/orderbook/${position.tokenId}`);
-      let sellPrice = position.currentPrice;
+      // For GTC/GTD orders with manual limit price, use that; otherwise get best bid
+      let sellPrice: number;
       
-      if (orderbookResponse.ok) {
-        const liveOrderbook = await orderbookResponse.json();
-        const liveBids = liveOrderbook?.bids || [];
-        const sortedLiveBids = [...liveBids].sort((a: any, b: any) => parseFloat(b.price) - parseFloat(a.price));
-        if (sortedLiveBids.length > 0) {
-          sellPrice = parseFloat(sortedLiveBids[0].price);
-          console.log("Using live best bid price:", sellPrice);
-        } else {
-          console.log("No bids in orderbook, using cached price:", sellPrice);
+      if (orderType !== "FOK" && parsedSellLimitPrice > 0) {
+        // Use user-specified limit price for GTC/GTD orders
+        sellPrice = parsedSellLimitPrice;
+        console.log("Using user-specified sell limit price:", sellPrice);
+      } else {
+        // For FOK orders or when no limit price set, fetch best bid
+        toast({
+          title: "Fetching Best Price",
+          description: "Getting current market price...",
+        });
+
+        const orderbookResponse = await fetch(`/api/polymarket/orderbook/${position.tokenId}`);
+        sellPrice = position.currentPrice;
+        
+        if (orderbookResponse.ok) {
+          const liveOrderbook = await orderbookResponse.json();
+          const liveBids = liveOrderbook?.bids || [];
+          const sortedLiveBids = [...liveBids].sort((a: any, b: any) => parseFloat(b.price) - parseFloat(a.price));
+          if (sortedLiveBids.length > 0) {
+            sellPrice = parseFloat(sortedLiveBids[0].price);
+            console.log("Using live best bid price:", sellPrice);
+          } else {
+            console.log("No bids in orderbook, using cached price:", sellPrice);
+          }
         }
       }
 
@@ -483,7 +534,11 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
 
   // Calculate sell proceeds
   const parsedSellShares = parseFloat(sellShares) || 0;
-  const sellProceeds = parsedSellShares * (position?.currentPrice || 0);
+  // For sell proceeds, use limit price when GTC/GTD is set, otherwise use current price
+  const effectiveSellPrice = orderType !== "FOK" && parsedSellLimitPrice > 0 
+    ? parsedSellLimitPrice 
+    : (position?.currentPrice || 0);
+  const sellProceeds = parsedSellShares * effectiveSellPrice;
   const sellPnl = position ? (sellProceeds - (parsedSellShares * position.averagePrice)) : 0;
 
   return (
@@ -589,10 +644,48 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
                 )}
               </div>
 
+              {/* Limit Price for GTC/GTD sell orders */}
+              {orderType !== "FOK" && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="sell-limit-price">Limit Price</Label>
+                    <span className="text-xs text-muted-foreground">
+                      Best Ask: {bestAskPrice ? `${(bestAskPrice * 100).toFixed(1)}c` : "N/A"}
+                    </span>
+                  </div>
+                  <div className="relative">
+                    <Input
+                      id="sell-limit-price"
+                      type="number"
+                      placeholder="0.00"
+                      value={sellLimitPrice}
+                      onChange={(e) => setSellLimitPrice(e.target.value)}
+                      min="0.01"
+                      max="0.99"
+                      step="0.01"
+                      data-testid="input-sell-limit-price"
+                      className="pr-8"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Lower limit price = more likely to fill. Order stays open until filled at this price or better.
+                  </p>
+                </div>
+              )}
+
               {parsedSellShares > 0 && (
                 <div className="rounded-md bg-muted/50 p-3 space-y-2">
+                  {orderType !== "FOK" && parsedSellLimitPrice > 0 && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">Limit Price:</span>
+                      <span>{(parsedSellLimitPrice * 100).toFixed(1)}c</span>
+                    </div>
+                  )}
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Proceeds:</span>
+                    <span className="text-muted-foreground">
+                      Est. Proceeds @ {orderType === "FOK" ? "market" : `${(effectiveSellPrice * 100).toFixed(1)}c`}:
+                    </span>
                     <span className="font-medium">${sellProceeds.toFixed(2)}</span>
                   </div>
                   <div className="flex items-center justify-between text-sm">
@@ -719,12 +812,48 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
                 )}
               </div>
 
+              {/* Limit Price for GTC/GTD orders */}
+              {orderType !== "FOK" && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="limit-price">Limit Price</Label>
+                    <span className="text-xs text-muted-foreground">
+                      Best Bid: {bestBidPrice ? `${(bestBidPrice * 100).toFixed(1)}c` : "N/A"}
+                    </span>
+                  </div>
+                  <div className="relative">
+                    <Input
+                      id="limit-price"
+                      type="number"
+                      placeholder="0.00"
+                      value={limitPrice}
+                      onChange={(e) => setLimitPrice(e.target.value)}
+                      min="0.01"
+                      max="0.99"
+                      step="0.01"
+                      data-testid="input-limit-price"
+                      className="pr-8"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Higher limit price = more likely to fill. Order stays open until filled at this price or better.
+                  </p>
+                </div>
+              )}
+
               {parsedAmount > 0 && (
                 <div className="rounded-md bg-muted/50 p-3 space-y-2">
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">Bet Amount:</span>
                     <span>${parsedAmount.toFixed(2)}</span>
                   </div>
+                  {orderType !== "FOK" && parsedLimitPrice > 0 && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">Limit Price:</span>
+                      <span>{(parsedLimitPrice * 100).toFixed(1)}c</span>
+                    </div>
+                  )}
                   {feePercentage > 0 && (
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-muted-foreground">Platform Fee ({feePercentage}%):</span>
@@ -736,7 +865,7 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
                     <span>${totalCost.toFixed(2)}</span>
                   </div>
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Shares:</span>
+                    <span className="text-muted-foreground">Shares @ {orderType === "FOK" ? "market" : `${(effectivePrice * 100).toFixed(1)}c`}:</span>
                     <span>{shares.toFixed(2)}</span>
                   </div>
                   <div className="flex items-center justify-between text-sm">
