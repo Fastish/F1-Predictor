@@ -22,7 +22,6 @@ import {
   approveUSDCGasless,
   approveCTFGasless,
   isExternalWalletAvailable,
-  getSafeAddress,
 } from "@/lib/polymarketGasless";
 import { deriveSafe } from "@polymarket/builder-relayer-client/dist/builder/derive";
 import { getContractConfig } from "@polymarket/builder-relayer-client/dist/config";
@@ -220,16 +219,13 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
       
       // For external wallets using gasless, check the Safe address (where approvals are done)
       // For Magic wallets or non-gasless, check the EOA address
+      // Use deterministic derivation (no signer needed) for reliable Safe address lookup
       let addressToCheck = walletAddress;
       if (useRelayer && walletType === "external") {
-        try {
-          const safeInfo = await getSafeAddress();
-          if (safeInfo.safeAddress) {
-            addressToCheck = safeInfo.safeAddress;
-            console.log(`Checking approvals on Safe address: ${addressToCheck}`);
-          }
-        } catch (e) {
-          console.warn("Failed to get Safe address for approval check:", e);
+        const derivedSafe = deriveSafeAddressFromEOA(walletAddress);
+        if (derivedSafe) {
+          addressToCheck = derivedSafe;
+          console.log(`Checking approvals on derived Safe address: ${addressToCheck}`);
         }
       }
       
@@ -306,16 +302,13 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
       
       // For external wallets using gasless, check the Safe address (where approvals are done)
       // For Magic wallets or non-gasless, check the EOA address
+      // Use deterministic derivation (no signer needed) for reliable Safe address lookup
       let addressToCheck = walletAddress;
       if (useRelayer && walletType === "external") {
-        try {
-          const safeInfo = await getSafeAddress();
-          if (safeInfo.safeAddress) {
-            addressToCheck = safeInfo.safeAddress;
-            console.log(`Checking CTF approvals on Safe address: ${addressToCheck}`);
-          }
-        } catch (e) {
-          console.warn("Failed to get Safe address for CTF approval check:", e);
+        const derivedSafe = deriveSafeAddressFromEOA(walletAddress);
+        if (derivedSafe) {
+          addressToCheck = derivedSafe;
+          console.log(`Checking CTF approvals on derived Safe address: ${addressToCheck}`);
         }
       }
       
