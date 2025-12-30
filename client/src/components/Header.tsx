@@ -110,19 +110,21 @@ export function Header() {
             <div className="hidden sm:flex items-center gap-2">
               <Popover>
                 <PopoverTrigger asChild>
-                  <Badge variant="outline" className="gap-1 px-3 py-1.5 cursor-pointer hover-elevate" data-testid="badge-cash-balance">
-                    {isLoadingCash ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <>
-                        <DollarSign className="h-3.5 w-3.5" />
-                        <span className="text-xs text-muted-foreground">Cash:</span>
-                        <span className="font-semibold tabular-nums" data-testid="text-cash-balance">
-                          ${(cashBalance || 0).toFixed(2)}
-                        </span>
-                      </>
-                    )}
-                  </Badge>
+                  <button type="button" className="focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-md">
+                    <Badge variant="outline" className="gap-1 px-3 py-1.5 cursor-pointer hover-elevate" data-testid="badge-cash-balance">
+                      {isLoadingCash ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <>
+                          <DollarSign className="h-3.5 w-3.5" />
+                          <span className="text-xs text-muted-foreground">Cash:</span>
+                          <span className="font-semibold tabular-nums" data-testid="text-cash-balance">
+                            ${(cashBalance || 0).toFixed(2)}
+                          </span>
+                        </>
+                      )}
+                    </Badge>
+                  </button>
                 </PopoverTrigger>
                 <PopoverContent className="w-48 p-2" align="center">
                   <div className="flex flex-col gap-1">
