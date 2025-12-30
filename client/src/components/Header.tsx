@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { DepositModal } from "./DepositModal";
 import { SwapModal } from "./SwapModal";
+import { WalletManagementModal } from "./WalletManagementModal";
 import { useTradingSession } from "@/hooks/useTradingSession";
 import {
   Popover,
@@ -37,6 +38,7 @@ export function Header() {
   const [depositOpen, setDepositOpen] = useState(false);
   const [swapOpen, setSwapOpen] = useState(false);
   const [swapDirection, setSwapDirection] = useState<"deposit" | "withdraw">("deposit");
+  const [walletManagementOpen, setWalletManagementOpen] = useState(false);
   const { tradingSession, isTradingSessionComplete } = useTradingSession();
   const { data: positionsData } = usePolymarketPositions();
   
@@ -202,6 +204,13 @@ export function Header() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem 
+                  onClick={() => setWalletManagementOpen(true)}
+                  data-testid="button-manage-wallet"
+                >
+                  <Wallet className="h-4 w-4 mr-2" />
+                  Send / Receive
+                </DropdownMenuItem>
+                <DropdownMenuItem 
                   onClick={() => setDepositOpen(true)}
                   data-testid="button-wallet-settings"
                 >
@@ -233,6 +242,7 @@ export function Header() {
           
           <DepositModal open={depositOpen} onOpenChange={setDepositOpen} />
           <SwapModal open={swapOpen} onOpenChange={setSwapOpen} initialDirection={swapDirection} />
+          <WalletManagementModal open={walletManagementOpen} onOpenChange={setWalletManagementOpen} />
 
           <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
             <SheetTrigger asChild>

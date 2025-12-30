@@ -10,10 +10,11 @@ import { useWallet } from "@/context/WalletContext";
 import { useTradingSession } from "@/hooks/useTradingSession";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
-import { Copy, Wallet, AlertCircle, Loader2, LogOut, Mail, ExternalLink, RotateCcw, Key, CheckCircle2, ArrowRightLeft, ArrowUpRight, ArrowDownLeft } from "lucide-react";
+import { Copy, Wallet, AlertCircle, Loader2, LogOut, Mail, ExternalLink, RotateCcw, Key, CheckCircle2, ArrowRightLeft, ArrowUpRight, ArrowDownLeft, Send, QrCode } from "lucide-react";
 import { SiPolygon } from "react-icons/si";
 import { PolymarketDepositWizard } from "./PolymarketDepositWizard";
 import { SwapModal } from "./SwapModal";
+import { WalletManagementModal } from "./WalletManagementModal";
 import { checkDepositRequirements } from "@/lib/polymarketDeposit";
 
 interface DepositModalProps {
@@ -48,6 +49,7 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
   const [showDepositWizard, setShowDepositWizard] = useState(false);
   const [showSwapModal, setShowSwapModal] = useState(false);
   const [swapDirection, setSwapDirection] = useState<"deposit" | "withdraw">("deposit");
+  const [showWalletManagement, setShowWalletManagement] = useState(false);
   const [approvalStatus, setApprovalStatus] = useState<{ needsApproval: boolean; checked: boolean }>({ needsApproval: false, checked: false });
   const [autoInitAttempted, setAutoInitAttempted] = useState(false);
 
@@ -438,6 +440,16 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
                 <div className="text-xs text-muted-foreground text-center">
                   Deposit converts USDC to USDC.e. Withdraw converts back to USDC.
                 </div>
+
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => setShowWalletManagement(true)}
+                  data-testid="button-send-receive"
+                >
+                  <Send className="h-4 w-4 mr-2" />
+                  Send / Receive USDC
+                </Button>
               </div>
             </div>
           ) : (
@@ -554,6 +566,11 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
         open={showSwapModal}
         onOpenChange={setShowSwapModal}
         initialDirection={swapDirection}
+      />
+
+      <WalletManagementModal
+        open={showWalletManagement}
+        onOpenChange={setShowWalletManagement}
       />
     </Dialog>
   );
