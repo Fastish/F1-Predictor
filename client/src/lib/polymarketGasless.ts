@@ -103,12 +103,15 @@ async function createRelayClient(): Promise<RelayClient> {
   
   const builderConfig = createBuilderConfig();
   
+  // Use RelayerTxType.SAFE for external wallets (MetaMask, Rainbow, etc.)
+  // SAFE uses the Safe Factory (0xaacFeEa03eb1561C4e67d661e40682Bd20E3541b)
+  // PROXY uses Magic Proxy Factory (0xaB45c5A4B0c941a2F231C04C3f49182e1A254052) - for Magic Link users only
   return new RelayClient(
     POLYMARKET_RELAYER_URL,
     POLYGON_CHAIN_ID,
     signer as any,
     builderConfig,
-    RelayerTxType.PROXY
+    RelayerTxType.SAFE
   );
 }
 
