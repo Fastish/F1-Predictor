@@ -53,21 +53,43 @@ export function usePlaceOrder(
         await logToServer("ORDER_START", { params });
 
         // FOK orders have stricter decimal precision requirements:
-        // - Price: max 2 decimals
-        // - Size: max 2 decimals (so size × price product doesn't exceed 2 decimals)
+        // - Maker amount (size for buys): max 2 decimals
+        // - Taker amount (size × price): max 4 decimals  
+        // - Size × Price product: must not exceed 2 decimals
         // GTC/GTD orders are more flexible (up to 4-6 decimals depending on tick size)
         const isFOK = !params.orderType || params.orderType === "FOK";
         
-        // Round values based on order type
-        const roundedPrice = isFOK 
-          ? Math.floor(params.price * 100) / 100  // 2 decimals for FOK
-          : Math.floor(params.price * 10000) / 10000; // 4 decimals for GTC/GTD
+        let roundedPrice: number;
+        let roundedSize: number;
         
-        const roundedSize = isFOK
-          ? Math.floor(params.size * 100) / 100  // 2 decimals for FOK
-          : Math.floor(params.size * 10000) / 10000; // 4 decimals for GTC/GTD
+        if (isFOK) {
+          // For FOK orders, round to ensure clean integer micro-amounts
+          // Price to 2 decimals (tick size is 0.01)
+          roundedPrice = Math.floor(params.price * 100) / 100;
+          
+          // Size needs to be rounded so that:
+          // 1. Size itself has max 2 decimals
+          // 2. Size × Price has max 2 decimals (for maker/taker amounts)
+          // Round size down to 2 decimals first
+          roundedSize = Math.floor(params.size * 100) / 100;
+          
+          // Ensure the product is also clean (max 2 decimals)
+          // If price has 2 decimals and size has 2 decimals, product can have 4 decimals
+          // We need product to have max 2 decimals, so adjust size
+          const product = roundedSize * roundedPrice;
+          const productRounded = Math.floor(product * 100) / 100;
+          
+          // If product was rounded, adjust size to match
+          if (Math.abs(product - productRounded) > 0.0001 && roundedPrice > 0) {
+            roundedSize = Math.floor((productRounded / roundedPrice) * 100) / 100;
+          }
+        } else {
+          // GTC/GTD: more flexible precision
+          roundedPrice = Math.floor(params.price * 10000) / 10000;
+          roundedSize = Math.floor(params.size * 10000) / 10000;
+        }
 
-        console.log(`Order type: ${params.orderType || "FOK"}, Price: ${params.price} -> ${roundedPrice}, Size: ${params.size} -> ${roundedSize}`);
+        console.log(`Order type: ${params.orderType || "FOK"}, Price: ${params.price} -> ${roundedPrice}, Size: ${params.size} -> ${roundedSize}, Product: ${roundedSize * roundedPrice}`);
 
         // Use ClobClient's createOrder method with proper types
         const orderArgs = {
