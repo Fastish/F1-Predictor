@@ -686,14 +686,23 @@ export async function registerRoutes(
   // Matches SDK's RemoteSignerPayload: { method, path, body?, timestamp? }
   app.post("/api/polymarket/builder-sign", async (req, res) => {
     try {
-      const { method, path, body, timestamp } = req.body;
+      const { method, path: rawPath, body, timestamp } = req.body;
       
       console.log("=== BUILDER-SIGN REQUEST ===");
       console.log("Full request body:", JSON.stringify(req.body, null, 2));
       
-      if (!method || !path) {
+      if (!method || !rawPath) {
         return res.status(400).json({ error: "method and path are required" });
       }
+      
+      // Strip proxy prefix if present - SDK sends /api/polymarket/relayer/... 
+      // but signature must be for the canonical relayer path /...
+      const proxyPrefix = "/api/polymarket/relayer";
+      const path = rawPath.startsWith(proxyPrefix) 
+        ? rawPath.substring(proxyPrefix.length) 
+        : rawPath;
+      
+      console.log("Path normalization:", { rawPath, normalizedPath: path });
 
       const builderApiKey = process.env.POLY_BUILDER_API_KEY;
       const builderSecret = process.env.POLY_BUILDER_SECRET;
