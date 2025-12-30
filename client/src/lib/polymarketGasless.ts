@@ -42,7 +42,9 @@ interface GaslessResult {
   error?: string;
 }
 
-const RELAYER_URL = "https://relayer-v2.polymarket.com";
+// Use our server-side proxy to bypass CORS restrictions
+// The proxy forwards requests to https://relayer-v2.polymarket.com
+const getRelayerUrl = () => `${window.location.origin}/api/polymarket/relayer`;
 const POLYGON_CHAIN_ID = 137;
 
 export async function checkGaslessAvailable(): Promise<boolean> {
@@ -101,7 +103,7 @@ async function createRelayClient(): Promise<RelayClient> {
   const builderConfig = createBuilderConfig();
   
   return new RelayClient(
-    RELAYER_URL,
+    getRelayerUrl(),
     POLYGON_CHAIN_ID,
     signer as any,
     builderConfig,

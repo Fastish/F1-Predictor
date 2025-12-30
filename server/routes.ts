@@ -732,6 +732,67 @@ export async function registerRoutes(
     }
   });
 
+  // Proxy for Polymarket relayer API (needed to bypass CORS in browser)
+  // The RelayClient SDK tries to call the relayer directly, which gets blocked
+  app.all("/api/polymarket/relayer/*", async (req, res) => {
+    try {
+      // Extract path after /api/polymarket/relayer/
+      const fullPath = req.path;
+      const relayerPath = fullPath.replace("/api/polymarket/relayer/", "");
+      const relayerUrl = `https://relayer-v2.polymarket.com/${relayerPath}`;
+      
+      console.log(`Proxying relayer request: ${req.method} ${relayerUrl}`);
+      
+      // Forward all headers except host
+      const forwardHeaders: Record<string, string> = {};
+      for (const [key, value] of Object.entries(req.headers)) {
+        if (key.toLowerCase() !== 'host' && key.toLowerCase() !== 'content-length' && typeof value === 'string') {
+          forwardHeaders[key] = value;
+        }
+      }
+      
+      const fetchOptions: RequestInit = {
+        method: req.method,
+        headers: forwardHeaders,
+      };
+      
+      // Only include body for non-GET requests
+      if (req.method !== 'GET' && req.method !== 'HEAD' && req.body) {
+        fetchOptions.body = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
+      }
+      
+      const response = await fetch(relayerUrl, fetchOptions);
+      const responseText = await response.text();
+      
+      console.log(`Relayer response: ${response.status} ${responseText.substring(0, 200)}`);
+      
+      // Forward response headers
+      const headerEntries = Array.from(response.headers.entries());
+      for (const [key, value] of headerEntries) {
+        if (key.toLowerCase() !== 'content-encoding' && key.toLowerCase() !== 'transfer-encoding') {
+          res.setHeader(key, value);
+        }
+      }
+      
+      res.status(response.status);
+      
+      // Try to parse as JSON, otherwise send as text
+      try {
+        const jsonData = JSON.parse(responseText);
+        res.json(jsonData);
+      } catch {
+        res.send(responseText);
+      }
+    } catch (error: any) {
+      console.error("Relayer proxy error:", error);
+      res.status(500).json({ 
+        error: "request error", 
+        status: 0, 
+        statusText: error.message || "Proxy error" 
+      });
+    }
+  });
+
   // Check if builder credentials are configured
   app.get("/api/polymarket/builder-status", async (req, res) => {
     try {
