@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -52,6 +52,163 @@ interface PolymarketF1Market {
   volume: string;
   liquidity: string;
   active: boolean;
+}
+
+// Fee Configuration Sub-Component
+function FeeConfigSection({ walletAddress, toast }: { walletAddress: string | null; toast: ReturnType<typeof useToast>["toast"] }) {
+  const [feePercent, setFeePercent] = useState<string | null>(null);
+  const [treasuryAddr, setTreasuryAddr] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const { data: feeConfig, refetch: refetchFeeConfig } = useQuery<{ feePercentage: number; treasuryAddress: string | null }>({
+    queryKey: ["/api/admin/fee-config"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/fee-config", {
+        headers: { "x-wallet-address": walletAddress || "" },
+      });
+      if (!res.ok) throw new Error("Failed to fetch fee config");
+      return res.json();
+    },
+    enabled: !!walletAddress,
+  });
+
+  const { data: feeStats } = useQuery<{ totalFees: number; totalVolume: number; feeCount: number; avgFeePercent: number }>({
+    queryKey: ["/api/admin/fees/stats"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/fees/stats", {
+        headers: { "x-wallet-address": walletAddress || "" },
+      });
+      if (!res.ok) throw new Error("Failed to fetch fee stats");
+      return res.json();
+    },
+    enabled: !!walletAddress,
+  });
+
+  // Hydrate form with current config when data loads
+  useEffect(() => {
+    if (feeConfig) {
+      setFeePercent(feeConfig.feePercentage.toString());
+      setTreasuryAddr(feeConfig.treasuryAddress || "");
+    }
+  }, [feeConfig]);
+
+  const handleSaveFeeConfig = async () => {
+    if (!walletAddress) return;
+    
+    // Use existing config values if fields are not modified
+    const newFeePercent = feePercent !== null ? parseFloat(feePercent) : (feeConfig?.feePercentage ?? 0);
+    const newTreasuryAddr = treasuryAddr !== null ? treasuryAddr : (feeConfig?.treasuryAddress ?? null);
+    
+    if (isNaN(newFeePercent) || newFeePercent < 0 || newFeePercent > 10) {
+      toast({
+        title: "Invalid Fee",
+        description: "Fee percentage must be between 0 and 10",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setIsSaving(true);
+    try {
+      const res = await fetch("/api/admin/fee-config", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-wallet-address": walletAddress,
+        },
+        body: JSON.stringify({
+          feePercentage: newFeePercent,
+          treasuryAddress: newTreasuryAddr || null,
+        }),
+      });
+      if (!res.ok) throw new Error("Failed to save fee config");
+      toast({
+        title: "Fee Configuration Saved",
+        description: `Platform fee set to ${newFeePercent}%`,
+      });
+      refetchFeeConfig();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to save fee configuration",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <div className="border rounded-md p-4 space-y-4">
+      <div className="flex items-center gap-2">
+        <DollarSign className="h-5 w-5 text-muted-foreground" />
+        <div>
+          <p className="font-medium">Platform Fees</p>
+          <p className="text-sm text-muted-foreground">Configure transaction fees collected on all bets</p>
+        </div>
+      </div>
+
+      {feeStats && (
+        <div className="grid grid-cols-3 gap-3">
+          <div className="bg-muted/50 p-3 rounded-md">
+            <p className="text-xs text-muted-foreground">Total Volume</p>
+            <p className="text-lg font-semibold">${feeStats.totalVolume.toFixed(2)}</p>
+          </div>
+          <div className="bg-muted/50 p-3 rounded-md">
+            <p className="text-xs text-muted-foreground">Fees Collected</p>
+            <p className="text-lg font-semibold text-green-600 dark:text-green-400">${feeStats.totalFees.toFixed(2)}</p>
+          </div>
+          <div className="bg-muted/50 p-3 rounded-md">
+            <p className="text-xs text-muted-foreground">Total Transactions</p>
+            <p className="text-lg font-semibold">{feeStats.feeCount}</p>
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="feePercent">Fee Percentage (%)</Label>
+          <Input
+            id="feePercent"
+            type="number"
+            step="0.1"
+            min="0"
+            max="10"
+            placeholder="0"
+            value={feePercent ?? ""}
+            onChange={(e) => setFeePercent(e.target.value)}
+            data-testid="input-fee-percent"
+          />
+          <p className="text-xs text-muted-foreground">Max 10%, applied to all bets</p>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="treasuryAddr">Treasury Address</Label>
+          <Input
+            id="treasuryAddr"
+            placeholder="0x..."
+            value={treasuryAddr ?? ""}
+            onChange={(e) => setTreasuryAddr(e.target.value)}
+            data-testid="input-treasury-address"
+          />
+          <p className="text-xs text-muted-foreground">Polygon wallet for fee collection</p>
+        </div>
+      </div>
+
+      <div className="flex justify-between items-center">
+        <p className="text-sm text-muted-foreground">
+          Current fee: <span className="font-medium">{feeConfig?.feePercentage || 0}%</span>
+        </p>
+        <Button
+          onClick={handleSaveFeeConfig}
+          disabled={isSaving || !walletAddress}
+          data-testid="button-save-fee-config"
+        >
+          <Settings className="h-4 w-4 mr-2" />
+          {isSaving ? "Saving..." : "Save Fee Settings"}
+        </Button>
+      </div>
+    </div>
+  );
 }
 
 export function AdminPanel() {
@@ -585,6 +742,9 @@ export function AdminPanel() {
                 </div>
               )}
             </div>
+            
+            {/* Fee Configuration Section */}
+            <FeeConfigSection walletAddress={walletAddress} toast={toast} />
             
             <div className="border rounded-md p-4 space-y-3">
               <p className="font-medium">End Season & Declare Winner</p>

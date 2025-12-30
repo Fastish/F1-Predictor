@@ -115,6 +115,12 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
     refetchInterval: 5000,
   });
 
+  // Fetch fee configuration
+  const { data: feeConfig } = useQuery<{ feePercentage: number; treasuryAddress: string | null; enabled: boolean }>({
+    queryKey: ["/api/fees/current"],
+    enabled: open,
+  });
+
   const yesPrice = midpoint?.mid ?? outcome.price;
   const noPrice = outcome.noPrice ?? (1 - yesPrice);
 
@@ -123,9 +129,15 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
     ? (outcome.yesTokenId || outcome.tokenId) 
     : (outcome.noTokenId || outcome.tokenId);
   const parsedAmount = parseFloat(amount) || 0;
+  
+  // Fee calculations
+  const feePercentage = feeConfig?.feePercentage ?? 0;
+  const feeAmount = parsedAmount * (feePercentage / 100);
+  const totalCost = parsedAmount + feeAmount;
+  
   const shares = parsedAmount > 0 && selectedPrice > 0 ? parsedAmount / selectedPrice : 0;
   const potentialPayout = shares * 1; // Each share pays $1 if wins
-  const potentialProfit = potentialPayout - parsedAmount;
+  const potentialProfit = potentialPayout - totalCost;
 
   const handlePlaceBet = async () => {
     if (!userId) {
@@ -164,10 +176,10 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
       return;
     }
 
-    if (parsedAmount > userBalance) {
+    if (totalCost > userBalance) {
       toast({
         title: "Insufficient Balance",
-        description: "You don't have enough USDC for this bet",
+        description: `You need $${totalCost.toFixed(2)} USDC (including ${feePercentage}% fee) but only have $${userBalance.toFixed(2)}`,
         variant: "destructive",
       });
       return;
@@ -209,6 +221,25 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
           status: result.orderId ? "open" : "pending",
           postOrderResponse: result.rawResponse,
         });
+
+        // Record platform fee if enabled
+        if (feePercentage > 0 && feeAmount > 0 && walletAddress) {
+          try {
+            await apiRequest("POST", "/api/fees/record", {
+              walletAddress,
+              orderType: "buy",
+              marketName: outcome.name,
+              tokenId: selectedTokenId,
+              orderAmount: parsedAmount,
+              feePercentage,
+              feeAmount,
+              status: "confirmed", // Fee is collected with the order
+            });
+          } catch (feeError) {
+            console.error("Failed to record fee:", feeError);
+            // Don't fail the order just because fee recording failed
+          }
+        }
 
         toast({
           title: result.orderId ? "Order Placed" : "Order Submitted",
@@ -523,6 +554,20 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
               {parsedAmount > 0 && (
                 <div className="rounded-md bg-muted/50 p-3 space-y-2">
                   <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Bet Amount:</span>
+                    <span>${parsedAmount.toFixed(2)}</span>
+                  </div>
+                  {feePercentage > 0 && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">Platform Fee ({feePercentage}%):</span>
+                      <span className="text-amber-600 dark:text-amber-400">${feeAmount.toFixed(2)}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between text-sm font-medium border-t border-border pt-2">
+                    <span>Total Cost:</span>
+                    <span>${totalCost.toFixed(2)}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">Shares:</span>
                     <span>{shares.toFixed(2)}</span>
                   </div>
@@ -534,8 +579,8 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
                   </div>
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">Potential Profit:</span>
-                    <span className="text-green-600 dark:text-green-400">
-                      +${potentialProfit.toFixed(2)} ({((potentialProfit / parsedAmount) * 100).toFixed(0)}%)
+                    <span className={potentialProfit >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}>
+                      {potentialProfit >= 0 ? "+" : ""}${potentialProfit.toFixed(2)} ({totalCost > 0 ? ((potentialProfit / totalCost) * 100).toFixed(0) : 0}%)
                     </span>
                   </div>
                 </div>
@@ -622,7 +667,7 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
             ) : (
               <Button
                 onClick={handlePlaceBet}
-                disabled={parsedAmount <= 0 || parsedAmount > userBalance || isPlacing || isPlacingOrderLocal || !walletAddress || !isTradingSessionComplete || (approvalStatus.checked && approvalStatus.needsApproval)}
+                disabled={parsedAmount <= 0 || totalCost > userBalance || isPlacing || isPlacingOrderLocal || !walletAddress || !isTradingSessionComplete || (approvalStatus.checked && approvalStatus.needsApproval)}
                 className="flex-1"
                 data-testid="button-confirm-bet"
               >
