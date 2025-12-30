@@ -768,3 +768,72 @@ export const insertPortfolioHistorySchema = createInsertSchema(portfolioHistory)
 
 export type InsertPortfolioHistory = z.infer<typeof insertPortfolioHistorySchema>;
 export type PortfolioHistory = typeof portfolioHistory.$inferSelect;
+
+// =====================================================
+// PLATFORM CONFIGURATION - Admin settings
+// =====================================================
+
+export const platformConfig = pgTable("platform_config", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  key: text("key").notNull().unique(), // 'fee_percentage', 'treasury_address', etc.
+  value: text("value").notNull(),
+  description: text("description"),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  updatedBy: text("updated_by"), // Wallet address of admin who updated
+});
+
+export const insertPlatformConfigSchema = createInsertSchema(platformConfig).omit({
+  id: true,
+  updatedAt: true,
+});
+
+export type InsertPlatformConfig = z.infer<typeof insertPlatformConfigSchema>;
+export type PlatformConfig = typeof platformConfig.$inferSelect;
+
+// =====================================================
+// COLLECTED FEES - Tracks all platform fees collected
+// =====================================================
+
+export const collectedFees = pgTable("collected_fees", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  walletAddress: text("wallet_address").notNull(), // User who paid the fee
+  orderType: text("order_type").notNull(), // 'polymarket_buy', 'polymarket_sell', etc.
+  marketName: text("market_name"), // Human-readable market name
+  tokenId: text("token_id"), // Polymarket token ID
+  orderAmount: real("order_amount").notNull(), // Total order value in USDC
+  feePercentage: real("fee_percentage").notNull(), // Fee % at time of collection
+  feeAmount: real("fee_amount").notNull(), // Fee amount in USDC
+  txHash: text("tx_hash"), // Polygon transaction hash for fee transfer
+  status: text("status").notNull().default("pending"), // 'pending', 'confirmed', 'failed'
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  confirmedAt: timestamp("confirmed_at"),
+});
+
+export const insertCollectedFeeSchema = createInsertSchema(collectedFees).omit({
+  id: true,
+  createdAt: true,
+  confirmedAt: true,
+});
+
+export type InsertCollectedFee = z.infer<typeof insertCollectedFeeSchema>;
+export type CollectedFee = typeof collectedFees.$inferSelect;
+
+// Fee configuration request schema
+export const updateFeeConfigSchema = z.object({
+  feePercentage: z.number().min(0).max(10), // 0-10%
+  treasuryAddress: z.string().optional(),
+});
+
+export type UpdateFeeConfigRequest = z.infer<typeof updateFeeConfigSchema>;
+
+// Fee collection request schema
+export const recordFeeSchema = z.object({
+  walletAddress: z.string(),
+  orderType: z.string(),
+  marketName: z.string().optional(),
+  tokenId: z.string().optional(),
+  orderAmount: z.number().positive(),
+  feePercentage: z.number(),
+  feeAmount: z.number(),
+  txHash: z.string().optional(),
+});
