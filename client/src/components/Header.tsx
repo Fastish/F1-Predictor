@@ -73,10 +73,11 @@ export function Header() {
   });
   
   // Show EOA balance as the primary "cash" balance
-  const cashBalance = eoaBalance || 0;
+  // Ensure it's always a valid number for display
+  const cashBalance = typeof eoaBalance === 'number' ? eoaBalance : 0;
   const isLoadingCash = isLoadingEoa;
 
-  const portfolioValue = positionsData?.totalValue || 0;
+  const portfolioValue = typeof positionsData?.totalValue === 'number' ? positionsData.totalValue : 0;
 
   const [location] = useLocation();
 
