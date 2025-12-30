@@ -23,7 +23,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Loader2, TrendingUp, TrendingDown, AlertCircle, ExternalLink, Wallet, HelpCircle } from "lucide-react";
+import { Loader2, TrendingUp, TrendingDown, AlertCircle, ExternalLink, Wallet, HelpCircle, Calendar } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useMarket } from "@/context/MarketContext";
@@ -80,6 +80,7 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
   const [amount, setAmount] = useState("");
   const [sellShares, setSellShares] = useState("");
   const [orderType, setOrderType] = useState<PolymarketOrderType>("FOK");
+  const [gtdExpiration, setGtdExpiration] = useState<string>("");
   const [isPlacingOrderLocal, setIsPlacingOrderLocal] = useState(false);
   const [showDepositWizard, setShowDepositWizard] = useState(false);
   const [pendingRetry, setPendingRetry] = useState(false);
@@ -87,6 +88,14 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
   const { toast } = useToast();
   const { userId } = useMarket();
   const { signer, walletAddress, walletType, provider } = useWallet();
+  
+  // Reset GTD expiration when modal closes or order type changes
+  useEffect(() => {
+    if (!open) {
+      setGtdExpiration("");
+      setOrderType("FOK");
+    }
+  }, [open]);
   
   // Check approval status when modal opens
   useEffect(() => {
@@ -200,6 +209,16 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
       return;
     }
 
+    // Validate GTD expiration
+    if (orderType === "GTD" && !gtdExpiration) {
+      toast({
+        title: "Expiration Required",
+        description: "Please select an expiration date and time for GTD orders",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsPlacingOrderLocal(true);
 
     try {
@@ -208,6 +227,11 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
         description: "Please sign the order in your wallet...",
       });
 
+      // Convert GTD expiration to Unix timestamp (seconds) if provided
+      const expirationTimestamp = orderType === "GTD" && gtdExpiration 
+        ? Math.floor(new Date(gtdExpiration).getTime() / 1000)
+        : undefined;
+      
       const result = await placeOrder({
         tokenId: selectedTokenId,
         price: selectedPrice,
@@ -215,6 +239,7 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
         side: "BUY",
         negRisk: true, // F1 markets are negative risk
         orderType,
+        expiration: expirationTimestamp,
       });
 
       if (result.success) {
@@ -351,6 +376,16 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
       return;
     }
 
+    // Validate GTD expiration
+    if (orderType === "GTD" && !gtdExpiration) {
+      toast({
+        title: "Expiration Required",
+        description: "Please select an expiration date and time for GTD orders",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsPlacingOrderLocal(true);
 
     try {
@@ -379,6 +414,11 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
         description: `Selling at ${(sellPrice * 100).toFixed(1)}c per share...`,
       });
 
+      // Convert GTD expiration to Unix timestamp (seconds) if provided
+      const expirationTimestamp = orderType === "GTD" && gtdExpiration 
+        ? Math.floor(new Date(gtdExpiration).getTime() / 1000)
+        : undefined;
+      
       const result = await placeOrder({
         tokenId: position.tokenId,
         price: sellPrice,
@@ -386,6 +426,7 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
         side: "SELL",
         negRisk: true,
         orderType,
+        expiration: expirationTimestamp,
       });
 
       if (result.success) {
@@ -511,7 +552,7 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
                       <p className="text-sm">
                         <strong>FOK</strong> - Fill Or Kill: Executes immediately in full or cancels entirely.<br />
                         <strong>GTC</strong> - Good Til Cancelled: Stays open until filled or cancelled.<br />
-                        <strong>GTD</strong> - Good Til Day: Expires at end of day if not filled.
+                        <strong>GTD</strong> - Good Til Date: Expires at your specified date/time if not filled.
                       </p>
                     </TooltipContent>
                   </Tooltip>
@@ -523,9 +564,29 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
                   <SelectContent>
                     <SelectItem value="FOK" data-testid="option-sell-order-fok">FOK (Fill Or Kill)</SelectItem>
                     <SelectItem value="GTC" data-testid="option-sell-order-gtc">GTC (Good Til Cancelled)</SelectItem>
-                    <SelectItem value="GTD" data-testid="option-sell-order-gtd">GTD (Good Til Day)</SelectItem>
+                    <SelectItem value="GTD" data-testid="option-sell-order-gtd">GTD (Good Til Date)</SelectItem>
                   </SelectContent>
                 </Select>
+                
+                {orderType === "GTD" && (
+                  <div className="mt-2 space-y-1">
+                    <div className="flex items-center gap-1">
+                      <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                      <Label htmlFor="sell-gtd-expiration" className="text-sm">Expiration Date & Time</Label>
+                    </div>
+                    <Input
+                      id="sell-gtd-expiration"
+                      type="datetime-local"
+                      value={gtdExpiration}
+                      onChange={(e) => setGtdExpiration(e.target.value)}
+                      min={new Date(Date.now() + 120000).toISOString().slice(0, 16)}
+                      data-testid="input-sell-gtd-expiration"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Order will automatically cancel at this time if not filled
+                    </p>
+                  </div>
+                )}
               </div>
 
               {parsedSellShares > 0 && (
@@ -621,7 +682,7 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
                       <p className="text-sm">
                         <strong>FOK</strong> - Fill Or Kill: Executes immediately in full or cancels entirely.<br />
                         <strong>GTC</strong> - Good Til Cancelled: Stays open until filled or cancelled.<br />
-                        <strong>GTD</strong> - Good Til Day: Expires at end of day if not filled.
+                        <strong>GTD</strong> - Good Til Date: Expires at your specified date/time if not filled.
                       </p>
                     </TooltipContent>
                   </Tooltip>
@@ -633,9 +694,29 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
                   <SelectContent>
                     <SelectItem value="FOK" data-testid="option-order-fok">FOK (Fill Or Kill)</SelectItem>
                     <SelectItem value="GTC" data-testid="option-order-gtc">GTC (Good Til Cancelled)</SelectItem>
-                    <SelectItem value="GTD" data-testid="option-order-gtd">GTD (Good Til Day)</SelectItem>
+                    <SelectItem value="GTD" data-testid="option-order-gtd">GTD (Good Til Date)</SelectItem>
                   </SelectContent>
                 </Select>
+                
+                {orderType === "GTD" && (
+                  <div className="mt-2 space-y-1">
+                    <div className="flex items-center gap-1">
+                      <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                      <Label htmlFor="gtd-expiration" className="text-sm">Expiration Date & Time</Label>
+                    </div>
+                    <Input
+                      id="gtd-expiration"
+                      type="datetime-local"
+                      value={gtdExpiration}
+                      onChange={(e) => setGtdExpiration(e.target.value)}
+                      min={new Date(Date.now() + 120000).toISOString().slice(0, 16)}
+                      data-testid="input-gtd-expiration"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Order will automatically cancel at this time if not filled
+                    </p>
+                  </div>
+                )}
               </div>
 
               {parsedAmount > 0 && (

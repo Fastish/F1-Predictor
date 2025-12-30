@@ -23,6 +23,7 @@ export interface OrderParams {
   side: "BUY" | "SELL";
   negRisk?: boolean;
   orderType?: PolymarketOrderType;
+  expiration?: number; // Unix timestamp in seconds for GTD orders
 }
 
 export interface OrderResult {
@@ -91,14 +92,29 @@ export function usePlaceOrder(
           const roundedPrice = Math.floor(params.price * 10000) / 10000;
           const roundedSize = Math.floor(params.size * 10000) / 10000;
           
-          console.log(`${params.orderType} order: Price: ${roundedPrice}, Size: ${roundedSize}`);
+          // For GTD orders, include expiration timestamp
+          // Must add 60 second buffer per Polymarket security threshold
+          let expiration: number | undefined;
+          if (params.orderType === "GTD" && params.expiration) {
+            // Ensure at least 60 seconds from now (Polymarket security threshold)
+            const minExpiration = Math.floor(Date.now() / 1000) + 60;
+            expiration = Math.max(params.expiration, minExpiration);
+            console.log(`GTD order expiration: ${new Date(expiration * 1000).toISOString()}`);
+          }
           
-          const orderArgs = {
+          console.log(`${params.orderType} order: Price: ${roundedPrice}, Size: ${roundedSize}${expiration ? `, Expires: ${expiration}` : ''}`);
+          
+          const orderArgs: any = {
             tokenID: params.tokenId,
             price: roundedPrice,
             side: params.side === "BUY" ? Side.BUY : Side.SELL,
             size: roundedSize,
           };
+          
+          // Add expiration for GTD orders
+          if (expiration) {
+            orderArgs.expiration = expiration;
+          }
           
           signedOrder = await clobClient.createOrder(orderArgs);
           sdkOrderType = params.orderType === "GTC" ? OrderType.GTC : OrderType.GTD;
