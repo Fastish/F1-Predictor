@@ -472,15 +472,9 @@ export function AdminPanel() {
       <CardContent className="space-y-4">
         {!season?.exists && (
           <div className="space-y-4">
-            <p className="text-muted-foreground">No active season. Create one to start trading.</p>
-            <Button
-              onClick={() => createSeasonMutation.mutate()}
-              disabled={createSeasonMutation.isPending}
-              data-testid="button-create-season"
-            >
-              <Play className="h-4 w-4 mr-2" />
-              {createSeasonMutation.isPending ? "Creating..." : "Create 2026 Season"}
-            </Button>
+            <p className="text-muted-foreground">No active season.</p>
+            {/* Fee Configuration is always accessible for admins */}
+            <FeeConfigSection walletAddress={walletAddress} toast={toast} />
           </div>
         )}
 
