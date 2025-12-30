@@ -186,6 +186,9 @@ export interface IStorage {
   // Collected Fees
   recordCollectedFee(fee: InsertCollectedFee): Promise<CollectedFee>;
   confirmCollectedFee(feeId: string, txHash: string): Promise<void>;
+  getFeeByOrderId(polymarketOrderId: string): Promise<CollectedFee | undefined>;
+  updateFeeStatus(feeId: string, status: string, txHash?: string): Promise<void>;
+  getPendingFillFees(): Promise<CollectedFee[]>;
   getFeeStats(): Promise<{ totalFees: number; totalVolume: number; feeCount: number; avgFeePercent: number }>;
   getRecentFees(limit: number): Promise<CollectedFee[]>;
 }
@@ -1370,6 +1373,34 @@ export class DatabaseStorage implements IStorage {
       .from(collectedFees)
       .orderBy(desc(collectedFees.createdAt))
       .limit(limit);
+  }
+
+  async getFeeByOrderId(polymarketOrderId: string): Promise<CollectedFee | undefined> {
+    const [fee] = await db
+      .select()
+      .from(collectedFees)
+      .where(eq(collectedFees.polymarketOrderId, polymarketOrderId));
+    return fee;
+  }
+
+  async updateFeeStatus(feeId: string, status: string, txHash?: string): Promise<void> {
+    const updates: any = { status };
+    if (txHash) {
+      updates.txHash = txHash;
+      updates.confirmedAt = new Date();
+    }
+    await db
+      .update(collectedFees)
+      .set(updates)
+      .where(eq(collectedFees.id, feeId));
+  }
+
+  async getPendingFillFees(): Promise<CollectedFee[]> {
+    return await db
+      .select()
+      .from(collectedFees)
+      .where(eq(collectedFees.status, "pending_fill"))
+      .orderBy(asc(collectedFees.createdAt));
   }
 }
 

@@ -3032,7 +3032,7 @@ export async function registerRoutes(
   // Record a collected fee
   app.post("/api/fees/record", async (req, res) => {
     try {
-      const { walletAddress, orderType, marketName, tokenId, orderAmount, feePercentage, feeAmount, txHash } = req.body;
+      const { walletAddress, orderType, marketName, tokenId, polymarketOrderId, orderAmount, feePercentage, feeAmount, txHash, status } = req.body;
       
       if (!walletAddress || !orderType || !orderAmount || feePercentage === undefined || !feeAmount) {
         return res.status(400).json({ error: "Missing required fields" });
@@ -3043,11 +3043,12 @@ export async function registerRoutes(
         orderType,
         marketName,
         tokenId,
+        polymarketOrderId,
         orderAmount,
         feePercentage,
         feeAmount,
         txHash,
-        status: txHash ? "confirmed" : "pending",
+        status: status || (txHash ? "confirmed" : "pending"),
       });
       
       res.json({ success: true, feeId: fee.id });
@@ -3067,6 +3068,61 @@ export async function registerRoutes(
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Failed to confirm fee" });
+    }
+  });
+
+  // Cancel a pending fee (when limit order is cancelled)
+  app.patch("/api/fees/cancel-by-order/:orderId", async (req, res) => {
+    try {
+      const { orderId } = req.params;
+      
+      const fee = await storage.getFeeByOrderId(orderId);
+      if (!fee) {
+        return res.status(404).json({ error: "Fee not found for this order" });
+      }
+      
+      if (fee.status !== "pending_fill") {
+        return res.status(400).json({ error: "Fee is not in pending_fill status" });
+      }
+      
+      await storage.updateFeeStatus(fee.id, "cancelled");
+      
+      res.json({ success: true, message: "Fee cancelled" });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to cancel fee" });
+    }
+  });
+
+  // Confirm a pending fee (when limit order is filled) - used by frontend after successful transfer
+  app.patch("/api/fees/confirm-by-order/:orderId", async (req, res) => {
+    try {
+      const { orderId } = req.params;
+      const { txHash } = req.body;
+      
+      const fee = await storage.getFeeByOrderId(orderId);
+      if (!fee) {
+        return res.status(404).json({ error: "Fee not found for this order" });
+      }
+      
+      if (fee.status !== "pending_fill") {
+        return res.status(400).json({ error: "Fee is not in pending_fill status" });
+      }
+      
+      await storage.updateFeeStatus(fee.id, "confirmed", txHash);
+      
+      res.json({ success: true, message: "Fee confirmed", feeId: fee.id });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to confirm fee" });
+    }
+  });
+
+  // Get pending fill fees (for admin monitoring)
+  app.get("/api/admin/fees/pending-fill", requireAdmin, async (req, res) => {
+    try {
+      const fees = await storage.getPendingFillFees();
+      res.json(fees);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to get pending fees" });
     }
   });
 

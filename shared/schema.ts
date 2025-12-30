@@ -800,11 +800,12 @@ export const collectedFees = pgTable("collected_fees", {
   orderType: text("order_type").notNull(), // 'polymarket_buy', 'polymarket_sell', etc.
   marketName: text("market_name"), // Human-readable market name
   tokenId: text("token_id"), // Polymarket token ID
+  polymarketOrderId: text("polymarket_order_id"), // For tracking limit order fills
   orderAmount: real("order_amount").notNull(), // Total order value in USDC
   feePercentage: real("fee_percentage").notNull(), // Fee % at time of collection
   feeAmount: real("fee_amount").notNull(), // Fee amount in USDC
   txHash: text("tx_hash"), // Polygon transaction hash for fee transfer
-  status: text("status").notNull().default("pending"), // 'pending', 'confirmed', 'failed'
+  status: text("status").notNull().default("pending"), // 'pending', 'confirmed', 'failed', 'pending_fill', 'cancelled'
   createdAt: timestamp("created_at").notNull().defaultNow(),
   confirmedAt: timestamp("confirmed_at"),
 });
@@ -832,8 +833,10 @@ export const recordFeeSchema = z.object({
   orderType: z.string(),
   marketName: z.string().optional(),
   tokenId: z.string().optional(),
+  polymarketOrderId: z.string().optional(),
   orderAmount: z.number().positive(),
   feePercentage: z.number(),
   feeAmount: z.number(),
   txHash: z.string().optional(),
+  status: z.enum(["pending", "confirmed", "failed", "pending_fill", "cancelled"]).optional(),
 });
