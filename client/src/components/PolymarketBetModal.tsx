@@ -98,7 +98,9 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
   const { 
     isTradingSessionComplete, 
     invalidateSession,
-    clobClient 
+    clobClient,
+    initializeTradingSession,
+    isInitializing
   } = useTradingSession();
   
   const { placeOrder, isPlacing } = usePlaceOrder(clobClient, invalidateSession);
@@ -605,14 +607,31 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
           )}
 
           {walletAddress && !isTradingSessionComplete && (
-            <div className="flex items-start gap-2 rounded-md bg-orange-500/10 p-3 text-sm border border-orange-500/20">
-              <AlertCircle className="h-4 w-4 text-orange-500 mt-0.5 flex-shrink-0" />
-              <div>
+            <div className="flex items-center gap-2 rounded-md bg-orange-500/10 p-3 text-sm border border-orange-500/20">
+              <AlertCircle className="h-4 w-4 text-orange-500 flex-shrink-0" />
+              <div className="flex-1">
                 <p className="text-orange-600 dark:text-orange-400 font-medium">Trading Setup Required</p>
-                <p className="text-muted-foreground text-xs mt-1">
-                  Please complete the trading setup in the wallet connection screen.
+                <p className="text-muted-foreground text-xs mt-0.5">
+                  Initialize your Polymarket trading session to place bets.
                 </p>
               </div>
+              <Button 
+                size="sm" 
+                variant="outline"
+                onClick={() => initializeTradingSession()}
+                disabled={isInitializing}
+                className="border-orange-500/50 text-orange-600 dark:text-orange-400"
+                data-testid="button-init-session"
+              >
+                {isInitializing ? (
+                  <>
+                    <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                    Initializing...
+                  </>
+                ) : (
+                  "Initialize"
+                )}
+              </Button>
             </div>
           )}
 
