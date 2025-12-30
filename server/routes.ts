@@ -2926,6 +2926,166 @@ export async function registerRoutes(
     }
   });
 
+  // ============ Fee Configuration Routes (Admin) ============
+
+  // Get current fee configuration
+  app.get("/api/admin/fee-config", requireAdmin, async (req, res) => {
+    try {
+      const feePercentage = await storage.getConfig("fee_percentage");
+      const treasuryAddress = await storage.getConfig("treasury_address");
+      
+      res.json({
+        feePercentage: feePercentage ? parseFloat(feePercentage) : 0,
+        treasuryAddress: treasuryAddress || null,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to get fee config" });
+    }
+  });
+
+  // Update fee configuration
+  app.post("/api/admin/fee-config", requireAdmin, async (req, res) => {
+    try {
+      const { feePercentage, treasuryAddress } = req.body;
+      const adminWallet = req.headers["x-wallet-address"] as string;
+      
+      if (typeof feePercentage === "number") {
+        if (feePercentage < 0 || feePercentage > 10) {
+          return res.status(400).json({ error: "Fee percentage must be between 0 and 10" });
+        }
+        await storage.setConfig("fee_percentage", feePercentage.toString(), adminWallet);
+      }
+      
+      if (treasuryAddress !== undefined) {
+        await storage.setConfig("treasury_address", treasuryAddress, adminWallet);
+      }
+      
+      res.json({ success: true, message: "Fee configuration updated" });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to update fee config" });
+    }
+  });
+
+  // Public endpoint to get fee info for bet modal
+  app.get("/api/fees/current", async (req, res) => {
+    try {
+      const feePercentage = await storage.getConfig("fee_percentage");
+      const treasuryAddress = await storage.getConfig("treasury_address");
+      
+      res.json({
+        feePercentage: feePercentage ? parseFloat(feePercentage) : 0,
+        treasuryAddress: treasuryAddress || null,
+        enabled: !!feePercentage && parseFloat(feePercentage) > 0,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to get fee info" });
+    }
+  });
+
+  // Record a collected fee
+  app.post("/api/fees/record", async (req, res) => {
+    try {
+      const { walletAddress, orderType, marketName, tokenId, orderAmount, feePercentage, feeAmount, txHash } = req.body;
+      
+      if (!walletAddress || !orderType || !orderAmount || feePercentage === undefined || !feeAmount) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+      
+      const fee = await storage.recordCollectedFee({
+        walletAddress,
+        orderType,
+        marketName,
+        tokenId,
+        orderAmount,
+        feePercentage,
+        feeAmount,
+        txHash,
+        status: txHash ? "confirmed" : "pending",
+      });
+      
+      res.json({ success: true, feeId: fee.id });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to record fee" });
+    }
+  });
+
+  // Update fee status (confirm transaction)
+  app.patch("/api/fees/:feeId/confirm", async (req, res) => {
+    try {
+      const { feeId } = req.params;
+      const { txHash } = req.body;
+      
+      await storage.confirmCollectedFee(feeId, txHash);
+      
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to confirm fee" });
+    }
+  });
+
+  // Get fee statistics (admin)
+  app.get("/api/admin/fees/stats", requireAdmin, async (req, res) => {
+    try {
+      const stats = await storage.getFeeStats();
+      res.json(stats);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to get fee stats" });
+    }
+  });
+
+  // Get recent fees (admin)
+  app.get("/api/admin/fees/recent", requireAdmin, async (req, res) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 50;
+      const fees = await storage.getRecentFees(limit);
+      res.json(fees);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to get recent fees" });
+    }
+  });
+
+  // ============ Builder Volume Routes (Admin) ============
+
+  // Get builder volume statistics from Polymarket
+  app.get("/api/admin/builder-volume", requireAdmin, async (req, res) => {
+    try {
+      const response = await proxyFetch("https://gamma-api.polymarket.com/builders/daily-volume");
+      
+      if (!response.ok) {
+        throw new Error(`Polymarket API error: ${response.status}`);
+      }
+      
+      const allBuilderData = await response.json();
+      
+      // Filter for our builder if we have an identifier (use first entry if none specified)
+      // In practice, you'd filter by your builder ID here
+      res.json({
+        data: allBuilderData,
+        note: "Raw builder volume data from Polymarket. Filter by your builder ID.",
+      });
+    } catch (error: any) {
+      console.error("Failed to fetch builder volume:", error);
+      res.status(500).json({ error: error.message || "Failed to fetch builder volume" });
+    }
+  });
+
+  // Get builder leaderboard from Polymarket
+  app.get("/api/admin/builder-leaderboard", requireAdmin, async (req, res) => {
+    try {
+      const response = await proxyFetch("https://gamma-api.polymarket.com/builders/leaderboard");
+      
+      if (!response.ok) {
+        throw new Error(`Polymarket API error: ${response.status}`);
+      }
+      
+      const leaderboard = await response.json();
+      res.json(leaderboard);
+    } catch (error: any) {
+      console.error("Failed to fetch builder leaderboard:", error);
+      res.status(500).json({ error: error.message || "Failed to fetch builder leaderboard" });
+    }
+  });
+
   // ============ Simulation Routes (Admin) ============
 
   // Simulate random trades for testing

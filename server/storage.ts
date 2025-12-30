@@ -1,7 +1,7 @@
 import { 
   users, teams, drivers, holdings, transactions, deposits, priceHistory, seasons, payouts, markets, orderFills,
   championshipPools, championshipOutcomes, poolTrades, poolPositions, poolPayouts, zkProofs, poolPriceHistory,
-  raceMarkets, raceMarketOutcomes, polymarketOrders, portfolioHistory,
+  raceMarkets, raceMarketOutcomes, polymarketOrders, portfolioHistory, platformConfig, collectedFees,
   type User, type InsertUser, 
   type Team, type InsertTeam,
   type Driver, type InsertDriver,
@@ -23,6 +23,8 @@ import {
   type RaceMarketOutcome, type InsertRaceMarketOutcome,
   type PolymarketOrder, type InsertPolymarketOrder,
   type PortfolioHistory, type InsertPortfolioHistory,
+  type PlatformConfig, type InsertPlatformConfig,
+  type CollectedFee, type InsertCollectedFee,
   type BuySharesRequest,
   type SellSharesRequest
 } from "@shared/schema";
@@ -176,6 +178,16 @@ export interface IStorage {
   // Portfolio History
   savePortfolioSnapshot(snapshot: InsertPortfolioHistory): Promise<PortfolioHistory>;
   getPortfolioHistory(walletAddress: string, period: string): Promise<PortfolioHistory[]>;
+  
+  // Platform Configuration
+  getConfig(key: string): Promise<string | null>;
+  setConfig(key: string, value: string, updatedBy?: string): Promise<void>;
+  
+  // Collected Fees
+  recordCollectedFee(fee: InsertCollectedFee): Promise<CollectedFee>;
+  confirmCollectedFee(feeId: string, txHash: string): Promise<void>;
+  getFeeStats(): Promise<{ totalFees: number; totalVolume: number; feeCount: number; avgFeePercent: number }>;
+  getRecentFees(limit: number): Promise<CollectedFee[]>;
 }
 
 // Initial F1 2026 teams data - all teams start at equal $0.10 price
@@ -1297,6 +1309,67 @@ export class DatabaseStorage implements IStorage {
         )
       )
       .orderBy(asc(portfolioHistory.recordedAt));
+  }
+
+  // ============ Platform Configuration ============
+
+  async getConfig(key: string): Promise<string | null> {
+    const [config] = await db
+      .select()
+      .from(platformConfig)
+      .where(eq(platformConfig.key, key));
+    return config?.value ?? null;
+  }
+
+  async setConfig(key: string, value: string, updatedBy?: string): Promise<void> {
+    await db
+      .insert(platformConfig)
+      .values({ key, value, updatedBy, updatedAt: new Date() })
+      .onConflictDoUpdate({
+        target: platformConfig.key,
+        set: { value, updatedBy, updatedAt: new Date() },
+      });
+  }
+
+  // ============ Collected Fees ============
+
+  async recordCollectedFee(fee: InsertCollectedFee): Promise<CollectedFee> {
+    const [created] = await db.insert(collectedFees).values(fee).returning();
+    return created;
+  }
+
+  async confirmCollectedFee(feeId: string, txHash: string): Promise<void> {
+    await db
+      .update(collectedFees)
+      .set({ status: "confirmed", txHash, confirmedAt: new Date() })
+      .where(eq(collectedFees.id, feeId));
+  }
+
+  async getFeeStats(): Promise<{ totalFees: number; totalVolume: number; feeCount: number; avgFeePercent: number }> {
+    const result = await db
+      .select({
+        totalFees: sql<number>`COALESCE(SUM(${collectedFees.feeAmount}), 0)`,
+        totalVolume: sql<number>`COALESCE(SUM(${collectedFees.orderAmount}), 0)`,
+        feeCount: sql<number>`COUNT(*)`,
+        avgFeePercent: sql<number>`COALESCE(AVG(${collectedFees.feePercentage}), 0)`,
+      })
+      .from(collectedFees)
+      .where(eq(collectedFees.status, "confirmed"));
+    
+    return {
+      totalFees: Number(result[0]?.totalFees) || 0,
+      totalVolume: Number(result[0]?.totalVolume) || 0,
+      feeCount: Number(result[0]?.feeCount) || 0,
+      avgFeePercent: Number(result[0]?.avgFeePercent) || 0,
+    };
+  }
+
+  async getRecentFees(limit: number): Promise<CollectedFee[]> {
+    return await db
+      .select()
+      .from(collectedFees)
+      .orderBy(desc(collectedFees.createdAt))
+      .limit(limit);
   }
 }
 
