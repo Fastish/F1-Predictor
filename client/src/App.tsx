@@ -12,6 +12,8 @@ import Markets from "@/pages/Markets";
 import Positions from "@/pages/Positions";
 import Races from "@/pages/Races";
 import RaceDetail from "@/pages/RaceDetail";
+import ConstructorsChampionship from "@/pages/ConstructorsChampionship";
+import DriversChampionship from "@/pages/DriversChampionship";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -19,6 +21,8 @@ function Router() {
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/markets" component={Markets} />
+      <Route path="/constructors" component={ConstructorsChampionship} />
+      <Route path="/drivers" component={DriversChampionship} />
       <Route path="/races" component={Races} />
       <Route path="/races/:id" component={RaceDetail} />
       <Route path="/portfolio" component={Positions} />

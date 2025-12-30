@@ -1,4 +1,4 @@
-import { Wallet, TrendingUp, Menu, Plus, Loader2, Briefcase, Flag, DollarSign, PieChart, LogOut, Check, ArrowRightLeft, Settings, ArrowUpRight, ArrowDownLeft } from "lucide-react";
+import { Wallet, TrendingUp, Menu, Plus, Loader2, Briefcase, Flag, DollarSign, PieChart, LogOut, Check, ArrowRightLeft, Settings, ArrowUpRight, ArrowDownLeft, Car, User } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -93,6 +93,26 @@ export function Header() {
           </Link>
           
           <nav className="hidden items-center gap-1 md:flex">
+            <Link href="/constructors">
+              <Button
+                variant={location === "/constructors" ? "secondary" : "ghost"}
+                size="sm"
+                data-testid="button-nav-constructors"
+              >
+                <Car className="mr-1 h-4 w-4" />
+                Constructors
+              </Button>
+            </Link>
+            <Link href="/drivers">
+              <Button
+                variant={location === "/drivers" ? "secondary" : "ghost"}
+                size="sm"
+                data-testid="button-nav-drivers"
+              >
+                <User className="mr-1 h-4 w-4" />
+                Drivers
+              </Button>
+            </Link>
             <Link href="/races">
               <Button
                 variant={location === "/races" || location.startsWith("/races/") ? "secondary" : "ghost"}
@@ -222,6 +242,28 @@ export function Header() {
             </SheetTrigger>
             <SheetContent side="right" className="w-64">
               <nav className="mt-8 flex flex-col gap-2">
+                <Link href="/constructors">
+                  <Button
+                    variant={location === "/constructors" ? "secondary" : "ghost"}
+                    className="justify-start w-full"
+                    onClick={() => setMobileMenuOpen(false)}
+                    data-testid="button-mobile-nav-constructors"
+                  >
+                    <Car className="mr-2 h-4 w-4" />
+                    Constructors
+                  </Button>
+                </Link>
+                <Link href="/drivers">
+                  <Button
+                    variant={location === "/drivers" ? "secondary" : "ghost"}
+                    className="justify-start w-full"
+                    onClick={() => setMobileMenuOpen(false)}
+                    data-testid="button-mobile-nav-drivers"
+                  >
+                    <User className="mr-2 h-4 w-4" />
+                    Drivers
+                  </Button>
+                </Link>
                 <Link href="/races">
                   <Button
                     variant={location === "/races" || location.startsWith("/races/") ? "secondary" : "ghost"}
