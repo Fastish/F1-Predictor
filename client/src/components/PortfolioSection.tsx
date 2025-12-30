@@ -46,8 +46,7 @@ function getStatusBadge(status: string) {
       );
     case "open":
       return (
-        <Badge variant="outline" className="gap-1 text-blue-600 border-blue-300">
-          <RefreshCw className="h-3 w-3" />
+        <Badge variant="outline" className="text-blue-600 border-blue-300">
           Open
         </Badge>
       );
@@ -60,8 +59,7 @@ function getStatusBadge(status: string) {
       );
     case "partial":
       return (
-        <Badge variant="outline" className="gap-1 text-yellow-600 border-yellow-300">
-          <RefreshCw className="h-3 w-3" />
+        <Badge variant="outline" className="text-yellow-600 border-yellow-300">
           Partial
         </Badge>
       );
