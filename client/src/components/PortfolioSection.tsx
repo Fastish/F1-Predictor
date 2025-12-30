@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { usePolymarketPositions, type PolymarketPosition } from "@/hooks/usePolymarketPositions";
 import { useTradingSession } from "@/hooks/useTradingSession";
+import { usePlaceOrder } from "@/hooks/usePlaceOrder";
 import { PolymarketBetModal } from "@/components/PolymarketBetModal";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 
@@ -254,7 +255,9 @@ export function PortfolioSection() {
   const [selectedPosition, setSelectedPosition] = useState<PolymarketPosition | null>(null);
   const [sellModalOpen, setSellModalOpen] = useState(false);
   
-  const { tradingSession, isTradingSessionComplete } = useTradingSession();
+  const { tradingSession, isTradingSessionComplete, clobClient } = useTradingSession();
+  const { cancelOrder } = usePlaceOrder(clobClient, undefined);
+  const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
   const { data: positionsData, isLoading: isLoadingPositions, refetch: refetchPositions, error: positionsError, isError: isPositionsError } = usePolymarketPositions();
 
   const safeAddress = tradingSession?.safeAddress;
@@ -348,6 +351,56 @@ export function PortfolioSection() {
       });
     },
   });
+
+  const handleCancelOrder = async (order: PolymarketOrder) => {
+    if (!order.polymarketOrderId) {
+      toast({
+        title: "Cannot cancel",
+        description: "This order is not on Polymarket",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!clobClient) {
+      toast({
+        title: "Trading session required",
+        description: "Please initialize your trading session to cancel orders",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setCancellingOrderId(order.id);
+    try {
+      const result = await cancelOrder(order.polymarketOrderId);
+      if (result.success) {
+        // Update local order status
+        await apiRequest("PATCH", `/api/polymarket/orders/${order.id}/status`, { 
+          status: "cancelled" 
+        });
+        queryClient.invalidateQueries({ queryKey: ["/api/polymarket/orders", userId] });
+        toast({
+          title: "Order cancelled",
+          description: `Your ${order.marketName} order has been cancelled`,
+        });
+      } else {
+        toast({
+          title: "Failed to cancel order",
+          description: result.error || "Could not cancel the order on Polymarket",
+          variant: "destructive",
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: "Failed to cancel order",
+        description: error.message || "An error occurred while cancelling",
+        variant: "destructive",
+      });
+    } finally {
+      setCancellingOrderId(null);
+    }
+  };
 
   const hasWallet = !!walletAddress;
   
@@ -595,7 +648,25 @@ export function PortfolioSection() {
                                 {getStatusBadge(order.status)}
                                 <span className="text-sm font-medium">${order.totalCost.toFixed(2)}</span>
                               </div>
-                              {!order.polymarketOrderId && (
+                              {order.polymarketOrderId ? (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleCancelOrder(order)}
+                                  disabled={cancellingOrderId === order.id || !clobClient}
+                                  data-testid={`button-cancel-order-${order.id}`}
+                                  className="text-destructive border-destructive/50"
+                                >
+                                  {cancellingOrderId === order.id ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <>
+                                      <XCircle className="h-4 w-4 mr-1" />
+                                      Cancel
+                                    </>
+                                  )}
+                                </Button>
+                              ) : (
                                 <Button
                                   size="icon"
                                   variant="ghost"

@@ -2098,6 +2098,43 @@ export async function registerRoutes(
     }
   });
 
+  // Update order status (for cancelled orders)
+  app.patch("/api/polymarket/orders/:orderId/status", async (req, res) => {
+    try {
+      const { orderId } = req.params;
+      const { status } = req.body;
+      
+      if (!status) {
+        return res.status(400).json({ error: "status is required" });
+      }
+      
+      const validStatuses = ["open", "filled", "partial", "cancelled", "expired", "pending", "failed"];
+      if (!validStatuses.includes(status)) {
+        return res.status(400).json({ error: "Invalid status value" });
+      }
+      
+      const order = await storage.getPolymarketOrder(orderId);
+      
+      if (!order) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+      
+      const updated = await storage.updatePolymarketOrder(orderId, {
+        status,
+        updatedAt: new Date()
+      });
+      
+      if (updated) {
+        res.json(updated);
+      } else {
+        res.status(500).json({ error: "Failed to update order" });
+      }
+    } catch (error) {
+      console.error("Failed to update order status:", error);
+      res.status(500).json({ error: "Failed to update order status" });
+    }
+  });
+
   // Sync order statuses from Polymarket CLOB API
   app.post("/api/polymarket/orders/sync", async (req, res) => {
     try {
