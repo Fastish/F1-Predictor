@@ -42,9 +42,10 @@ interface GaslessResult {
   error?: string;
 }
 
-// Use our server-side proxy to bypass CORS restrictions
-// The proxy forwards requests to https://relayer-v2.polymarket.com
-const getRelayerUrl = () => `${window.location.origin}/api/polymarket/relayer`;
+// Use the real Polymarket relayer URL directly
+// The SDK signs for the canonical path, so we must use the actual relayer URL
+// CORS should not be an issue as the relayer supports cross-origin requests
+const POLYMARKET_RELAYER_URL = "https://relayer-v2.polymarket.com";
 const POLYGON_CHAIN_ID = 137;
 
 export async function checkGaslessAvailable(): Promise<boolean> {
@@ -103,7 +104,7 @@ async function createRelayClient(): Promise<RelayClient> {
   const builderConfig = createBuilderConfig();
   
   return new RelayClient(
-    getRelayerUrl(),
+    POLYMARKET_RELAYER_URL,
     POLYGON_CHAIN_ID,
     signer as any,
     builderConfig,
