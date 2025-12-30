@@ -108,19 +108,47 @@ export function Header() {
         <div className="flex items-center gap-2">
           {walletAddress && (
             <div className="hidden sm:flex items-center gap-2">
-              <Badge variant="outline" className="gap-1 px-3 py-1.5">
-                {isLoadingCash ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <>
-                    <DollarSign className="h-3.5 w-3.5" />
-                    <span className="text-xs text-muted-foreground">Cash:</span>
-                    <span className="font-semibold tabular-nums" data-testid="text-cash-balance">
-                      ${(cashBalance || 0).toFixed(2)}
-                    </span>
-                  </>
-                )}
-              </Badge>
+              <HoverCard openDelay={100} closeDelay={200}>
+                <HoverCardTrigger asChild>
+                  <Badge variant="outline" className="gap-1 px-3 py-1.5 cursor-pointer hover-elevate">
+                    {isLoadingCash ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <>
+                        <DollarSign className="h-3.5 w-3.5" />
+                        <span className="text-xs text-muted-foreground">Cash:</span>
+                        <span className="font-semibold tabular-nums" data-testid="text-cash-balance">
+                          ${(cashBalance || 0).toFixed(2)}
+                        </span>
+                      </>
+                    )}
+                  </Badge>
+                </HoverCardTrigger>
+                <HoverCardContent className="w-48 p-2" align="center">
+                  <div className="flex flex-col gap-1">
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="justify-start"
+                      onClick={() => { setSwapDirection("deposit"); setSwapOpen(true); }}
+                      data-testid="button-deposit-cash"
+                    >
+                      <ArrowDownLeft className="h-4 w-4 mr-2" />
+                      Deposit Cash
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="justify-start"
+                      onClick={() => { setSwapDirection("withdraw"); setSwapOpen(true); }}
+                      data-testid="button-withdraw-cash"
+                    >
+                      <ArrowUpRight className="h-4 w-4 mr-2" />
+                      Withdraw Cash
+                    </Button>
+                  </div>
+                </HoverCardContent>
+              </HoverCard>
               <Link href="/portfolio">
                 <Badge 
                   variant="outline" 
@@ -181,6 +209,7 @@ export function Header() {
           <ThemeToggle />
           
           <DepositModal open={depositOpen} onOpenChange={setDepositOpen} />
+          <SwapModal open={swapOpen} onOpenChange={setSwapOpen} initialDirection={swapDirection} />
 
           <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
             <SheetTrigger asChild>

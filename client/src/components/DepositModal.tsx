@@ -10,7 +10,7 @@ import { useWallet } from "@/context/WalletContext";
 import { useTradingSession } from "@/hooks/useTradingSession";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
-import { Copy, Wallet, AlertCircle, Loader2, LogOut, Mail, ExternalLink, RotateCcw, Key, CheckCircle2, ArrowRightLeft } from "lucide-react";
+import { Copy, Wallet, AlertCircle, Loader2, LogOut, Mail, ExternalLink, RotateCcw, Key, CheckCircle2, ArrowRightLeft, ArrowUpRight, ArrowDownLeft } from "lucide-react";
 import { SiPolygon } from "react-icons/si";
 import { PolymarketDepositWizard } from "./PolymarketDepositWizard";
 import { SwapModal } from "./SwapModal";
@@ -47,10 +47,12 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
   const [email, setEmail] = useState("");
   const [showDepositWizard, setShowDepositWizard] = useState(false);
   const [showSwapModal, setShowSwapModal] = useState(false);
+  const [swapDirection, setSwapDirection] = useState<"deposit" | "withdraw">("deposit");
   const [approvalStatus, setApprovalStatus] = useState<{ needsApproval: boolean; checked: boolean }>({ needsApproval: false, checked: false });
   const [autoInitAttempted, setAutoInitAttempted] = useState(false);
 
   // Check approval status when wallet is connected
+  // For external wallets, check the Safe proxy address since approvals are done there
   useEffect(() => {
     const checkApproval = async () => {
       if (!walletAddress || !provider) {
@@ -59,7 +61,9 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
       }
       try {
         const isMagic = walletType === "magic";
-        const status = await checkDepositRequirements(provider, walletAddress, isMagic);
+        // For external wallets, check approvals on the Safe address, not EOA
+        const addressToCheck = (walletType === "external" && safeAddress) ? safeAddress : walletAddress;
+        const status = await checkDepositRequirements(provider, addressToCheck, isMagic);
         setApprovalStatus({ needsApproval: status.needsApproval, checked: true });
       } catch (error) {
         console.error("Failed to check approval status:", error);
@@ -69,7 +73,7 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
     if (open && walletAddress) {
       checkApproval();
     }
-  }, [open, walletAddress, provider, walletType]);
+  }, [open, walletAddress, provider, walletType, safeAddress]);
 
   // Reset auto-init flag when modal closes or wallet disconnects
   useEffect(() => {
@@ -406,22 +410,33 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
               )}
 
               <div className="pt-2 border-t space-y-3">
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => setShowSwapModal(true)}
-                  data-testid="button-swap-tokens"
-                >
-                  <ArrowRightLeft className="h-4 w-4 mr-2" />
-                  Swap USDC / USDC.e
-                </Button>
-                <div className="text-sm text-muted-foreground">
-                  <div className="flex items-start gap-2">
-                    <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-                    <span>
-                      To add funds, send USDC.e on Polygon to your wallet, or use the swap to convert USDC.
-                    </span>
-                  </div>
+                <div className="rounded-md bg-muted/50 p-3 text-sm text-muted-foreground">
+                  <p>This exchange uses USDC.e which is displayed as the cash available to bet on your account. You may swap back to USDC at a 1:1 ratio at any time.</p>
+                </div>
+                
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => { setSwapDirection("deposit"); setShowSwapModal(true); }}
+                    data-testid="button-deposit-cash"
+                  >
+                    <ArrowDownLeft className="h-4 w-4 mr-2" />
+                    Deposit Cash
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => { setSwapDirection("withdraw"); setShowSwapModal(true); }}
+                    data-testid="button-withdraw-cash"
+                  >
+                    <ArrowUpRight className="h-4 w-4 mr-2" />
+                    Withdraw Cash
+                  </Button>
+                </div>
+                
+                <div className="text-xs text-muted-foreground text-center">
+                  Deposit converts USDC to USDC.e. Withdraw converts back to USDC.
                 </div>
               </div>
             </div>
@@ -524,9 +539,11 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
         onClose={() => {
           setShowDepositWizard(false);
           // Recheck approval status after wizard closes
+          // For external wallets, check the Safe address since approvals are done there
           if (walletAddress && provider) {
             const isMagic = walletType === "magic";
-            checkDepositRequirements(provider, walletAddress, isMagic)
+            const addressToCheck = (walletType === "external" && safeAddress) ? safeAddress : walletAddress;
+            checkDepositRequirements(provider, addressToCheck, isMagic)
               .then(status => setApprovalStatus({ needsApproval: status.needsApproval, checked: true }))
               .catch(() => {});
           }
@@ -536,6 +553,7 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
       <SwapModal
         open={showSwapModal}
         onOpenChange={setShowSwapModal}
+        initialDirection={swapDirection}
       />
     </Dialog>
   );
