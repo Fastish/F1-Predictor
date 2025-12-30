@@ -231,6 +231,9 @@ export async function executeGaslessTransactions(
     // Derive the Safe address deterministically
     const config = getContractConfig(POLYGON_CHAIN_ID);
     const safeAddress = deriveSafe(eoaAddress, config.SafeContracts.SafeFactory);
+    console.log(`[Gasless] EOA address: ${eoaAddress}`);
+    console.log(`[Gasless] Derived Safe address: ${safeAddress}`);
+    console.log(`[Gasless] Safe Factory used: ${config.SafeContracts.SafeFactory}`);
     
     // Check cached deployment status first (same session optimization)
     let isDeployed = cachedDeploymentStatus?.safeAddress === safeAddress && cachedDeploymentStatus?.deployed;
@@ -261,17 +264,22 @@ export async function executeGaslessTransactions(
       console.log(`Using cached deployment status for ${safeAddress}`);
     }
     
+    console.log(`[Gasless] Executing ${transactions.length} transactions via Safe ${safeAddress}...`);
     const result = await client.execute(transactions);
-    console.log("Transaction submitted:", result.transactionID);
+    console.log("[Gasless] Transaction submitted:", result.transactionID);
     
     const finalState = await result.wait();
     
     if (!finalState) {
+      console.error("[Gasless] Transaction failed or timed out");
       return {
         success: false,
         error: "Transaction failed or timed out",
       };
     }
+    
+    console.log(`[Gasless] Transaction successful! Hash: ${finalState.transactionHash}`);
+    console.log(`[Gasless] Approvals now set on Safe address: ${safeAddress}`);
     
     return {
       success: true,

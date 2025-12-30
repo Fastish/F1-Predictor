@@ -97,19 +97,35 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
       // User might have approved via direct EOA tx or via gasless (Safe)
       // Consider approved if EITHER address has the approvals
       let rawStatus = await checkDepositRequirements(provider, walletAddress, isMagic);
+      console.log(`[DepositWizard] EOA (${walletAddress}) status:`, {
+        needsApproval: rawStatus.needsApproval,
+        needsCTFApproval: rawStatus.needsCTFApproval,
+        ctfExchangeAllowance: rawStatus.ctfExchangeAllowance,
+        negRiskExchangeAllowance: rawStatus.negRiskExchangeAllowance,
+        ctfContractAllowance: rawStatus.ctfContractAllowance,
+      });
       
       if (walletType === "external") {
         // Derive Safe address deterministically from EOA (no signer needed)
         const safeAddress = deriveSafeAddressFromEOA(walletAddress);
         if (safeAddress) {
-          console.log(`Checking Safe address for approvals: ${safeAddress}`);
+          console.log(`[DepositWizard] Checking Safe address: ${safeAddress}`);
           try {
             const safeStatus = await checkDepositRequirements(provider, safeAddress, false);
+            console.log(`[DepositWizard] Safe status:`, {
+              needsApproval: safeStatus.needsApproval,
+              needsCTFApproval: safeStatus.needsCTFApproval,
+              ctfExchangeAllowance: safeStatus.ctfExchangeAllowance,
+              negRiskExchangeAllowance: safeStatus.negRiskExchangeAllowance,
+              ctfContractAllowance: safeStatus.ctfContractAllowance,
+              ctfApprovedForExchange: safeStatus.ctfApprovedForExchange,
+              ctfApprovedForNegRisk: safeStatus.ctfApprovedForNegRisk,
+            });
             
             // If Safe has approvals but EOA doesn't, use Safe's approval status
             // This handles the case where user previously did gasless approvals
             if (!safeStatus.needsApproval && rawStatus.needsApproval) {
-              console.log("Using Safe approval status (gasless approvals detected)");
+              console.log("[DepositWizard] Using Safe USDC approval status (gasless approvals detected)");
               rawStatus = {
                 ...rawStatus,
                 needsApproval: false,
@@ -119,7 +135,7 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
               };
             }
             if (!safeStatus.needsCTFApproval && rawStatus.needsCTFApproval) {
-              console.log("Using Safe CTF approval status (gasless approvals detected)");
+              console.log("[DepositWizard] Using Safe CTF approval status (gasless approvals detected)");
               rawStatus = {
                 ...rawStatus,
                 needsCTFApproval: false,
@@ -127,9 +143,16 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
                 ctfApprovedForNegRisk: safeStatus.ctfApprovedForNegRisk,
               };
             }
+            
+            console.log(`[DepositWizard] Final merged status:`, {
+              needsApproval: rawStatus.needsApproval,
+              needsCTFApproval: rawStatus.needsCTFApproval,
+            });
           } catch (e) {
-            console.warn("Failed to check Safe address for approvals:", e);
+            console.warn("[DepositWizard] Failed to check Safe address for approvals:", e);
           }
+        } else {
+          console.warn("[DepositWizard] Could not derive Safe address from EOA");
         }
       }
       
