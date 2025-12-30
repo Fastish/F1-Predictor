@@ -52,12 +52,29 @@ export function usePlaceOrder(
         console.log("Creating order with ClobClient:", params);
         await logToServer("ORDER_START", { params });
 
+        // FOK orders have stricter decimal precision requirements:
+        // - Price: max 2 decimals
+        // - Size: max 2 decimals (so size × price product doesn't exceed 2 decimals)
+        // GTC/GTD orders are more flexible (up to 4-6 decimals depending on tick size)
+        const isFOK = !params.orderType || params.orderType === "FOK";
+        
+        // Round values based on order type
+        const roundedPrice = isFOK 
+          ? Math.floor(params.price * 100) / 100  // 2 decimals for FOK
+          : Math.floor(params.price * 10000) / 10000; // 4 decimals for GTC/GTD
+        
+        const roundedSize = isFOK
+          ? Math.floor(params.size * 100) / 100  // 2 decimals for FOK
+          : Math.floor(params.size * 10000) / 10000; // 4 decimals for GTC/GTD
+
+        console.log(`Order type: ${params.orderType || "FOK"}, Price: ${params.price} -> ${roundedPrice}, Size: ${params.size} -> ${roundedSize}`);
+
         // Use ClobClient's createOrder method with proper types
         const orderArgs = {
           tokenID: params.tokenId,
-          price: params.price,
+          price: roundedPrice,
           side: params.side === "BUY" ? Side.BUY : Side.SELL,
-          size: params.size,
+          size: roundedSize,
         };
 
         // Create the signed order
