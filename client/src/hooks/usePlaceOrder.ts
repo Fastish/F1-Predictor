@@ -14,12 +14,15 @@ async function logToServer(event: string, data?: any, error?: any, walletAddress
   }
 }
 
+export type PolymarketOrderType = "FOK" | "GTC" | "GTD";
+
 export interface OrderParams {
   tokenId: string;
   price: number;
   size: number;
   side: "BUY" | "SELL";
   negRisk?: boolean;
+  orderType?: PolymarketOrderType;
 }
 
 export interface OrderResult {
@@ -62,8 +65,16 @@ export function usePlaceOrder(
         console.log("Signed order created:", signedOrder);
         await logToServer("ORDER_SIGNED", { signedOrder: { ...signedOrder, signature: signedOrder.signature?.substring(0, 20) + "..." } });
 
+        // Map string order type to SDK enum (default to FOK)
+        const orderTypeMap: Record<PolymarketOrderType, OrderType> = {
+          FOK: OrderType.FOK,
+          GTC: OrderType.GTC,
+          GTD: OrderType.GTD,
+        };
+        const sdkOrderType = orderTypeMap[params.orderType || "FOK"];
+
         // Post the order to Polymarket with proper OrderType enum
-        const result = await clobClient.postOrder(signedOrder, OrderType.GTC);
+        const result = await clobClient.postOrder(signedOrder, sdkOrderType);
         console.log("postOrder response:", JSON.stringify(result, null, 2));
         await logToServer("ORDER_RESPONSE", { result });
 

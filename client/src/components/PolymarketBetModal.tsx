@@ -11,13 +11,25 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, TrendingUp, TrendingDown, AlertCircle, ExternalLink, Wallet } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { Loader2, TrendingUp, TrendingDown, AlertCircle, ExternalLink, Wallet, HelpCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useMarket } from "@/context/MarketContext";
 import { useWallet } from "@/context/WalletContext";
 import { useTradingSession } from "@/hooks/useTradingSession";
-import { usePlaceOrder } from "@/hooks/usePlaceOrder";
+import { usePlaceOrder, type PolymarketOrderType } from "@/hooks/usePlaceOrder";
 import { PolymarketDepositWizard } from "./PolymarketDepositWizard";
 import { checkDepositRequirements } from "@/lib/polymarketDeposit";
 
@@ -67,6 +79,7 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
   const [side, setSide] = useState<"YES" | "NO">("YES");
   const [amount, setAmount] = useState("");
   const [sellShares, setSellShares] = useState("");
+  const [orderType, setOrderType] = useState<PolymarketOrderType>("FOK");
   const [isPlacingOrderLocal, setIsPlacingOrderLocal] = useState(false);
   const [showDepositWizard, setShowDepositWizard] = useState(false);
   const [pendingRetry, setPendingRetry] = useState(false);
@@ -201,6 +214,7 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
         size: shares,
         side: "BUY",
         negRisk: true, // F1 markets are negative risk
+        orderType,
       });
 
       if (result.success) {
@@ -371,6 +385,7 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
         size: sharesToSell,
         side: "SELL",
         negRisk: true,
+        orderType,
       });
 
       if (result.success) {
@@ -478,6 +493,41 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
                 </div>
               </div>
 
+              <div className="space-y-2">
+                <div className="flex items-center gap-1">
+                  <Label htmlFor="sell-order-type">Order Type</Label>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <a 
+                        href="https://docs.polymarket.com/developers/CLOB/orders/create-order#order-types"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        <HelpCircle className="h-4 w-4" />
+                      </a>
+                    </TooltipTrigger>
+                    <TooltipContent side="right" className="max-w-xs">
+                      <p className="text-sm">
+                        <strong>FOK</strong> - Fill Or Kill: Executes immediately in full or cancels entirely.<br />
+                        <strong>GTC</strong> - Good Til Cancelled: Stays open until filled or cancelled.<br />
+                        <strong>GTD</strong> - Good Til Day: Expires at end of day if not filled.
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+                <Select value={orderType} onValueChange={(v) => setOrderType(v as PolymarketOrderType)}>
+                  <SelectTrigger id="sell-order-type" data-testid="select-sell-order-type">
+                    <SelectValue placeholder="Select order type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="FOK" data-testid="option-sell-order-fok">FOK (Fill Or Kill)</SelectItem>
+                    <SelectItem value="GTC" data-testid="option-sell-order-gtc">GTC (Good Til Cancelled)</SelectItem>
+                    <SelectItem value="GTD" data-testid="option-sell-order-gtd">GTD (Good Til Day)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
               {parsedSellShares > 0 && (
                 <div className="rounded-md bg-muted/50 p-3 space-y-2">
                   <div className="flex items-center justify-between text-sm">
@@ -551,6 +601,41 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
                   <span className="text-muted-foreground">Available:</span>
                   <span>${userBalance.toFixed(2)} USDC</span>
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center gap-1">
+                  <Label htmlFor="order-type">Order Type</Label>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <a 
+                        href="https://docs.polymarket.com/developers/CLOB/orders/create-order#order-types"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        <HelpCircle className="h-4 w-4" />
+                      </a>
+                    </TooltipTrigger>
+                    <TooltipContent side="right" className="max-w-xs">
+                      <p className="text-sm">
+                        <strong>FOK</strong> - Fill Or Kill: Executes immediately in full or cancels entirely.<br />
+                        <strong>GTC</strong> - Good Til Cancelled: Stays open until filled or cancelled.<br />
+                        <strong>GTD</strong> - Good Til Day: Expires at end of day if not filled.
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+                <Select value={orderType} onValueChange={(v) => setOrderType(v as PolymarketOrderType)}>
+                  <SelectTrigger id="order-type" data-testid="select-order-type">
+                    <SelectValue placeholder="Select order type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="FOK" data-testid="option-order-fok">FOK (Fill Or Kill)</SelectItem>
+                    <SelectItem value="GTC" data-testid="option-order-gtc">GTC (Good Til Cancelled)</SelectItem>
+                    <SelectItem value="GTD" data-testid="option-order-gtd">GTD (Good Til Day)</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               {parsedAmount > 0 && (

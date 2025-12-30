@@ -138,6 +138,11 @@ The app uses a dual-wallet system:
 - **Order Parameters**:
   - tickSize: "0.01" (standard tick size)
   - negRisk: true (F1 championship markets use negative risk)
+  - orderType: FOK (default), GTC, or GTD - user selectable in bet modal with tooltip linking to Polymarket docs
+- **Order Types** (user-selectable):
+  - FOK (Fill Or Kill): Executes immediately in full or cancels entirely (default)
+  - GTC (Good Til Cancelled): Stays open until filled or cancelled
+  - GTD (Good Til Day): Expires at end of day if not filled
 - **Status Normalization**: CLOB statuses (OPEN/LIVE/MATCHED/CANCELED/EXPIRED) mapped to schema vocabulary (open/filled/partial/cancelled/expired/pending)
 - Admin panel section for viewing/syncing Polymarket F1 markets
 
