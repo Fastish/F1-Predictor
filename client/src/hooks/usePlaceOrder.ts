@@ -52,67 +52,62 @@ export function usePlaceOrder(
         console.log("Creating order with ClobClient:", params);
         await logToServer("ORDER_START", { params });
 
-        // FOK orders have stricter decimal precision requirements:
-        // - Maker amount (size for buys): max 2 decimals
-        // - Taker amount (size × price): max 4 decimals  
-        // - Size × Price product: must not exceed 2 decimals
-        // GTC/GTD orders are more flexible (up to 4-6 decimals depending on tick size)
         const isFOK = !params.orderType || params.orderType === "FOK";
-        
-        let roundedPrice: number;
-        let roundedSize: number;
+        let signedOrder;
+        let sdkOrderType: OrderType;
         
         if (isFOK) {
-          // For FOK orders, round to ensure clean integer micro-amounts
-          // Price to 2 decimals (tick size is 0.01)
-          roundedPrice = Math.floor(params.price * 100) / 100;
+          // FOK orders use createMarketOrder which handles precision requirements internally
+          // For BUY: amount = USDC to spend, SDK calculates correct share size
+          // For SELL: amount = shares to sell
+          const roundedPrice = Math.floor(params.price * 100) / 100;
           
-          // Size needs to be rounded so that:
-          // 1. Size itself has max 2 decimals
-          // 2. Size × Price has max 2 decimals (for maker/taker amounts)
-          // Round size down to 2 decimals first
-          roundedSize = Math.floor(params.size * 100) / 100;
-          
-          // Ensure the product is also clean (max 2 decimals)
-          // If price has 2 decimals and size has 2 decimals, product can have 4 decimals
-          // We need product to have max 2 decimals, so adjust size
-          const product = roundedSize * roundedPrice;
-          const productRounded = Math.floor(product * 100) / 100;
-          
-          // If product was rounded, adjust size to match
-          if (Math.abs(product - productRounded) > 0.0001 && roundedPrice > 0) {
-            roundedSize = Math.floor((productRounded / roundedPrice) * 100) / 100;
+          // For BUY orders, calculate the USDC amount (cost) and round to 2 decimals
+          // For SELL orders, use the share size rounded to 2 decimals
+          let amount: number;
+          if (params.side === "BUY") {
+            // cost = size × price, rounded to 2 decimals
+            const rawCost = params.size * roundedPrice;
+            amount = Math.floor(rawCost * 100) / 100;
+          } else {
+            // For sells, amount = shares to sell
+            amount = Math.floor(params.size * 100) / 100;
           }
+          
+          console.log(`FOK order: Price: ${roundedPrice}, Amount: ${amount} (${params.side === "BUY" ? "USDC" : "shares"})`);
+          
+          const marketOrderArgs = {
+            tokenID: params.tokenId,
+            price: roundedPrice,
+            side: params.side === "BUY" ? Side.BUY : Side.SELL,
+            amount: amount,
+          };
+          
+          // Use createMarketOrder for FOK orders - it handles precision correctly
+          signedOrder = await clobClient.createMarketOrder(marketOrderArgs);
+          sdkOrderType = OrderType.FOK;
         } else {
-          // GTC/GTD: more flexible precision
-          roundedPrice = Math.floor(params.price * 10000) / 10000;
-          roundedSize = Math.floor(params.size * 10000) / 10000;
+          // GTC/GTD use standard createOrder with flexible precision
+          const roundedPrice = Math.floor(params.price * 10000) / 10000;
+          const roundedSize = Math.floor(params.size * 10000) / 10000;
+          
+          console.log(`${params.orderType} order: Price: ${roundedPrice}, Size: ${roundedSize}`);
+          
+          const orderArgs = {
+            tokenID: params.tokenId,
+            price: roundedPrice,
+            side: params.side === "BUY" ? Side.BUY : Side.SELL,
+            size: roundedSize,
+          };
+          
+          signedOrder = await clobClient.createOrder(orderArgs);
+          sdkOrderType = params.orderType === "GTC" ? OrderType.GTC : OrderType.GTD;
         }
-
-        console.log(`Order type: ${params.orderType || "FOK"}, Price: ${params.price} -> ${roundedPrice}, Size: ${params.size} -> ${roundedSize}, Product: ${roundedSize * roundedPrice}`);
-
-        // Use ClobClient's createOrder method with proper types
-        const orderArgs = {
-          tokenID: params.tokenId,
-          price: roundedPrice,
-          side: params.side === "BUY" ? Side.BUY : Side.SELL,
-          size: roundedSize,
-        };
-
-        // Create the signed order
-        const signedOrder = await clobClient.createOrder(orderArgs);
+        
         console.log("Signed order created:", signedOrder);
         await logToServer("ORDER_SIGNED", { signedOrder: { ...signedOrder, signature: signedOrder.signature?.substring(0, 20) + "..." } });
 
-        // Map string order type to SDK enum (default to FOK)
-        const orderTypeMap: Record<PolymarketOrderType, OrderType> = {
-          FOK: OrderType.FOK,
-          GTC: OrderType.GTC,
-          GTD: OrderType.GTD,
-        };
-        const sdkOrderType = orderTypeMap[params.orderType || "FOK"];
-
-        // Post the order to Polymarket with proper OrderType enum
+        // Post the order to Polymarket
         const result = await clobClient.postOrder(signedOrder, sdkOrderType);
         console.log("postOrder response:", JSON.stringify(result, null, 2));
         await logToServer("ORDER_RESPONSE", { result });
