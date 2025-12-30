@@ -36,17 +36,25 @@ const WalletContext = createContext<WalletContextType | undefined>(undefined);
 let MAGIC_API_KEY = import.meta.env.VITE_MAGIC_API_KEY || "";
 
 // Runtime config fetch for production resilience
+// In production, VITE_* vars may not be injected at build time if secrets weren't available
+// The /api/config endpoint provides a runtime fallback
 let runtimeConfigLoaded = false;
 async function ensureMagicApiKey(): Promise<string> {
   // If we already have the key from build-time env or previous fetch, return it
   if (MAGIC_API_KEY) {
+    console.log("[Magic Debug] Using build-time Magic API key");
     return MAGIC_API_KEY;
   }
   
   // Only try runtime fetch once
   if (runtimeConfigLoaded) {
+    if (!MAGIC_API_KEY) {
+      console.error("[Magic Debug] No Magic API key available after runtime config fetch. Email login will not work.");
+    }
     return MAGIC_API_KEY;
   }
+  
+  console.log("[Magic Debug] Build-time Magic API key not found, fetching from /api/config...");
   
   try {
     const response = await fetch('/api/config');
@@ -54,14 +62,23 @@ async function ensureMagicApiKey(): Promise<string> {
       const config = await response.json();
       if (config.magicApiKey) {
         MAGIC_API_KEY = config.magicApiKey;
-        console.log("Magic API key loaded from runtime config");
+        console.log("[Magic Debug] Magic API key loaded from runtime config successfully");
+      } else {
+        console.error("[Magic Debug] /api/config returned empty magicApiKey. Ensure MAGIC_PUBLISHABLE_KEY or VITE_MAGIC_API_KEY is set in production secrets.");
       }
+    } else {
+      console.error("[Magic Debug] Failed to fetch /api/config:", response.status, response.statusText);
     }
   } catch (err) {
-    console.error("Failed to fetch runtime config:", err);
+    console.error("[Magic Debug] Failed to fetch runtime config:", err);
   }
   
   runtimeConfigLoaded = true;
+  
+  if (!MAGIC_API_KEY) {
+    console.error("[Magic Debug] CRITICAL: No Magic API key available. Email wallet login will not work.");
+  }
+  
   return MAGIC_API_KEY;
 }
 

@@ -163,9 +163,19 @@ export async function registerRoutes(
   // ============ Client Configuration (Runtime) ============
   // This endpoint provides environment variables to the client at RUNTIME
   // instead of relying on Vite's build-time replacement
+  // IMPORTANT: In production, VITE_* vars may not be available at runtime since they're 
+  // injected at build time. We also check MAGIC_PUBLISHABLE_KEY as a runtime fallback.
   app.get("/api/config", (req, res) => {
+    // Magic publishable key - check both possible env var names
+    // MAGIC_PUBLISHABLE_KEY is for server-side runtime, VITE_MAGIC_API_KEY for build-time
+    const magicApiKey = process.env.MAGIC_PUBLISHABLE_KEY || process.env.VITE_MAGIC_API_KEY || "";
+    
+    if (!magicApiKey) {
+      console.warn("[Config Warning] Magic API key not found in environment. Set MAGIC_PUBLISHABLE_KEY or VITE_MAGIC_API_KEY secret.");
+    }
+    
     res.json({
-      magicApiKey: process.env.VITE_MAGIC_API_KEY || "",
+      magicApiKey,
     });
   });
 
