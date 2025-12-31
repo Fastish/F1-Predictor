@@ -11,7 +11,7 @@ import { useWallet } from "@/context/WalletContext";
 import { useSEO } from "@/hooks/useSEO";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Car, Loader2, TrendingUp, Users, DollarSign, Info } from "lucide-react";
 
 interface PolymarketOutcome {
@@ -55,6 +55,7 @@ export default function ConstructorsChampionship() {
   const { walletAddress, getUsdcBalance } = useWallet();
   const [selectedOutcome, setSelectedOutcome] = useState<PolymarketOutcome | null>(null);
   const [betModalOpen, setBetModalOpen] = useState(false);
+  const [arbFilter, setArbFilter] = useState<"all" | "buy_yes" | "buy_no">("all");
 
   const { data: usdcBalance = "0" } = useQuery({
     queryKey: ["usdc-balance", walletAddress],
@@ -137,17 +138,17 @@ export default function ConstructorsChampionship() {
                   <DollarSign className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <p className="text-sm text-muted-foreground flex items-center gap-1 cursor-help">
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <button type="button" className="text-sm text-muted-foreground flex items-center gap-1 cursor-pointer hover:text-foreground transition-colors">
                         Total Volume
                         <Info className="h-3 w-3" />
-                      </p>
-                    </TooltipTrigger>
-                    <TooltipContent side="top" className="max-w-xs">
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent side="top" className="max-w-xs">
                       <p className="text-sm">Total USDC traded across all constructor markets since launch.</p>
-                    </TooltipContent>
-                  </Tooltip>
+                    </PopoverContent>
+                  </Popover>
                   <p className="text-xl font-bold tabular-nums" data-testid="text-constructors-volume">
                     ${totalVolume.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                   </p>
@@ -162,17 +163,17 @@ export default function ConstructorsChampionship() {
                   <TrendingUp className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <p className="text-sm text-muted-foreground flex items-center gap-1 cursor-help">
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <button type="button" className="text-sm text-muted-foreground flex items-center gap-1 cursor-pointer hover:text-foreground transition-colors">
                         Market Depth
                         <Info className="h-3 w-3" />
-                      </p>
-                    </TooltipTrigger>
-                    <TooltipContent side="top" className="max-w-xs">
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent side="top" className="max-w-xs">
                       <p className="text-sm">Current USDC available in market pools. Higher depth means less slippage on trades.</p>
-                    </TooltipContent>
-                  </Tooltip>
+                    </PopoverContent>
+                  </Popover>
                   <p className="text-xl font-bold tabular-nums" data-testid="text-constructors-liquidity">
                     ${totalLiquidity.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                   </p>
@@ -212,6 +213,8 @@ export default function ConstructorsChampionship() {
             opportunities={constructorOpportunities}
             dataSource={arbitrageData?.dataSource || "Unknown"}
             hasLiveOdds={arbitrageData?.hasLiveOdds || false}
+            onFilterChange={setArbFilter}
+            activeFilter={arbFilter}
           />
         )}
 
