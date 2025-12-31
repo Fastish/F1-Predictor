@@ -3280,6 +3280,91 @@ export async function registerRoutes(
     }
   });
 
+  // =====================================================
+  // DISPLAY NAME AND COMMENTS ROUTES
+  // =====================================================
+
+  // Get user profile (display name) by wallet address
+  app.get("/api/user/profile/:walletAddress", async (req, res) => {
+    try {
+      const { walletAddress } = req.params;
+      const profile = await storage.getUserProfile(walletAddress);
+      res.json(profile || { walletAddress, displayName: null });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to fetch profile" });
+    }
+  });
+
+  // Update display name
+  app.patch("/api/user/display-name", async (req, res) => {
+    try {
+      const { walletAddress, displayName } = req.body;
+      
+      if (!walletAddress) {
+        return res.status(400).json({ error: "Wallet address required" });
+      }
+      
+      if (!displayName || displayName.length < 1 || displayName.length > 30) {
+        return res.status(400).json({ error: "Display name must be 1-30 characters" });
+      }
+      
+      if (!/^[a-zA-Z0-9_]+$/.test(displayName)) {
+        return res.status(400).json({ error: "Only letters, numbers, and underscores allowed" });
+      }
+      
+      const updated = await storage.updateDisplayName(walletAddress, displayName);
+      res.json({ success: true, displayName: updated });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to update display name" });
+    }
+  });
+
+  // Get comments for a market
+  app.get("/api/comments/:marketType/:marketId", async (req, res) => {
+    try {
+      const { marketType, marketId } = req.params;
+      const comments = await storage.getMarketComments(marketType, marketId);
+      res.json(comments);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to fetch comments" });
+    }
+  });
+
+  // Add a comment
+  app.post("/api/comments", async (req, res) => {
+    try {
+      const { walletAddress, marketType, marketId, content } = req.body;
+      
+      if (!walletAddress) {
+        return res.status(400).json({ error: "Wallet address required" });
+      }
+      
+      if (!marketType || !marketId || !content) {
+        return res.status(400).json({ error: "Market type, ID, and content required" });
+      }
+      
+      if (content.length > 1000) {
+        return res.status(400).json({ error: "Comment too long (max 1000 characters)" });
+      }
+      
+      // Get user's display name
+      const profile = await storage.getUserProfile(walletAddress);
+      const displayName = profile?.displayName || null;
+      
+      const comment = await storage.createComment({
+        walletAddress,
+        marketType,
+        marketId,
+        content,
+        displayName,
+      });
+      
+      res.json(comment);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to create comment" });
+    }
+  });
+
   return httpServer;
 }
 

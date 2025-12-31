@@ -1,7 +1,7 @@
 import { 
   users, teams, drivers, holdings, transactions, deposits, priceHistory, seasons, payouts, markets, orderFills,
   championshipPools, championshipOutcomes, poolTrades, poolPositions, poolPayouts, zkProofs, poolPriceHistory,
-  raceMarkets, raceMarketOutcomes, polymarketOrders, portfolioHistory, platformConfig, collectedFees,
+  raceMarkets, raceMarketOutcomes, polymarketOrders, portfolioHistory, platformConfig, collectedFees, marketComments,
   type User, type InsertUser, 
   type Team, type InsertTeam,
   type Driver, type InsertDriver,
@@ -25,6 +25,7 @@ import {
   type PortfolioHistory, type InsertPortfolioHistory,
   type PlatformConfig, type InsertPlatformConfig,
   type CollectedFee, type InsertCollectedFee,
+  type MarketComment,
   type BuySharesRequest,
   type SellSharesRequest
 } from "@shared/schema";
@@ -191,6 +192,12 @@ export interface IStorage {
   getPendingFillFees(): Promise<CollectedFee[]>;
   getFeeStats(): Promise<{ totalFees: number; totalVolume: number; feeCount: number; avgFeePercent: number }>;
   getRecentFees(limit: number): Promise<CollectedFee[]>;
+  
+  // User Profiles & Comments
+  getUserProfile(walletAddress: string): Promise<{ walletAddress: string; displayName: string | null } | undefined>;
+  updateDisplayName(walletAddress: string, displayName: string): Promise<string>;
+  getMarketComments(marketType: string, marketId: string): Promise<MarketComment[]>;
+  createComment(data: { walletAddress: string; marketType: string; marketId: string; content: string; displayName: string | null }): Promise<MarketComment>;
 }
 
 // Initial F1 2026 teams data - all teams start at equal $0.10 price
@@ -1401,6 +1408,61 @@ export class DatabaseStorage implements IStorage {
       .from(collectedFees)
       .where(eq(collectedFees.status, "pending_fill"))
       .orderBy(asc(collectedFees.createdAt));
+  }
+
+  // User Profiles & Comments
+  async getUserProfile(walletAddress: string): Promise<{ walletAddress: string; displayName: string | null } | undefined> {
+    const [user] = await db
+      .select({ walletAddress: users.walletAddress, displayName: users.displayName })
+      .from(users)
+      .where(eq(users.walletAddress, walletAddress));
+    
+    if (user && user.walletAddress) {
+      return { walletAddress: user.walletAddress, displayName: user.displayName };
+    }
+    return undefined;
+  }
+
+  async updateDisplayName(walletAddress: string, displayName: string): Promise<string> {
+    const existing = await this.getUserProfile(walletAddress);
+    
+    if (existing) {
+      await db
+        .update(users)
+        .set({ displayName })
+        .where(eq(users.walletAddress, walletAddress));
+    } else {
+      await db.insert(users).values({
+        username: walletAddress,
+        password: "",
+        walletAddress,
+        displayName,
+      });
+    }
+    
+    return displayName;
+  }
+
+  async getMarketComments(marketType: string, marketId: string): Promise<MarketComment[]> {
+    return await db
+      .select()
+      .from(marketComments)
+      .where(and(
+        eq(marketComments.marketType, marketType),
+        eq(marketComments.marketId, marketId)
+      ))
+      .orderBy(desc(marketComments.createdAt));
+  }
+
+  async createComment(data: { walletAddress: string; marketType: string; marketId: string; content: string; displayName: string | null }): Promise<MarketComment> {
+    const [comment] = await db.insert(marketComments).values({
+      walletAddress: data.walletAddress,
+      marketType: data.marketType,
+      marketId: data.marketId,
+      content: data.content,
+      displayName: data.displayName,
+    }).returning();
+    return comment;
   }
 }
 
