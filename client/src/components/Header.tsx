@@ -1,4 +1,4 @@
-import { Wallet, TrendingUp, Menu, Plus, Loader2, Briefcase, Flag, DollarSign, PieChart, LogOut, Check, ArrowRightLeft, Settings, ArrowUpRight, ArrowDownLeft, Car, User, HelpCircle } from "lucide-react";
+import { Wallet, TrendingUp, Menu, Plus, Loader2, Briefcase, Flag, DollarSign, PieChart, LogOut, Check, ArrowRightLeft, Settings, ArrowUpRight, ArrowDownLeft, Car, User, HelpCircle, RefreshCw } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -133,21 +133,21 @@ export function Header() {
                       variant="ghost" 
                       size="sm" 
                       className="justify-start"
-                      onClick={() => { setSwapDirection("deposit"); setSwapOpen(true); }}
-                      data-testid="button-header-deposit-cash"
+                      onClick={() => setDepositOpen(true)}
+                      data-testid="button-header-deposit-withdraw"
                     >
                       <ArrowDownLeft className="h-4 w-4 mr-2" />
-                      Deposit Cash
+                      Deposit / Withdraw
                     </Button>
                     <Button 
                       variant="ghost" 
                       size="sm" 
                       className="justify-start"
-                      onClick={() => { setSwapDirection("withdraw"); setSwapOpen(true); }}
-                      data-testid="button-header-withdraw-cash"
+                      onClick={() => setSwapOpen(true)}
+                      data-testid="button-header-swap-usdc"
                     >
-                      <ArrowUpRight className="h-4 w-4 mr-2" />
-                      Withdraw Cash
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Swap USDC
                     </Button>
                   </div>
                 </PopoverContent>
