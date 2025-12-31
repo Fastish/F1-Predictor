@@ -75,16 +75,27 @@ export default function DriversChampionship() {
   const totalLiquidity = drivers.reduce((sum, d) => sum + parseFloat(d.liquidity || "0"), 0);
   const participantCount = drivers.filter(d => parseFloat(d.volume || "0") > 0).length;
 
-  const driversFromPolymarket: Driver[] = drivers.map((outcome, index) => ({
-    id: outcome.id,
-    name: outcome.name,
-    shortName: outcome.name.split(" ").pop()?.substring(0, 3).toUpperCase() || "DRV",
-    teamId: "polymarket",
-    number: index + 1,
-    color: driverTeamColors[outcome.name] || "#888888",
-    price: outcome.price,
-    priceChange: outcome.priceChange || 0,
-  }));
+  const isValidDriverName = (name: string): boolean => {
+    const trimmed = name.trim();
+    const words = trimmed.split(/\s+/);
+    if (words.length < 2) return false;
+    const invalidNames = ["other", "field", "none", "n/a", "tbd", "unknown"];
+    if (invalidNames.some(invalid => trimmed.toLowerCase().includes(invalid))) return false;
+    return true;
+  };
+
+  const driversFromPolymarket: Driver[] = drivers
+    .filter((outcome) => isValidDriverName(outcome.name))
+    .map((outcome, index) => ({
+      id: outcome.id,
+      name: outcome.name,
+      shortName: outcome.name.split(" ").pop()?.substring(0, 3).toUpperCase() || "DRV",
+      teamId: "polymarket",
+      number: index + 1,
+      color: driverTeamColors[outcome.name] || "#888888",
+      price: outcome.price,
+      priceChange: outcome.priceChange || 0,
+    }));
 
   const sortedDrivers = [...driversFromPolymarket].sort((a, b) => b.price - a.price);
 

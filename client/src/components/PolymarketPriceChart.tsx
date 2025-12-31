@@ -82,12 +82,21 @@ export function PolymarketPriceChart({
   const [timeRange, setTimeRange] = useState<TimeRange>("1W");
   const colorKey = type === "constructors" ? teamColors : driverColors;
 
+  const isValidName = (name: string): boolean => {
+    const trimmed = name.trim();
+    const words = trimmed.split(/\s+/);
+    if (words.length < 2) return false;
+    const invalidNames = ["other", "field", "none", "n/a", "tbd", "unknown"];
+    if (invalidNames.some(invalid => trimmed.toLowerCase().includes(invalid))) return false;
+    return true;
+  };
+
   const topOutcomes = useMemo(() => 
     [...outcomes]
-      .filter(o => o.name !== "Other")
+      .filter(o => type === "drivers" ? isValidName(o.name) : o.name !== "Other")
       .sort((a, b) => b.price - a.price)
       .slice(0, 5),
-    [outcomes]
+    [outcomes, type]
   );
 
   const rangeConfig = timeRanges.find(r => r.key === timeRange) || timeRanges[1];
