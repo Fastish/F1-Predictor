@@ -263,7 +263,16 @@ export default function DriversChampionship() {
           </div>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {sortedDrivers.map((driver) => (
+            {sortedDrivers
+              .filter((driver) => {
+                if (arbFilter === "all") return true;
+                const opportunity = getArbitrageOpportunity(driver.name);
+                if (!opportunity) return false;
+                if (arbFilter === "buy_yes") return opportunity.recommendation === "BUY_YES";
+                if (arbFilter === "buy_no") return opportunity.recommendation === "BUY_NO";
+                return true;
+              })
+              .map((driver) => (
               <DriverCard
                 key={driver.id}
                 driver={driver}

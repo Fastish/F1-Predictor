@@ -224,7 +224,16 @@ export default function ConstructorsChampionship() {
           </div>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {sortedTeams.map((team) => (
+            {sortedTeams
+              .filter((team) => {
+                if (arbFilter === "all") return true;
+                const opportunity = getArbitrageOpportunity(team.name);
+                if (!opportunity) return false;
+                if (arbFilter === "buy_yes") return opportunity.recommendation === "BUY_YES";
+                if (arbFilter === "buy_no") return opportunity.recommendation === "BUY_NO";
+                return true;
+              })
+              .map((team) => (
               <TeamCard
                 key={team.id}
                 team={team}
