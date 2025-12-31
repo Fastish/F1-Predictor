@@ -435,7 +435,7 @@ export function SwapModal({ open, onOpenChange, initialDirection = "deposit" }: 
                     <RadioGroupItem value="safe" id="safe" data-testid="radio-safe" />
                     <Label htmlFor="safe" className="flex items-center gap-1.5 cursor-pointer text-sm">
                       <Shield className="h-3.5 w-3.5" />
-                      Safe Wallet
+                      Safe Trading Wallet
                     </Label>
                   </div>
                 </RadioGroup>
