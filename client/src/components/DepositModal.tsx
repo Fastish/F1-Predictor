@@ -515,7 +515,7 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
                       ) : (
                         <div className="space-y-2 pt-1 border-t">
                           <div className="flex items-center justify-between">
-                            <Label className="text-xs">Withdraw to EOA</Label>
+                            <Label className="text-xs">Withdraw to connected wallet</Label>
                             <Button
                               variant="ghost"
                               size="sm"

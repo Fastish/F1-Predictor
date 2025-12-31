@@ -327,7 +327,7 @@ export function WalletManagementModal({ open, onOpenChange, initialTab = "receiv
             <Card>
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-base">Send USDC</CardTitle>
+                  <CardTitle className="text-base">USDC Available</CardTitle>
                   <Badge variant="outline" className="font-mono">
                     {isLoadingBalance ? (
                       <Loader2 className="h-3 w-3 animate-spin" />
@@ -337,7 +337,7 @@ export function WalletManagementModal({ open, onOpenChange, initialTab = "receiv
                   </Badge>
                 </div>
                 <CardDescription>
-                  Transfer USDC to another Polygon wallet
+                  Transfer USDC.e to another Polygon wallet
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">

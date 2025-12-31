@@ -320,11 +320,11 @@ export function SwapModal({ open, onOpenChange, initialDirection = "deposit" }: 
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="deposit" data-testid="tab-deposit">
                   <ArrowDownLeft className="h-4 w-4 mr-2" />
-                  Deposit
+                  Swap USDC to Trade
                 </TabsTrigger>
                 <TabsTrigger value="withdraw" data-testid="tab-withdraw">
                   <ArrowUpRight className="h-4 w-4 mr-2" />
-                  Withdraw
+                  Swap USDC.e for Withdrawal
                 </TabsTrigger>
               </TabsList>
               
