@@ -2,6 +2,7 @@ import { TrendingUp, TrendingDown, DollarSign, Lock, User } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { ArbitrageValueBadge, type ArbitrageOpportunity } from "./ArbitrageValueBadge";
 
 export interface Driver {
   id: string;
@@ -19,9 +20,10 @@ interface DriverCardProps {
   onBuy?: (driver: Driver) => void;
   owned?: number;
   tradingLocked?: boolean;
+  arbitrageOpportunity?: ArbitrageOpportunity;
 }
 
-export function DriverCard({ driver, onBuy, owned, tradingLocked }: DriverCardProps) {
+export function DriverCard({ driver, onBuy, owned, tradingLocked, arbitrageOpportunity }: DriverCardProps) {
   const isPositive = driver.priceChange >= 0;
 
   return (
@@ -33,7 +35,7 @@ export function DriverCard({ driver, onBuy, owned, tradingLocked }: DriverCardPr
       <CardContent className="flex flex-col gap-4 p-4 pt-5">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <div
                 className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
                 style={{ backgroundColor: driver.color }}
@@ -43,6 +45,7 @@ export function DriverCard({ driver, onBuy, owned, tradingLocked }: DriverCardPr
               <span className="truncate text-sm font-medium text-muted-foreground">
                 {driver.shortName}
               </span>
+              <ArbitrageValueBadge opportunity={arbitrageOpportunity} compact />
             </div>
             <h3 className="mt-1 truncate text-base font-bold" data-testid={`text-driver-name-${driver.id}`}>
               {driver.name}

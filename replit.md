@@ -102,3 +102,20 @@ Preferred communication style: Simple, everyday language.
   - Positions: "My Positions - F1 Trading Portfolio"
   - How to Use: "How to Trade F1 Predictions"
   - Admin: "Admin Panel"
+
+### Arbitrage Detection System
+- **Purpose**: Compare Polymarket prices against traditional sportsbook betting lines to identify value opportunities
+- **Data Source**: TheOddsAPI for live odds (requires THEODDSAPI_KEY env var) with mock bet365 estimates as fallback
+- **Threshold**: Flags opportunities when delta exceeds 5 percentage points between sources
+- **Recommendations**:
+  - **BUY_YES**: Sportsbook values outcome higher than Polymarket (underpriced on Polymarket)
+  - **BUY_NO**: Sportsbook values outcome lower than Polymarket (overpriced on Polymarket)
+  - **NEUTRAL**: Prices are closely aligned (within 5% threshold)
+- **Key Files**:
+  - `server/oddsSync.ts`: Odds sync service with conversion utilities and comparison engine
+  - `client/src/components/ArbitrageValueBadge.tsx`: Frontend badge and summary components
+- **API Routes**:
+  - GET /api/arbitrage/opportunities - Returns value opportunities for constructors and drivers
+  - GET /api/arbitrage/odds - Returns cached sportsbook odds for debugging
+- **Cache**: 5-minute TTL on sportsbook odds
+- **UX**: ArbitrageValueBadge with tooltip explains delta and recommends action; ArbitrageSummary shows count of opportunities

@@ -5,6 +5,7 @@ import { TeamCard } from "@/components/TeamCard";
 import { PolymarketPriceChart } from "@/components/PolymarketPriceChart";
 import { PolymarketBetModal } from "@/components/PolymarketBetModal";
 import { CommentsSection } from "@/components/CommentsSection";
+import { ArbitrageSummary, type ArbitrageOpportunity } from "@/components/ArbitrageValueBadge";
 import { useMarket, type F1Team } from "@/context/MarketContext";
 import { useWallet } from "@/context/WalletContext";
 import { useSEO } from "@/hooks/useSEO";
@@ -65,6 +66,21 @@ export default function ConstructorsChampionship() {
     queryKey: ["/api/polymarket/constructors"],
     refetchInterval: 30000,
   });
+
+  const { data: arbitrageData } = useQuery<{
+    constructors: ArbitrageOpportunity[];
+    drivers: ArbitrageOpportunity[];
+    lastUpdated: string | null;
+    hasLiveOdds: boolean;
+    dataSource: string;
+  }>({
+    queryKey: ["/api/arbitrage/opportunities"],
+    refetchInterval: 60000,
+  });
+
+  const constructorOpportunities = arbitrageData?.constructors || [];
+  const getArbitrageOpportunity = (teamName: string) => 
+    constructorOpportunities.find(o => o.outcomeName === teamName);
 
   const totalVolume = constructors.reduce((sum, c) => sum + parseFloat(c.volume || "0"), 0);
   const totalLiquidity = constructors.reduce((sum, c) => sum + parseFloat(c.liquidity || "0"), 0);
@@ -170,6 +186,14 @@ export default function ConstructorsChampionship() {
           }}
         />
 
+        {constructorOpportunities.length > 0 && (
+          <ArbitrageSummary 
+            opportunities={constructorOpportunities}
+            dataSource={arbitrageData?.dataSource || "Unknown"}
+            hasLiveOdds={arbitrageData?.hasLiveOdds || false}
+          />
+        )}
+
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -183,6 +207,7 @@ export default function ConstructorsChampionship() {
                 onBuy={handleBuyTeam}
                 owned={getHolding(team.id)?.shares}
                 tradingLocked={false}
+                arbitrageOpportunity={getArbitrageOpportunity(team.name)}
               />
             ))}
           </div>

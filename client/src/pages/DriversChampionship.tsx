@@ -5,6 +5,7 @@ import { DriverCard, type Driver } from "@/components/DriverCard";
 import { PolymarketPriceChart } from "@/components/PolymarketPriceChart";
 import { PolymarketBetModal } from "@/components/PolymarketBetModal";
 import { CommentsSection } from "@/components/CommentsSection";
+import { ArbitrageSummary, type ArbitrageOpportunity } from "@/components/ArbitrageValueBadge";
 import { useWallet } from "@/context/WalletContext";
 import { useSEO } from "@/hooks/useSEO";
 import { Card, CardContent } from "@/components/ui/card";
@@ -77,6 +78,21 @@ export default function DriversChampionship() {
     queryKey: ["/api/polymarket/drivers"],
     refetchInterval: 30000,
   });
+
+  const { data: arbitrageData } = useQuery<{
+    constructors: ArbitrageOpportunity[];
+    drivers: ArbitrageOpportunity[];
+    lastUpdated: string | null;
+    hasLiveOdds: boolean;
+    dataSource: string;
+  }>({
+    queryKey: ["/api/arbitrage/opportunities"],
+    refetchInterval: 60000,
+  });
+
+  const driverOpportunities = arbitrageData?.drivers || [];
+  const getArbitrageOpportunity = (driverName: string) => 
+    driverOpportunities.find(o => o.outcomeName === driverName);
 
   const totalVolume = drivers.reduce((sum, d) => sum + parseFloat(d.volume || "0"), 0);
   const totalLiquidity = drivers.reduce((sum, d) => sum + parseFloat(d.liquidity || "0"), 0);
@@ -194,6 +210,14 @@ export default function DriversChampionship() {
           }}
         />
 
+        {driverOpportunities.length > 0 && (
+          <ArbitrageSummary 
+            opportunities={driverOpportunities}
+            dataSource={arbitrageData?.dataSource || "Unknown"}
+            hasLiveOdds={arbitrageData?.hasLiveOdds || false}
+          />
+        )}
+
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -221,6 +245,7 @@ export default function DriversChampionship() {
                 driver={driver}
                 onBuy={handleBuyDriver}
                 tradingLocked={false}
+                arbitrageOpportunity={getArbitrageOpportunity(driver.name)}
               />
             ))}
           </div>

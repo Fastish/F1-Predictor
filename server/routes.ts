@@ -1318,6 +1318,53 @@ export async function registerRoutes(
     }
   });
 
+  // ============ Arbitrage Detection ============
+  
+  // Get arbitrage opportunities comparing Polymarket vs sportsbook odds
+  app.get("/api/arbitrage/opportunities", async (req, res) => {
+    try {
+      const { getConstructorsMarket, getDriversMarket } = await import("./polymarket");
+      const { getArbitrageOpportunities, hasOddsApiKey } = await import("./oddsSync");
+      
+      // Fetch current Polymarket prices
+      const constructorsData = await getConstructorsMarket();
+      const driversData = await getDriversMarket();
+      
+      // Convert to format expected by arbitrage engine
+      const polyConstructors = constructorsData.map(c => ({ name: c.name, price: c.price }));
+      const polyDrivers = driversData.map(d => ({ name: d.name, price: d.price }));
+      
+      // Get arbitrage opportunities
+      const opportunities = await getArbitrageOpportunities(polyConstructors, polyDrivers);
+      
+      res.json({
+        ...opportunities,
+        hasLiveOdds: hasOddsApiKey(),
+        dataSource: hasOddsApiKey() ? "TheOddsAPI" : "Mock Data (bet365 estimates)",
+      });
+    } catch (error) {
+      console.error("Failed to fetch arbitrage opportunities:", error);
+      res.status(500).json({ error: "Failed to fetch arbitrage opportunities" });
+    }
+  });
+
+  // Get cached sportsbook odds (for debugging/transparency)
+  app.get("/api/arbitrage/odds", async (req, res) => {
+    try {
+      const { getCachedOdds, hasOddsApiKey } = await import("./oddsSync");
+      const odds = getCachedOdds();
+      
+      res.json({
+        ...odds,
+        hasLiveOdds: hasOddsApiKey(),
+        dataSource: hasOddsApiKey() ? "TheOddsAPI" : "Mock Data (bet365 estimates)",
+      });
+    } catch (error) {
+      console.error("Failed to fetch cached odds:", error);
+      res.status(500).json({ error: "Failed to fetch cached odds" });
+    }
+  });
+
   // Get price history for a token from Polymarket CLOB
   app.get("/api/polymarket/price-history/:tokenId", async (req, res) => {
     try {

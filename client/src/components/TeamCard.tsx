@@ -2,6 +2,7 @@ import { TrendingUp, TrendingDown, DollarSign, Lock } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { ArbitrageValueBadge, type ArbitrageOpportunity } from "./ArbitrageValueBadge";
 import type { F1Team } from "@/context/MarketContext";
 
 interface TeamCardProps {
@@ -9,9 +10,10 @@ interface TeamCardProps {
   onBuy?: (team: F1Team) => void;
   owned?: number;
   tradingLocked?: boolean;
+  arbitrageOpportunity?: ArbitrageOpportunity;
 }
 
-export function TeamCard({ team, onBuy, owned, tradingLocked }: TeamCardProps) {
+export function TeamCard({ team, onBuy, owned, tradingLocked, arbitrageOpportunity }: TeamCardProps) {
   const isPositive = team.priceChange >= 0;
 
   return (
@@ -23,7 +25,7 @@ export function TeamCard({ team, onBuy, owned, tradingLocked }: TeamCardProps) {
       <CardContent className="flex flex-col gap-4 p-4 pt-5">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <div
                 className="h-3 w-3 shrink-0 rounded-full"
                 style={{ backgroundColor: team.color }}
@@ -31,6 +33,7 @@ export function TeamCard({ team, onBuy, owned, tradingLocked }: TeamCardProps) {
               <span className="truncate text-sm font-medium text-muted-foreground">
                 {team.shortName}
               </span>
+              <ArbitrageValueBadge opportunity={arbitrageOpportunity} compact />
             </div>
             <h3 className="mt-1 truncate text-base font-bold" data-testid={`text-team-name-${team.id}`}>
               {team.name}
