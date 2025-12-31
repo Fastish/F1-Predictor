@@ -201,13 +201,14 @@ export default function HowToUse() {
                 <div className="mt-8">
                   <h3 className="font-semibold mb-4">Popular External Wallets</h3>
                   <div className="grid gap-4 md:grid-cols-3">
-                    {walletOptions.map((wallet) => (
+                    {walletOptions.map((wallet, index) => (
                       <a
                         key={wallet.name}
                         href={wallet.url}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="block"
+                        data-testid={`link-wallet-${wallet.name.toLowerCase().replace(/\s+/g, '-')}`}
                       >
                         <Card className="hover-elevate h-full">
                           <CardContent className="flex items-center gap-3 pt-4 pb-4">
@@ -265,13 +266,14 @@ export default function HowToUse() {
                     Polygon:
                   </p>
                   <div className="grid gap-4 md:grid-cols-2">
-                    {onrampOptions.map((option) => (
+                    {onrampOptions.map((option, index) => (
                       <a
                         key={option.name}
                         href={option.url}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="block"
+                        data-testid={`link-onramp-${option.name.toLowerCase()}`}
                       >
                         <Card className="hover-elevate h-full">
                           <CardContent className="pt-4 pb-4">
@@ -329,6 +331,7 @@ export default function HowToUse() {
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-primary underline"
+                          data-testid="link-polygon-bridge"
                         >
                           Polygon Bridge
                         </a>{" "}
@@ -631,6 +634,7 @@ export default function HowToUse() {
               target="_blank"
               rel="noopener noreferrer"
               className="text-primary underline"
+              data-testid="link-polymarket-learn"
             >
               Polymarket Learn Center
             </a>{" "}
@@ -640,6 +644,7 @@ export default function HowToUse() {
               target="_blank"
               rel="noopener noreferrer"
               className="text-primary underline"
+              data-testid="link-polygon-docs"
             >
               Polygon documentation
             </a>
@@ -659,7 +664,7 @@ export default function HowToUse() {
           <p className="mt-1">This site is powered by Polymarket.com</p>
           <p className="mt-1">
             All orders are subject to{" "}
-            <a href="https://polymarket.com/tos" className="underline">
+            <a href="https://polymarket.com/tos" className="underline" data-testid="link-polymarket-tos">
               Polymarket terms
             </a>
           </p>

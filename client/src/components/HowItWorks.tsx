@@ -1,5 +1,7 @@
-import { DollarSign, TrendingUp, Trophy } from "lucide-react";
+import { DollarSign, TrendingUp, Trophy, ArrowRight } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Link } from "wouter";
 
 const steps = [
   {
@@ -50,6 +52,15 @@ export function HowItWorks() {
               </CardContent>
             </Card>
           ))}
+        </div>
+
+        <div className="mt-8 text-center">
+          <Link href="/how-to-use">
+            <Button variant="outline" data-testid="button-detailed-guide">
+              Read the Detailed Guide
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          </Link>
         </div>
       </div>
     </section>

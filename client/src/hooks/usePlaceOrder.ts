@@ -130,9 +130,22 @@ export function usePlaceOrder(
 
         // Check if the response contains an error (Polymarket returns errors in response body)
         const resultAny = result as any;
-        if (resultAny.error || resultAny.status >= 400) {
-          const errorMessage = resultAny.error || `Request failed with status ${resultAny.status}`;
-          console.error("Polymarket order rejected:", errorMessage);
+        
+        // Polymarket can return errors in multiple formats
+        const hasError = resultAny.error || 
+          resultAny.message || 
+          resultAny.status >= 400 ||
+          resultAny.errorMsg ||
+          (typeof resultAny === 'string' && resultAny.toLowerCase().includes('error'));
+        
+        if (hasError) {
+          const errorMessage = resultAny.error || 
+            resultAny.message || 
+            resultAny.errorMsg ||
+            (typeof resultAny === 'string' ? resultAny : null) ||
+            `Request failed with status ${resultAny.status}`;
+          console.error("Polymarket order rejected:", errorMessage, "Full response:", result);
+          await logToServer("ORDER_REJECTED", { errorMessage, fullResponse: result });
           setIsPlacing(false);
           return {
             success: false,

@@ -15,6 +15,7 @@ import RaceDetail from "@/pages/RaceDetail";
 import ConstructorsChampionship from "@/pages/ConstructorsChampionship";
 import DriversChampionship from "@/pages/DriversChampionship";
 import NotFound from "@/pages/not-found";
+import HowToUse from "@/pages/HowToUse";
 
 function Router() {
   return (
@@ -27,6 +28,7 @@ function Router() {
       <Route path="/races/:id" component={RaceDetail} />
       <Route path="/portfolio" component={Positions} />
       <Route path="/admin" component={Admin} />
+      <Route path="/how-to-use" component={HowToUse} />
       <Route component={NotFound} />
     </Switch>
   );

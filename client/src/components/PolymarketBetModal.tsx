@@ -423,9 +423,13 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
           // Check on-chain status first
           if (approvalStatus.checked && !approvalStatus.needsApproval) {
             // Approvals are already done - this is likely a different issue
+            // Show more specific error if available
+            const specificError = result.error || result.rawResponse?.error || result.rawResponse?.message;
             toast({
               title: "Order Rejected",
-              description: "Polymarket rejected the order. This may be due to insufficient balance, invalid credentials, or a temporary issue. Try resetting your trading session.",
+              description: specificError 
+                ? `Polymarket rejected: ${specificError}. Try resetting your trading session.`
+                : "Polymarket rejected the order. This may be due to insufficient balance, invalid credentials, or a temporary issue. Try resetting your trading session.",
               variant: "destructive",
             });
           } else {

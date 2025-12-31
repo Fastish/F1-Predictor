@@ -1,4 +1,4 @@
-import { Wallet, TrendingUp, Menu, Plus, Loader2, Briefcase, Flag, DollarSign, PieChart, LogOut, Check, ArrowRightLeft, Settings, ArrowUpRight, ArrowDownLeft, Car, User } from "lucide-react";
+import { Wallet, TrendingUp, Menu, Plus, Loader2, Briefcase, Flag, DollarSign, PieChart, LogOut, Check, ArrowRightLeft, Settings, ArrowUpRight, ArrowDownLeft, Car, User, HelpCircle } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -123,6 +123,16 @@ export function Header() {
               >
                 <Flag className="mr-1 h-4 w-4" />
                 Races
+              </Button>
+            </Link>
+            <Link href="/how-to-use">
+              <Button
+                variant={location === "/how-to-use" ? "secondary" : "ghost"}
+                size="sm"
+                data-testid="button-nav-guide"
+              >
+                <HelpCircle className="mr-1 h-4 w-4" />
+                Guide
               </Button>
             </Link>
           </nav>
@@ -294,6 +304,17 @@ export function Header() {
                   >
                     <PieChart className="mr-2 h-4 w-4" />
                     Portfolio
+                  </Button>
+                </Link>
+                <Link href="/how-to-use">
+                  <Button
+                    variant={location === "/how-to-use" ? "secondary" : "ghost"}
+                    className="justify-start w-full"
+                    onClick={() => setMobileMenuOpen(false)}
+                    data-testid="button-mobile-nav-guide"
+                  >
+                    <HelpCircle className="mr-2 h-4 w-4" />
+                    Guide
                   </Button>
                 </Link>
               </nav>
