@@ -7,8 +7,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useWallet } from "@/context/WalletContext";
+import { useTradingSession } from "@/hooks/useTradingSession";
 import { useToast } from "@/hooks/use-toast";
-import { Copy, Check, Send, QrCode, Wallet, AlertCircle, Loader2, ExternalLink } from "lucide-react";
+import { Copy, Check, Send, QrCode, Wallet, AlertCircle, Loader2, ExternalLink, Shield } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { ethers } from "ethers";
 
@@ -32,7 +33,9 @@ const USDC_ABI = [
 
 export function WalletManagementModal({ open, onOpenChange, initialTab = "receive", prefilledAddress = "", title, sendLabel = "Send" }: WalletManagementModalProps) {
   const { walletAddress, walletType, signer, provider, getUsdcBalance } = useWallet();
+  const { safeAddress } = useTradingSession();
   const { toast } = useToast();
+  const [safeCopied, setSafeCopied] = useState(false);
   
   const [copied, setCopied] = useState(false);
   const [recipientAddress, setRecipientAddress] = useState(prefilledAddress);
@@ -82,6 +85,26 @@ export function WalletManagementModal({ open, onOpenChange, initialTab = "receiv
         description: "Wallet address copied to clipboard",
       });
       setTimeout(() => setCopied(false), 2000);
+    } catch (error) {
+      toast({
+        title: "Copy Failed",
+        description: "Failed to copy address to clipboard",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleCopySafeAddress = async () => {
+    if (!safeAddress) return;
+    
+    try {
+      await navigator.clipboard.writeText(safeAddress);
+      setSafeCopied(true);
+      toast({
+        title: "Address Copied",
+        description: "Safe Trading Wallet address copied to clipboard",
+      });
+      setTimeout(() => setSafeCopied(false), 2000);
     } catch (error) {
       toast({
         title: "Copy Failed",
@@ -311,6 +334,43 @@ export function WalletManagementModal({ open, onOpenChange, initialTab = "receiv
                 <ExternalLink className="h-3 w-3" />
               </a>
             </div>
+
+            {safeAddress && (
+              <div className="rounded-md border p-3 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Shield className="h-4 w-4 text-muted-foreground" />
+                  <Label className="text-sm font-medium">Safe Trading Wallet</Label>
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="p-2 bg-white rounded-md flex-shrink-0">
+                    <QRCodeSVG 
+                      value={safeAddress} 
+                      size={80}
+                      level="H"
+                      includeMargin={false}
+                    />
+                  </div>
+                  <div className="flex-1 space-y-2 min-w-0">
+                    <p className="text-xs text-muted-foreground">
+                      Deposit USDC.e directly to your trading wallet
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <code className="flex-1 text-xs bg-muted px-2 py-1.5 rounded-md font-mono break-all">
+                        {safeAddress}
+                      </code>
+                      <Button
+                        size="icon"
+                        variant="outline"
+                        onClick={handleCopySafeAddress}
+                        data-testid="button-copy-safe-address"
+                      >
+                        {safeCopied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="rounded-md bg-blue-500/10 p-3 text-sm">
               <div className="flex items-start gap-2">
