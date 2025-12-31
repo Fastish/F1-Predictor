@@ -88,6 +88,7 @@ export function PolymarketPriceChart({
     if (words.length < 2) return false;
     const invalidNames = ["other", "field", "none", "n/a", "tbd", "unknown"];
     if (invalidNames.some(invalid => trimmed.toLowerCase().includes(invalid))) return false;
+    if (/^driver\s+[a-z]$/i.test(trimmed)) return false;
     return true;
   };
 

@@ -10,6 +10,7 @@ export const users = pgTable("users", {
   password: text("password").notNull(),
   balance: real("balance").notNull().default(100),
   walletAddress: text("wallet_address"),
+  displayName: text("display_name"),
 });
 
 export const usersRelations = relations(users, ({ many }) => ({
@@ -839,4 +840,38 @@ export const recordFeeSchema = z.object({
   feeAmount: z.number(),
   txHash: z.string().optional(),
   status: z.enum(["pending", "confirmed", "failed", "pending_fill", "cancelled"]).optional(),
+});
+
+// =====================================================
+// MARKET COMMENTS - User comments on markets
+// =====================================================
+
+export const marketComments = pgTable("market_comments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  marketType: text("market_type").notNull(), // 'constructor', 'driver', 'race'
+  marketId: text("market_id").notNull(), // Token ID or market identifier
+  walletAddress: text("wallet_address").notNull(), // User's wallet address
+  displayName: text("display_name"), // User's display name at time of posting
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertMarketCommentSchema = createInsertSchema(marketComments).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const createCommentSchema = z.object({
+  marketType: z.string(),
+  marketId: z.string(),
+  content: z.string().min(1).max(1000),
+});
+
+export type InsertMarketComment = z.infer<typeof insertMarketCommentSchema>;
+export type MarketComment = typeof marketComments.$inferSelect;
+export type CreateCommentRequest = z.infer<typeof createCommentSchema>;
+
+// Update display name schema
+export const updateDisplayNameSchema = z.object({
+  displayName: z.string().min(1).max(30).regex(/^[a-zA-Z0-9_]+$/, "Only letters, numbers, and underscores allowed"),
 });
