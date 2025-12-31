@@ -419,6 +419,40 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
                       <span className="text-green-600 dark:text-green-400 text-xs">USDC approved for trading</span>
                     </div>
                   )}
+
+                  {safeAddress && (
+                    <div className="rounded-md border p-3 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Wallet className="h-4 w-4 text-purple-500" />
+                        <span className="text-sm font-medium">Your Safe Trading Wallet</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Deposit USDC.e directly to this address to fund your trading account:
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <code className="flex-1 text-xs bg-background rounded px-2 py-1.5 truncate font-mono" data-testid="text-safe-address">
+                          {safeAddress}
+                        </code>
+                        <Button 
+                          size="icon" 
+                          variant="ghost"
+                          onClick={() => copyToClipboard(safeAddress, "Safe Address")}
+                          data-testid="button-copy-safe-address"
+                        >
+                          <Copy className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      {eoaBalance > 0 && tradingWalletBalance < 1 && (
+                        <div className="flex items-start gap-2 pt-2 border-t text-xs text-muted-foreground">
+                          <AlertCircle className="h-3.5 w-3.5 text-blue-500 mt-0.5 flex-shrink-0" />
+                          <span>
+                            You have ${eoaBalance.toFixed(2)} USDC.e in your wallet. 
+                            Send it to this Safe address to start trading.
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 
