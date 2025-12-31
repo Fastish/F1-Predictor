@@ -108,6 +108,11 @@ const faqItems = [
       "F1 Predict charges a small percentage fee on trades (typically 2%). This fee is collected after your order is successfully executed. For limit orders (GTC/GTD), fees are only charged when your order actually fills.",
   },
   {
+    question: "What is the Safe Trading Wallet?",
+    answer:
+      "When using an external wallet (MetaMask, Rainbow, etc.), a Safe Trading Wallet is automatically created for you. This is a Gnosis Safe smart contract wallet that enables gasless trading on Polymarket. You can deposit USDC.e directly to your Safe Trading Wallet using its QR code in the wallet management screen, or transfer from your connected wallet.",
+  },
+  {
     question: "Is my money safe?",
     answer:
       "Your funds are held in your own blockchain wallet, not by F1 Predict. Trades are executed through Polymarket's smart contracts on the Polygon blockchain. However, as with all crypto, you are responsible for keeping your wallet secure and never sharing your private key or seed phrase.",
@@ -115,7 +120,7 @@ const faqItems = [
   {
     question: "How do I withdraw my winnings?",
     answer:
-      "First, convert any USDC.e back to USDC using the swap feature. Then withdraw USDC to your external wallet. From there, you can send it to any crypto exchange (Coinbase, Kraken, etc.) and convert to your local currency for bank withdrawal.",
+      "Click on your Cash balance in the header and select 'Deposit / Withdraw' to open wallet management. From the Send tab, you can transfer USDC.e to any address. To convert USDC.e to USDC first, use the 'Swap USDC' option. From your external wallet, you can send funds to any crypto exchange (Coinbase, Kraken, etc.) and convert to your local currency.",
   },
   {
     question: "What network does this run on?",
@@ -397,7 +402,7 @@ export default function HowToUse() {
                       </Badge>
                       <p className="text-sm text-muted-foreground">
                         Click on your <strong>Cash balance</strong> in the
-                        header
+                        header to open the Cash menu
                       </p>
                     </div>
                     <div className="flex items-start gap-3">
@@ -408,8 +413,7 @@ export default function HowToUse() {
                         2
                       </Badge>
                       <p className="text-sm text-muted-foreground">
-                        Select <strong>Deposit Cash</strong> to convert USDC to
-                        USDC.e for trading
+                        Select <strong>Swap USDC</strong> to open the swap tool
                       </p>
                     </div>
                     <div className="flex items-start gap-3">
@@ -418,6 +422,17 @@ export default function HowToUse() {
                         className="rounded-full h-6 w-6 flex items-center justify-center p-0"
                       >
                         3
+                      </Badge>
+                      <p className="text-sm text-muted-foreground">
+                        Choose your <strong>wallet source</strong> (Connected Wallet or Safe Trading Wallet) and swap direction
+                      </p>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <Badge
+                        variant="outline"
+                        className="rounded-full h-6 w-6 flex items-center justify-center p-0"
+                      >
+                        4
                       </Badge>
                       <p className="text-sm text-muted-foreground">
                         Enter the amount and confirm the swap
