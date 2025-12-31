@@ -9,13 +9,13 @@ import { useMarket } from "@/context/MarketContext";
 import { useWallet } from "@/context/WalletContext";
 import { useTradingSession } from "@/hooks/useTradingSession";
 import { useToast } from "@/hooks/use-toast";
-import { useQuery } from "@tanstack/react-query";
 import { Copy, Wallet, AlertCircle, Loader2, LogOut, Mail, ExternalLink, RotateCcw, Key, CheckCircle2, ArrowRightLeft, ArrowUpRight, ArrowDownLeft, Send, QrCode } from "lucide-react";
 import { SiPolygon } from "react-icons/si";
 import { PolymarketDepositWizard } from "./PolymarketDepositWizard";
 import { SwapModal } from "./SwapModal";
 import { WalletManagementModal } from "./WalletManagementModal";
 import { checkDepositRequirements } from "@/lib/polymarketDeposit";
+import { useTradingWalletBalance } from "@/hooks/useTradingWalletBalance";
 
 interface DepositModalProps {
   open: boolean;
@@ -32,7 +32,6 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
     connectWithMagic,
     connectExternalWallet,
     disconnectWallet,
-    getUsdcBalance,
     provider,
   } = useWallet();
   const { 
@@ -111,14 +110,15 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
     });
   };
 
-  const { data: usdcBalance, isLoading: isLoadingBalance, refetch: refetchBalance } = useQuery({
-    queryKey: ["polygon-usdc-balance", walletAddress],
-    queryFn: async () => {
-      if (!walletAddress) return "0";
-      return await getUsdcBalance();
-    },
-    enabled: !!walletAddress && open,
-  });
+  const { 
+    tradingWalletBalance, 
+    isLoadingTradingBalance: isLoadingBalance,
+    eoaBalance,
+    isExternalWallet,
+    refetchTradingBalance: refetchBalance,
+  } = useTradingWalletBalance();
+  
+  const usdcBalance = tradingWalletBalance.toFixed(6);
 
   const handleDisconnect = async () => {
     await disconnectWallet();
@@ -303,7 +303,7 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
                   <div className="p-3 rounded-md bg-background border">
                     <div className="flex items-center justify-between gap-2">
                       <div className="text-sm">
-                        <p className="text-muted-foreground">Cash Available</p>
+                        <p className="text-muted-foreground">Cash Available for Trading</p>
                         {isLoadingBalance ? (
                           <p className="font-bold text-lg">Loading...</p>
                         ) : (
@@ -314,6 +314,17 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
                       </div>
                       <SiPolygon className="h-8 w-8 text-purple-500/30" />
                     </div>
+                    {isExternalWallet && eoaBalance > 0 && (
+                      <div className="mt-2 pt-2 border-t text-sm">
+                        <div className="flex items-center justify-between text-muted-foreground">
+                          <span>In Your Wallet (EOA)</span>
+                          <span className="tabular-nums">${eoaBalance.toFixed(2)} USDC.e</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Transfer to your Safe wallet to trade
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

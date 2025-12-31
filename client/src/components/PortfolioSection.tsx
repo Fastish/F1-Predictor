@@ -15,6 +15,7 @@ import { useTradingSession } from "@/hooks/useTradingSession";
 import { usePlaceOrder } from "@/hooks/usePlaceOrder";
 import { PolymarketBetModal } from "@/components/PolymarketBetModal";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import { useTradingWalletBalance } from "@/hooks/useTradingWalletBalance";
 
 interface PolymarketOrder {
   id: string;
@@ -258,23 +259,11 @@ export function PortfolioSection() {
   const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
   const { data: positionsData, isLoading: isLoadingPositions, refetch: refetchPositions, error: positionsError, isError: isPositionsError } = usePolymarketPositions();
 
-  const safeAddress = tradingSession?.safeAddress;
-  
-  // Query the EOA wallet balance (user's connected wallet) for display
-  const { data: cashBalance, isLoading: isLoadingBalance } = useQuery<number>({
-    queryKey: ["polygon-usdc-balance", walletAddress],
-    queryFn: async () => {
-      if (!walletAddress) return 0;
-      const { ethers } = await import("ethers");
-      const provider = new ethers.JsonRpcProvider("https://polygon-rpc.com");
-      const USDC_ADDRESS = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174";
-      const contract = new ethers.Contract(USDC_ADDRESS, ["function balanceOf(address) view returns (uint256)"], provider);
-      const balance = await contract.balanceOf(walletAddress);
-      return parseFloat(ethers.formatUnits(balance, 6));
-    },
-    enabled: !!walletAddress,
-    refetchInterval: 30000,
-  });
+  const { 
+    tradingWalletBalance: cashBalance, 
+    isLoadingTradingBalance: isLoadingBalance,
+    tradingWalletAddress: safeAddress,
+  } = useTradingWalletBalance();
 
   const portfolioValue = positionsData?.totalValue || 0;
   const totalPnl = positionsData?.totalPnl || 0;

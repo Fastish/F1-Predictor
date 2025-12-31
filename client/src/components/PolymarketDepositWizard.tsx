@@ -48,6 +48,8 @@ interface DepositStatus {
   ctfApprovedForNegRisk: boolean;
   proxyAddress: string | null;
   proxyBalance: string | null;
+  safeAddress: string | null;
+  safeBalance: string | null;
   needsApproval: boolean;
   needsCTFApproval: boolean;
   needsDeposit: boolean;
@@ -167,8 +169,28 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
       const needsSwap = parseFloat(rawStatus.nativeUsdcBalance) >= 1 && 
         parseFloat(rawStatus.usdcBalance) < 0.01;
       
+      let safeAddr: string | null = null;
+      let safeBalance: string | null = null;
+      
+      if (walletType === "external") {
+        safeAddr = deriveSafeAddressFromEOA(walletAddress);
+        if (safeAddr) {
+          try {
+            const USDC_E = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174";
+            const contract = new ethers.Contract(USDC_E, ["function balanceOf(address) view returns (uint256)"], provider);
+            const balance = await contract.balanceOf(safeAddr);
+            safeBalance = ethers.formatUnits(balance, 6);
+            console.log(`[DepositWizard] Safe balance: ${safeBalance} USDC.e`);
+          } catch (e) {
+            console.warn("[DepositWizard] Failed to fetch Safe balance:", e);
+          }
+        }
+      }
+      
       const status: DepositStatus = {
         ...rawStatus,
+        safeAddress: safeAddr,
+        safeBalance,
         needsDeposit,
         needsSwap,
       };
@@ -853,7 +875,44 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
               </div>
             </div>
 
-            {depositStatus && (
+            {depositStatus && walletType === "external" && (
+              <Card className="p-4 space-y-3">
+                <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Your Safe Trading Wallet</div>
+                {(() => {
+                  const safeAddr = deriveSafeAddressFromEOA(walletAddress || "");
+                  return safeAddr ? (
+                    <>
+                      <div className="flex items-center gap-2 bg-muted/50 p-2 rounded-md">
+                        <code className="flex-1 text-xs font-mono truncate">{safeAddr}</code>
+                        <Button 
+                          size="icon" 
+                          variant="ghost" 
+                          className="h-7 w-7"
+                          onClick={() => {
+                            navigator.clipboard.writeText(safeAddr);
+                            setCopied(true);
+                            setTimeout(() => setCopied(false), 2000);
+                          }}
+                        >
+                          {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                        </Button>
+                      </div>
+                      <div className="flex justify-between items-center pt-2 border-t">
+                        <span className="text-sm font-medium">Trading Balance</span>
+                        <span className="font-bold text-lg tabular-nums">
+                          ${parseFloat(depositStatus.safeBalance || "0").toFixed(2)} <span className="text-xs font-normal text-muted-foreground">USDC.e</span>
+                        </span>
+                      </div>
+                    </>
+                  ) : null;
+                })()}
+                <div className="flex justify-between items-center text-muted-foreground">
+                  <span className="text-sm">In Your Wallet (EOA)</span>
+                  <span className="tabular-nums">${parseFloat(depositStatus.usdcBalance).toFixed(2)}</span>
+                </div>
+              </Card>
+            )}
+            {depositStatus && walletType !== "external" && (
               <Card className="p-4 space-y-3">
                 <div className="flex justify-between items-center">
                   <span className="text-sm">USDC.e in Wallet (for trading)</span>
@@ -918,25 +977,42 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
               </div>
             )}
 
+            {depositStatus && walletType === "external" && parseFloat(depositStatus.safeBalance || "0") < 1 && parseFloat(depositStatus.usdcBalance) >= 1 && (
+              <div className="flex items-start gap-3 p-4 bg-blue-500/10 rounded-lg">
+                <DollarSign className="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="font-medium text-sm">Fund Your Safe Trading Wallet</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    You have ${parseFloat(depositStatus.usdcBalance).toFixed(2)} USDC.e in your wallet. 
+                    To trade, send USDC.e to your Safe address shown above.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {depositStatus && parseFloat(depositStatus.usdcBalance) < 1 && parseFloat(depositStatus.proxyBalance || "0") < 1 && !depositStatus.needsSwap && (
               <div className="flex items-start gap-3 p-4 bg-amber-500/10 rounded-lg">
                 <AlertCircle className="h-5 w-5 text-amber-500 mt-0.5 flex-shrink-0" />
                 <div>
                   <p className="font-medium text-sm">Add USDC.e to Trade</p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    You need USDC.e (bridged USDC) on Polygon to place orders. Visit Polymarket to deposit funds, 
-                    or transfer USDC.e directly to your Polygon wallet.
+                    {walletType === "external" 
+                      ? "Send USDC.e to your Safe wallet address (shown above) to start trading."
+                      : "You need USDC.e (bridged USDC) on Polygon to place orders. Visit Polymarket to deposit funds, or transfer USDC.e directly to your Polygon wallet."
+                    }
                   </p>
-                  <a
-                    href="https://polymarket.com"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-xs text-primary hover:underline mt-2"
-                    data-testid="link-polymarket-deposit"
-                  >
-                    Deposit on Polymarket
-                    <ExternalLink className="h-3 w-3" />
-                  </a>
+                  {walletType !== "external" && (
+                    <a
+                      href="https://polymarket.com"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline mt-2"
+                      data-testid="link-polymarket-deposit"
+                    >
+                      Deposit on Polymarket
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  )}
                 </div>
               </div>
             )}

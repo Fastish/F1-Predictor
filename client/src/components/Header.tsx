@@ -4,8 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ThemeToggle } from "./ThemeToggle";
 import { useWallet } from "@/context/WalletContext";
-import { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import {
   Sheet,
   SheetContent,
@@ -27,13 +26,10 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { usePolymarketPositions } from "@/hooks/usePolymarketPositions";
-import { deriveSafe } from "@polymarket/builder-relayer-client/dist/builder/derive";
-import { getContractConfig } from "@polymarket/builder-relayer-client/dist/config";
-
-const POLYGON_CHAIN_ID = 137;
+import { useTradingWalletBalance } from "@/hooks/useTradingWalletBalance";
 
 export function Header() {
-  const { walletAddress, walletType, disconnectWallet, getUsdcBalance } = useWallet();
+  const { walletAddress, walletType, disconnectWallet } = useWallet();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [depositOpen, setDepositOpen] = useState(false);
   const [swapOpen, setSwapOpen] = useState(false);
@@ -42,42 +38,14 @@ export function Header() {
   const { tradingSession, isTradingSessionComplete } = useTradingSession();
   const { data: positionsData } = usePolymarketPositions();
   
-  const derivedSafeAddress = useMemo(() => {
-    if (walletType !== "external" || !walletAddress) return null;
-    try {
-      const config = getContractConfig(POLYGON_CHAIN_ID);
-      return deriveSafe(walletAddress, config.SafeContracts.SafeFactory);
-    } catch (e) {
-      console.warn("Failed to derive Safe address:", e);
-      return null;
-    }
-  }, [walletAddress, walletType]);
+  const { 
+    tradingWalletBalance, 
+    isLoadingTradingBalance,
+    tradingWalletAddress: safeAddress,
+  } = useTradingWalletBalance();
   
-  const safeAddress = tradingSession?.safeAddress || derivedSafeAddress;
-  
-  // For external wallets, show EOA balance (user's wallet) as primary
-  // For Magic wallets, show the wallet balance directly
-  const { data: eoaBalance, isLoading: isLoadingEoa } = useQuery({
-    queryKey: ["polygon-usdc-balance", walletAddress],
-    queryFn: async () => {
-      if (!walletAddress) return 0;
-      const { ethers } = await import("ethers");
-      const provider = new ethers.JsonRpcProvider("https://polygon-rpc.com");
-      const USDC_ADDRESS = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174";
-      const contract = new ethers.Contract(USDC_ADDRESS, ["function balanceOf(address) view returns (uint256)"], provider);
-      const balance = await contract.balanceOf(walletAddress);
-      return parseFloat(ethers.formatUnits(balance, 6));
-    },
-    enabled: !!walletAddress,
-    staleTime: 0,
-    gcTime: 0,
-    refetchInterval: 30000,
-  });
-  
-  // Show EOA balance as the primary "cash" balance
-  // Ensure it's always a valid number for display
-  const cashBalance = typeof eoaBalance === 'number' ? eoaBalance : 0;
-  const isLoadingCash = isLoadingEoa;
+  const cashBalance = tradingWalletBalance;
+  const isLoadingCash = isLoadingTradingBalance;
 
   const portfolioValue = typeof positionsData?.totalValue === 'number' ? positionsData.totalValue : 0;
 
