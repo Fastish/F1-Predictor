@@ -18,6 +18,7 @@ interface WalletManagementModalProps {
   initialTab?: "receive" | "send";
   prefilledAddress?: string;
   title?: string;
+  sendLabel?: string;
 }
 
 const USDC_CONTRACT_ADDRESS = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174";
@@ -29,7 +30,7 @@ const USDC_ABI = [
   "function decimals() view returns (uint8)",
 ];
 
-export function WalletManagementModal({ open, onOpenChange, initialTab = "receive", prefilledAddress = "", title }: WalletManagementModalProps) {
+export function WalletManagementModal({ open, onOpenChange, initialTab = "receive", prefilledAddress = "", title, sendLabel = "Send" }: WalletManagementModalProps) {
   const { walletAddress, walletType, signer, provider, getUsdcBalance } = useWallet();
   const { toast } = useToast();
   
@@ -268,7 +269,7 @@ export function WalletManagementModal({ open, onOpenChange, initialTab = "receiv
             </TabsTrigger>
             <TabsTrigger value="send" className="gap-1" data-testid="tab-send">
               <Send className="h-4 w-4" />
-              Send
+              {sendLabel}
             </TabsTrigger>
           </TabsList>
 
@@ -414,12 +415,12 @@ export function WalletManagementModal({ open, onOpenChange, initialTab = "receiv
                   {isSending ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Sending...
+                      {sendLabel === "Deposit" ? "Depositing..." : "Sending..."}
                     </>
                   ) : (
                     <>
                       <Send className="mr-2 h-4 w-4" />
-                      Send USDC
+                      {sendLabel} USDC
                     </>
                   )}
                 </Button>

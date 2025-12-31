@@ -356,6 +356,56 @@ export async function approveCTFGasless(): Promise<GaslessResult> {
   return executeGaslessTransactions(transactions);
 }
 
+export async function withdrawFromSafe(recipientAddress: string, amountInWei: bigint): Promise<GaslessResult> {
+  console.log(`[Withdraw] Initiating withdrawal of ${amountInWei} to ${recipientAddress}`);
+  
+  const ERC20_TRANSFER_ABI = [
+    {
+      name: "transfer",
+      type: "function",
+      inputs: [
+        { name: "to", type: "address" },
+        { name: "amount", type: "uint256" },
+      ],
+      outputs: [{ type: "bool" }],
+    },
+  ] as const;
+
+  try {
+    const transferData = encodeFunctionData({
+      abi: ERC20_TRANSFER_ABI,
+      functionName: "transfer",
+      args: [recipientAddress as `0x${string}`, amountInWei],
+    });
+    
+    console.log(`[Withdraw] Transfer data encoded: ${transferData.slice(0, 20)}...`);
+
+    const transactions: Transaction[] = [
+      {
+        to: POLYMARKET_CONTRACTS.USDC,
+        data: transferData,
+        value: "0",
+      },
+    ];
+    
+    const result = await executeGaslessTransactions(transactions);
+    
+    if (result.success) {
+      console.log(`[Withdraw] Success! TX: ${result.transactionHash}`);
+    } else {
+      console.error(`[Withdraw] Failed: ${result.error}`);
+    }
+    
+    return result;
+  } catch (error) {
+    console.error("[Withdraw] Error during withdrawal:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown withdrawal error",
+    };
+  }
+}
+
 export async function approveAllGasless(): Promise<GaslessResult> {
   const transactions: Transaction[] = [
     {

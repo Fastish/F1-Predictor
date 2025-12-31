@@ -16,6 +16,7 @@ import { SwapModal } from "./SwapModal";
 import { WalletManagementModal } from "./WalletManagementModal";
 import { checkDepositRequirements } from "@/lib/polymarketDeposit";
 import { useTradingWalletBalance } from "@/hooks/useTradingWalletBalance";
+import { withdrawFromSafe } from "@/lib/polymarketGasless";
 
 interface DepositModalProps {
   open: boolean;
@@ -52,9 +53,13 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
     initialTab: "receive" | "send";
     prefilledAddress: string;
     title: string;
+    sendLabel?: string;
   }>({ initialTab: "receive", prefilledAddress: "", title: "Wallet Management" });
   const [approvalStatus, setApprovalStatus] = useState<{ needsApproval: boolean; checked: boolean }>({ needsApproval: false, checked: false });
   const [autoInitAttempted, setAutoInitAttempted] = useState(false);
+  const [showWithdrawForm, setShowWithdrawForm] = useState(false);
+  const [withdrawAmount, setWithdrawAmount] = useState("");
+  const [isWithdrawing, setIsWithdrawing] = useState(false);
 
   // Check approval status when wallet is connected
   // For external wallets, check the Safe proxy address since approvals are done there
@@ -112,6 +117,61 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
       title: "Trading Session Reset",
       description: "API credentials have been cleared. You'll need to set up trading again when placing your next order.",
     });
+  };
+
+  const handleWithdrawFromSafe = async () => {
+    if (!walletAddress || !safeAddress) return;
+    
+    const amount = parseFloat(withdrawAmount);
+    if (isNaN(amount) || amount <= 0) {
+      toast({
+        title: "Invalid Amount",
+        description: "Please enter a valid amount to withdraw",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (amount > tradingWalletBalance) {
+      toast({
+        title: "Insufficient Balance",
+        description: `Safe balance is only $${tradingWalletBalance.toFixed(2)}`,
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setIsWithdrawing(true);
+    try {
+      toast({
+        title: "Withdrawal Processing",
+        description: "Please sign the transaction in your wallet...",
+      });
+      
+      const amountInWei = BigInt(Math.floor(amount * 1e6));
+      const result = await withdrawFromSafe(walletAddress, amountInWei);
+      
+      if (result.success) {
+        toast({
+          title: "Withdrawal Complete",
+          description: `$${amount.toFixed(2)} USDC.e sent to your wallet`,
+        });
+        setWithdrawAmount("");
+        setShowWithdrawForm(false);
+        refetchBalance();
+      } else {
+        throw new Error(result.error || "Withdrawal failed");
+      }
+    } catch (error: any) {
+      console.error("Withdraw failed:", error);
+      toast({
+        title: "Withdrawal Failed",
+        description: error.message || "Failed to withdraw from Safe",
+        variant: "destructive",
+      });
+    } finally {
+      setIsWithdrawing(false);
+    }
   };
 
   const { 
@@ -419,42 +479,101 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
                       <code className="block text-xs bg-background rounded px-2 py-1 truncate font-mono" data-testid="text-safe-address">
                         {safeAddress}
                       </code>
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="flex-1"
-                          onClick={() => {
-                            if (safeAddress) {
-                              setWalletManagementConfig({
-                                initialTab: "send",
-                                prefilledAddress: safeAddress,
-                                title: "Deposit to Safe"
-                              });
-                              setShowWalletManagement(true);
-                            }
-                          }}
-                          data-testid="button-deposit-to-safe"
-                        >
-                          <ArrowDownLeft className="h-3.5 w-3.5 mr-1" />
-                          Deposit
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="flex-1"
-                          onClick={() => {
-                            toast({
-                              title: "Withdraw from Safe",
-                              description: "Visit Polymarket.com to withdraw funds from your Safe wallet to your external wallet.",
-                            });
-                          }}
-                          data-testid="button-withdraw-from-safe"
-                        >
-                          <ArrowUpRight className="h-3.5 w-3.5 mr-1" />
-                          Withdraw
-                        </Button>
-                      </div>
+                      {!showWithdrawForm ? (
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex-1"
+                            onClick={() => {
+                              if (safeAddress) {
+                                setWalletManagementConfig({
+                                  initialTab: "send",
+                                  prefilledAddress: safeAddress,
+                                  title: "Deposit to Safe",
+                                  sendLabel: "Deposit"
+                                });
+                                setShowWalletManagement(true);
+                              }
+                            }}
+                            data-testid="button-deposit-to-safe"
+                          >
+                            <ArrowDownLeft className="h-3.5 w-3.5 mr-1" />
+                            Deposit
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex-1"
+                            onClick={() => setShowWithdrawForm(true)}
+                            data-testid="button-withdraw-from-safe"
+                          >
+                            <ArrowUpRight className="h-3.5 w-3.5 mr-1" />
+                            Withdraw
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="space-y-2 pt-1 border-t">
+                          <div className="flex items-center justify-between">
+                            <Label className="text-xs">Withdraw to EOA</Label>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 text-xs"
+                              onClick={() => {
+                                setShowWithdrawForm(false);
+                                setWithdrawAmount("");
+                              }}
+                              data-testid="button-cancel-withdraw"
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                          <div className="flex gap-2">
+                            <div className="relative flex-1">
+                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
+                              <Input
+                                type="number"
+                                placeholder="0.00"
+                                value={withdrawAmount}
+                                onChange={(e) => setWithdrawAmount(e.target.value)}
+                                className="pl-5 h-8 text-sm"
+                                min="0"
+                                step="0.01"
+                                data-testid="input-withdraw-amount"
+                              />
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 px-2 text-xs"
+                              onClick={() => setWithdrawAmount(tradingWalletBalance.toFixed(2))}
+                              data-testid="button-max-withdraw"
+                            >
+                              Max
+                            </Button>
+                          </div>
+                          <Button
+                            size="sm"
+                            className="w-full"
+                            onClick={handleWithdrawFromSafe}
+                            disabled={isWithdrawing || !withdrawAmount || parseFloat(withdrawAmount) <= 0}
+                            data-testid="button-confirm-withdraw"
+                          >
+                            {isWithdrawing ? (
+                              <>
+                                <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                                Withdrawing...
+                              </>
+                            ) : (
+                              <>
+                                <ArrowUpRight className="h-3.5 w-3.5 mr-1" />
+                                Withdraw ${withdrawAmount || "0.00"}
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      )}
                       {eoaBalance > 0 && tradingWalletBalance < 1 && (
                         <p className="text-xs text-blue-600 dark:text-blue-400">
                           ${eoaBalance.toFixed(2)} USDC.e in EOA - deposit to trade
@@ -620,6 +739,7 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
         initialTab={walletManagementConfig.initialTab}
         prefilledAddress={walletManagementConfig.prefilledAddress}
         title={walletManagementConfig.title}
+        sendLabel={walletManagementConfig.sendLabel}
       />
     </Dialog>
   );
