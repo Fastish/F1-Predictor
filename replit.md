@@ -73,3 +73,14 @@ Preferred communication style: Simple, everyday language.
 ### Development Tools
 - Replit-specific Vite plugins (runtime-error-modal, cartographer, dev-banner)
 - connect-pg-simple (for session storage, not currently implemented)
+
+### User Comments and Display Names
+- **Comments System**: Users can post comments on market pages (constructor championship, driver championship, individual races)
+- **Display Names**: Users can set vanity usernames (1-30 alphanumeric characters + underscores) that appear on their comments instead of wallet addresses
+- **Data Model**: Comments stored in `marketComments` table with denormalized displayName for history preservation
+- **API Routes**: 
+  - GET /api/comments?marketType=X&marketId=Y - Fetch comments for a market
+  - POST /api/comments - Create a comment (validates wallet format, market type, content length)
+  - GET /api/user/profile/:walletAddress - Get user profile with displayName
+  - PATCH /api/user/display-name - Update user's display name
+- **Security Note**: Comments and profile updates rely on client-provided wallet addresses without server-side cryptographic verification, consistent with the app's client-side wallet architecture where cryptographic verification occurs on the blockchain/Polymarket side
