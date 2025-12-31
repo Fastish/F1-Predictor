@@ -6,6 +6,7 @@ import { PolymarketPriceChart } from "@/components/PolymarketPriceChart";
 import { PolymarketBetModal } from "@/components/PolymarketBetModal";
 import { CommentsSection } from "@/components/CommentsSection";
 import { useWallet } from "@/context/WalletContext";
+import { useSEO } from "@/hooks/useSEO";
 import { Card, CardContent } from "@/components/ui/card";
 import { User, Loader2, TrendingUp, Users, DollarSign } from "lucide-react";
 
@@ -56,6 +57,11 @@ const driverTeamColors: Record<string, string> = {
 };
 
 export default function DriversChampionship() {
+  useSEO({
+    title: "2026 Drivers Championship",
+    description: "Bet on who will win the 2026 F1 World Drivers Championship. Trade Verstappen, Norris, Hamilton, Leclerc and more with real USDC on Polymarket."
+  });
+
   const { walletAddress, getUsdcBalance } = useWallet();
   const [selectedOutcome, setSelectedOutcome] = useState<PolymarketOutcome | null>(null);
   const [betModalOpen, setBetModalOpen] = useState(false);

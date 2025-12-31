@@ -8,6 +8,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { useSEO } from "@/hooks/useSEO";
 import {
   Wallet,
   Mail,
@@ -135,6 +136,11 @@ const faqItems = [
 ];
 
 export default function HowToUse() {
+  useSEO({
+    title: "How to Trade F1 Predictions",
+    description: "Learn how to bet on Formula 1 outcomes using F1 Predict. Set up a wallet, get USDC on Polygon, and start trading on the 2026 F1 Championship."
+  });
+
   return (
     <div className="min-h-screen bg-background">
       <Header />

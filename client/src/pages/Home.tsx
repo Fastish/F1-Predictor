@@ -9,6 +9,7 @@ import { MarketStats } from "@/components/MarketStats";
 import { DepositModal } from "@/components/DepositModal";
 import { useWallet } from "@/context/WalletContext";
 import { useMarket } from "@/context/MarketContext";
+import { useSEO } from "@/hooks/useSEO";
 import { AlertCircle, Trophy } from "lucide-react";
 import type { F1Team } from "@/context/MarketContext";
 import type { Driver } from "@/components/DriverCard";
@@ -42,6 +43,11 @@ interface SeasonResponse {
 }
 
 export default function Home() {
+  useSEO({
+    title: "F1 Prediction Market 2026",
+    description: "Trade on the 2026 Formula 1 Championship. Buy shares in F1 teams and drivers using USDC on Polygon. Win from the prize pool when the season ends."
+  });
+
   const { walletAddress } = useWallet();
   const { teams, userId } = useMarket();
   const [selectedTeam, setSelectedTeam] = useState<F1Team | null>(null);

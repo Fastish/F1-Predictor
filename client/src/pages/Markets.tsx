@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useWallet } from "@/context/WalletContext";
+import { useSEO } from "@/hooks/useSEO";
 import { TrendingUp, Wallet, Car, User } from "lucide-react";
 import { DepositModal } from "@/components/DepositModal";
 import { PolymarketBetModal } from "@/components/PolymarketBetModal";
@@ -89,6 +90,11 @@ function getDriverInfo(name: string): { team: string; color: string; number: num
 }
 
 export default function Markets() {
+  useSEO({
+    title: "All F1 Markets",
+    description: "Browse all 2026 Formula 1 prediction markets. Trade on Constructors and Drivers championships with real USDC. Live prices powered by Polymarket."
+  });
+
   const { walletAddress, connectWallet, isConnecting } = useWallet();
   const [activeTab, setActiveTab] = useState<"teams" | "drivers">("teams");
   const [selectedOutcome, setSelectedOutcome] = useState<PolymarketOutcome | null>(null);

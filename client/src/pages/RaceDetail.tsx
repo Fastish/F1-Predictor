@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { PolymarketBetModal } from "@/components/PolymarketBetModal";
 import { CommentsSection } from "@/components/CommentsSection";
 import { useWallet } from "@/context/WalletContext";
+import { useSEO } from "@/hooks/useSEO";
 import { Flag, MapPin, Calendar, ArrowLeft, Trophy, User, TrendingUp } from "lucide-react";
 import type { RaceMarket, RaceMarketOutcome, Driver } from "@shared/schema";
 
@@ -51,6 +52,13 @@ export default function RaceDetail() {
   const { data: race, isLoading } = useQuery<RaceWithOutcomes>({
     queryKey: ["/api/race-markets", raceId],
     enabled: !!raceId,
+  });
+
+  useSEO({
+    title: race?.name || "Race Details",
+    description: race 
+      ? `Bet on ${race.name} race winner at ${race.location}. Trade driver outcomes with real USDC on Polymarket.`
+      : "View race details and bet on F1 race winners with real USDC."
   });
 
   const { data: drivers = [] } = useQuery<Driver[]>({

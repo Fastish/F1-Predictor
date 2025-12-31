@@ -7,6 +7,7 @@ import { PolymarketBetModal } from "@/components/PolymarketBetModal";
 import { CommentsSection } from "@/components/CommentsSection";
 import { useMarket, type F1Team } from "@/context/MarketContext";
 import { useWallet } from "@/context/WalletContext";
+import { useSEO } from "@/hooks/useSEO";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Car, Loader2, TrendingUp, Users, DollarSign } from "lucide-react";
@@ -43,6 +44,11 @@ const teamColors: Record<string, string> = {
 };
 
 export default function ConstructorsChampionship() {
+  useSEO({
+    title: "2026 Constructors Championship",
+    description: "Bet on which F1 team will win the 2026 Constructors Championship. Trade McLaren, Ferrari, Red Bull, Mercedes and more with real USDC on Polymarket."
+  });
+
   const { getHolding } = useMarket();
   const { walletAddress, getUsdcBalance } = useWallet();
   const [selectedOutcome, setSelectedOutcome] = useState<PolymarketOutcome | null>(null);

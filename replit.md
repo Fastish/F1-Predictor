@@ -77,10 +77,28 @@ Preferred communication style: Simple, everyday language.
 ### User Comments and Display Names
 - **Comments System**: Users can post comments on market pages (constructor championship, driver championship, individual races)
 - **Display Names**: Users can set vanity usernames (1-30 alphanumeric characters + underscores) that appear on their comments instead of wallet addresses
+- **Username Availability**: Real-time availability checking with debounced validation (500ms delay) and Polymarket profile integration
 - **Data Model**: Comments stored in `marketComments` table with denormalized displayName for history preservation
 - **API Routes**: 
   - GET /api/comments?marketType=X&marketId=Y - Fetch comments for a market
   - POST /api/comments - Create a comment (validates wallet format, market type, content length)
   - GET /api/user/profile/:walletAddress - Get user profile with displayName
-  - PATCH /api/user/display-name - Update user's display name
+  - GET /api/user/check-username/:username - Check username availability
+  - GET /api/polymarket/profile/:walletAddress - Fetch Polymarket public profile
+  - PATCH /api/user/display-name - Update user's display name (validates availability on server)
 - **Security Note**: Comments and profile updates rely on client-provided wallet addresses without server-side cryptographic verification, consistent with the app's client-side wallet architecture where cryptographic verification occurs on the blockchain/Polymarket side
+
+### SEO and Open Graph
+- **OG Image**: Default F1 racing image at `/og-image.jpg` for social sharing
+- **Meta Tags**: Open Graph and Twitter Card meta tags in index.html
+- **Page SEO**: Each page uses `useSEO` hook for dynamic title and description updates
+- **Pages with SEO**:
+  - Home: "F1 Prediction Market 2026"
+  - Constructors Championship: "2026 Constructors Championship"
+  - Drivers Championship: "2026 Drivers Championship"
+  - Markets: "All F1 Markets"
+  - Races: "2026 F1 Race Calendar"
+  - Race Detail: Dynamic based on race name
+  - Positions: "My Positions - F1 Trading Portfolio"
+  - How to Use: "How to Trade F1 Predictions"
+  - Admin: "Admin Panel"

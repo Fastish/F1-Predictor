@@ -4,10 +4,16 @@ import { AdminPanel } from "@/components/AdminPanel";
 import { Header } from "@/components/Header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { useSEO } from "@/hooks/useSEO";
 import { ShieldAlert, Wallet, Lock } from "lucide-react";
 import { Link } from "wouter";
 
 export default function Admin() {
+  useSEO({
+    title: "Admin Panel",
+    description: "F1 Predict administration panel. Manage seasons, markets, fees, and platform settings."
+  });
+
   const { walletAddress, connectWallet, isConnecting } = useWallet();
 
   const { data: adminCheck, isLoading: checkingAdmin } = useQuery<{ isAdmin: boolean }>({

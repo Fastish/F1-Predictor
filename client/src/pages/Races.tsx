@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Header } from "@/components/Header";
@@ -6,10 +5,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useSEO } from "@/hooks/useSEO";
 import { Flag, MapPin, Calendar, ChevronRight, Trophy } from "lucide-react";
 import type { RaceMarket } from "@shared/schema";
 
 export default function Races() {
+  useSEO({
+    title: "2026 F1 Race Calendar",
+    description: "View all 2026 Formula 1 races and Grand Prix events. Bet on individual race winners with real USDC. See upcoming and completed race markets."
+  });
+
   const { data: races = [], isLoading } = useQuery<RaceMarket[]>({
     queryKey: ["/api/race-markets"],
   });
