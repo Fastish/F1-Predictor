@@ -1,4 +1,5 @@
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
 import { TrendingUp, TrendingDown, Info } from "lucide-react";
 
@@ -31,11 +32,11 @@ export function ArbitrageValueBadge({ opportunity, compact = false }: ArbitrageV
   const edgeDisplay = (opportunity.edgePercent * 100).toFixed(1);
   
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
+    <Popover>
+      <PopoverTrigger asChild>
         <Badge
           variant="outline"
-          className={`cursor-help gap-1 text-xs ${
+          className={`cursor-pointer gap-1 text-xs ${
             isBuyYes
               ? "border-green-500/50 bg-green-500/10 text-green-600 dark:border-green-400/50 dark:bg-green-400/10 dark:text-green-400"
               : "border-amber-500/50 bg-amber-500/10 text-amber-600 dark:border-amber-400/50 dark:bg-amber-400/10 dark:text-amber-400"
@@ -55,21 +56,24 @@ export function ArbitrageValueBadge({ opportunity, compact = false }: ArbitrageV
             </span>
           )}
         </Badge>
-      </TooltipTrigger>
-      <TooltipContent 
+      </PopoverTrigger>
+      <PopoverContent 
         side="top" 
         className="max-w-xs text-sm"
-        data-testid={`tooltip-arb-${opportunity.id}`}
+        data-testid={`popover-arb-${opportunity.id}`}
       >
         <div className="space-y-2">
-          <p>{opportunity.tooltipMessage}</p>
-          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+          <p className="font-medium">
+            {isBuyYes ? "Potential Underpriced" : "Potential Overpriced"}
+          </p>
+          <p className="text-muted-foreground">{opportunity.tooltipMessage}</p>
+          <div className="flex items-center gap-1 text-xs text-muted-foreground border-t pt-2">
             <Info className="h-3 w-3" />
             <span>Based on {opportunity.sportsbookName} odds</span>
           </div>
         </div>
-      </TooltipContent>
-    </Tooltip>
+      </PopoverContent>
+    </Popover>
   );
 }
 

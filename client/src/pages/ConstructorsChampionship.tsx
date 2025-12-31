@@ -11,7 +11,8 @@ import { useWallet } from "@/context/WalletContext";
 import { useSEO } from "@/hooks/useSEO";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Car, Loader2, TrendingUp, Users, DollarSign } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Car, Loader2, TrendingUp, Users, DollarSign, Info } from "lucide-react";
 
 interface PolymarketOutcome {
   id: string;
@@ -136,7 +137,17 @@ export default function ConstructorsChampionship() {
                   <DollarSign className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Total Volume</p>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <p className="text-sm text-muted-foreground flex items-center gap-1 cursor-help">
+                        Total Volume
+                        <Info className="h-3 w-3" />
+                      </p>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-xs">
+                      <p className="text-sm">Total USDC traded across all constructor markets since launch.</p>
+                    </TooltipContent>
+                  </Tooltip>
                   <p className="text-xl font-bold tabular-nums" data-testid="text-constructors-volume">
                     ${totalVolume.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                   </p>
@@ -151,7 +162,17 @@ export default function ConstructorsChampionship() {
                   <TrendingUp className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Total Liquidity</p>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <p className="text-sm text-muted-foreground flex items-center gap-1 cursor-help">
+                        Market Depth
+                        <Info className="h-3 w-3" />
+                      </p>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-xs">
+                      <p className="text-sm">Current USDC available in market pools. Higher depth means less slippage on trades.</p>
+                    </TooltipContent>
+                  </Tooltip>
                   <p className="text-xl font-bold tabular-nums" data-testid="text-constructors-liquidity">
                     ${totalLiquidity.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                   </p>
