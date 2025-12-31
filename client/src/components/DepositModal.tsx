@@ -357,29 +357,32 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
                   <p className="text-xs text-muted-foreground mb-2">{userEmail}</p>
                 )}
 
-                <div className="p-2 rounded-md bg-background border">
-                  <div className="flex items-center justify-between gap-2">
-                    <div>
-                      <p className="text-xs text-muted-foreground">Cash Available</p>
-                      {isLoadingBalance ? (
-                        <p className="font-bold text-base">Loading...</p>
-                      ) : (
-                        <p className="font-bold text-base tabular-nums" data-testid="text-usdc-balance">
-                          ${parseFloat(usdcBalance || "0").toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-xs font-normal text-muted-foreground">USDC.e</span>
-                        </p>
-                      )}
-                    </div>
-                    <SiPolygon className="h-6 w-6 text-purple-500/30" />
-                  </div>
-                  {isExternalWallet && eoaBalance > 0 && (
-                    <div className="mt-1.5 pt-1.5 border-t text-xs">
-                      <div className="flex items-center justify-between text-muted-foreground">
-                        <span>In Wallet (EOA)</span>
-                        <span className="tabular-nums">${eoaBalance.toFixed(2)} USDC.e</span>
+                {walletType === "magic" && (
+                  <div className="p-2 rounded-md bg-background border">
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <p className="text-xs text-muted-foreground">Cash Available</p>
+                        {isLoadingBalance ? (
+                          <p className="font-bold text-base">Loading...</p>
+                        ) : (
+                          <p className="font-bold text-base tabular-nums" data-testid="text-usdc-balance">
+                            ${parseFloat(usdcBalance || "0").toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-xs font-normal text-muted-foreground">USDC.e</span>
+                          </p>
+                        )}
                       </div>
+                      <SiPolygon className="h-6 w-6 text-purple-500/30" />
                     </div>
-                  )}
-                </div>
+                  </div>
+                )}
+
+                {isExternalWallet && eoaBalance > 0 && (
+                  <div className="p-2 rounded-md bg-background border">
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>In Connected Wallet</span>
+                      <span className="tabular-nums">${eoaBalance.toFixed(2)} USDC.e</span>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {walletType === "external" && (
@@ -479,6 +482,21 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
                       <code className="block text-xs bg-background rounded px-2 py-1 truncate font-mono" data-testid="text-safe-address">
                         {safeAddress}
                       </code>
+                      <div className="p-2 rounded-md bg-background border mt-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <div>
+                            <p className="text-xs text-muted-foreground">Cash Available</p>
+                            {isLoadingBalance ? (
+                              <p className="font-bold text-base">Loading...</p>
+                            ) : (
+                              <p className="font-bold text-base tabular-nums" data-testid="text-usdc-balance">
+                                ${parseFloat(usdcBalance || "0").toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-xs font-normal text-muted-foreground">USDC.e</span>
+                              </p>
+                            )}
+                          </div>
+                          <SiPolygon className="h-6 w-6 text-purple-500/30" />
+                        </div>
+                      </div>
                       {!showWithdrawForm ? (
                         <div className="flex gap-2">
                           <Button
