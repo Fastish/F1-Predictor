@@ -4,6 +4,7 @@ import { Header } from "@/components/Header";
 import { TeamCard } from "@/components/TeamCard";
 import { PolymarketPriceChart } from "@/components/PolymarketPriceChart";
 import { PolymarketBetModal } from "@/components/PolymarketBetModal";
+import { CommentsSection } from "@/components/CommentsSection";
 import { useMarket, type F1Team } from "@/context/MarketContext";
 import { useWallet } from "@/context/WalletContext";
 import { Card, CardContent } from "@/components/ui/card";
@@ -180,6 +181,12 @@ export default function ConstructorsChampionship() {
             ))}
           </div>
         )}
+
+        <CommentsSection 
+          marketType="constructor"
+          marketId="f1-2026-constructors"
+          marketName="2026 Constructors Championship"
+        />
       </main>
 
       {selectedOutcome && (

@@ -4,6 +4,7 @@ import { Header } from "@/components/Header";
 import { DriverCard, type Driver } from "@/components/DriverCard";
 import { PolymarketPriceChart } from "@/components/PolymarketPriceChart";
 import { PolymarketBetModal } from "@/components/PolymarketBetModal";
+import { CommentsSection } from "@/components/CommentsSection";
 import { useWallet } from "@/context/WalletContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { User, Loader2, TrendingUp, Users, DollarSign } from "lucide-react";
@@ -218,6 +219,12 @@ export default function DriversChampionship() {
             ))}
           </div>
         )}
+
+        <CommentsSection 
+          marketType="driver"
+          marketId="f1-2026-drivers"
+          marketName="2026 Drivers Championship"
+        />
       </main>
 
       {selectedOutcome && (

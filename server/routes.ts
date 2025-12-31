@@ -3335,27 +3335,45 @@ export async function registerRoutes(
     try {
       const { walletAddress, marketType, marketId, content } = req.body;
       
-      if (!walletAddress) {
-        return res.status(400).json({ error: "Wallet address required" });
+      // Validate wallet address format (0x followed by 40 hex chars)
+      if (!walletAddress || typeof walletAddress !== 'string' || !/^0x[a-fA-F0-9]{40}$/.test(walletAddress)) {
+        return res.status(400).json({ error: "Valid wallet address required" });
       }
       
-      if (!marketType || !marketId || !content) {
-        return res.status(400).json({ error: "Market type, ID, and content required" });
+      // Validate market type
+      const validMarketTypes = ['constructor', 'driver', 'race'];
+      if (!marketType || !validMarketTypes.includes(marketType)) {
+        return res.status(400).json({ error: "Invalid market type" });
       }
       
-      if (content.length > 1000) {
+      // Validate marketId
+      if (!marketId || typeof marketId !== 'string' || marketId.length === 0 || marketId.length > 100) {
+        return res.status(400).json({ error: "Valid market ID required" });
+      }
+      
+      // Validate content
+      if (!content || typeof content !== 'string') {
+        return res.status(400).json({ error: "Comment content required" });
+      }
+      
+      const trimmedContent = content.trim();
+      if (trimmedContent.length === 0) {
+        return res.status(400).json({ error: "Comment cannot be empty" });
+      }
+      
+      if (trimmedContent.length > 1000) {
         return res.status(400).json({ error: "Comment too long (max 1000 characters)" });
       }
       
       // Get user's display name
-      const profile = await storage.getUserProfile(walletAddress);
+      const profile = await storage.getUserProfile(walletAddress.toLowerCase());
       const displayName = profile?.displayName || null;
       
       const comment = await storage.createComment({
-        walletAddress,
+        walletAddress: walletAddress.toLowerCase(),
         marketType,
         marketId,
-        content,
+        content: trimmedContent,
         displayName,
       });
       

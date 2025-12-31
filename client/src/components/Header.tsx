@@ -1,4 +1,4 @@
-import { Wallet, TrendingUp, Menu, Plus, Loader2, Briefcase, Flag, DollarSign, PieChart, LogOut, Check, ArrowRightLeft, Settings, ArrowUpRight, ArrowDownLeft, Car, User, HelpCircle, RefreshCw } from "lucide-react";
+import { Wallet, TrendingUp, Menu, Plus, Loader2, Briefcase, Flag, DollarSign, PieChart, LogOut, Check, ArrowRightLeft, Settings, ArrowUpRight, ArrowDownLeft, Car, User, HelpCircle, RefreshCw, Pencil } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +15,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { DepositModal } from "./DepositModal";
 import { SwapModal } from "./SwapModal";
@@ -27,6 +28,7 @@ import {
 } from "@/components/ui/popover";
 import { usePolymarketPositions } from "@/hooks/usePolymarketPositions";
 import { useTradingWalletBalance } from "@/hooks/useTradingWalletBalance";
+import { UsernameModal } from "./UsernameModal";
 
 export function Header() {
   const { walletAddress, walletType, disconnectWallet } = useWallet();
@@ -35,6 +37,7 @@ export function Header() {
   const [swapOpen, setSwapOpen] = useState(false);
   const [swapDirection, setSwapDirection] = useState<"deposit" | "withdraw">("deposit");
   const [walletManagementOpen, setWalletManagementOpen] = useState(false);
+  const [usernameOpen, setUsernameOpen] = useState(false);
   const { tradingSession, isTradingSessionComplete } = useTradingSession();
   const { data: positionsData } = usePolymarketPositions();
   
@@ -182,6 +185,14 @@ export function Header() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem 
+                  onClick={() => setUsernameOpen(true)}
+                  data-testid="button-set-username"
+                >
+                  <Pencil className="h-4 w-4 mr-2" />
+                  Set Username
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem 
                   onClick={() => setWalletManagementOpen(true)}
                   data-testid="button-manage-wallet"
                 >
@@ -221,6 +232,7 @@ export function Header() {
           <DepositModal open={depositOpen} onOpenChange={setDepositOpen} />
           <SwapModal open={swapOpen} onOpenChange={setSwapOpen} initialDirection={swapDirection} />
           <WalletManagementModal open={walletManagementOpen} onOpenChange={setWalletManagementOpen} />
+          <UsernameModal open={usernameOpen} onOpenChange={setUsernameOpen} />
 
           <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
             <SheetTrigger asChild>
