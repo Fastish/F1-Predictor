@@ -196,6 +196,7 @@ export interface IStorage {
   // User Profiles & Comments
   getUserProfile(walletAddress: string): Promise<{ walletAddress: string; displayName: string | null } | undefined>;
   updateDisplayName(walletAddress: string, displayName: string): Promise<string>;
+  isUsernameAvailable(displayName: string, excludeWallet?: string): Promise<boolean>;
   getMarketComments(marketType: string, marketId: string): Promise<MarketComment[]>;
   createComment(data: { walletAddress: string; marketType: string; marketId: string; content: string; displayName: string | null }): Promise<MarketComment>;
 }
@@ -1441,6 +1442,25 @@ export class DatabaseStorage implements IStorage {
     }
     
     return displayName;
+  }
+
+  async isUsernameAvailable(displayName: string, excludeWallet?: string): Promise<boolean> {
+    const normalizedName = displayName.toLowerCase();
+    const existingUsers = await db
+      .select({ walletAddress: users.walletAddress, displayName: users.displayName })
+      .from(users)
+      .where(sql`LOWER(${users.displayName}) = ${normalizedName}`);
+    
+    if (existingUsers.length === 0) {
+      return true;
+    }
+    
+    if (excludeWallet && existingUsers.length === 1 && 
+        existingUsers[0].walletAddress?.toLowerCase() === excludeWallet.toLowerCase()) {
+      return true;
+    }
+    
+    return false;
   }
 
   async getMarketComments(marketType: string, marketId: string): Promise<MarketComment[]> {

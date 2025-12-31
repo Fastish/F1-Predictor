@@ -3295,6 +3295,40 @@ export async function registerRoutes(
     }
   });
 
+  // Check username availability
+  app.get("/api/user/check-username/:username", async (req, res) => {
+    try {
+      const { username } = req.params;
+      const excludeWallet = req.query.excludeWallet as string | undefined;
+      
+      if (!username || !/^[a-zA-Z0-9_]+$/.test(username)) {
+        return res.status(400).json({ error: "Invalid username format" });
+      }
+      
+      const available = await storage.isUsernameAvailable(username, excludeWallet);
+      res.json({ available, username });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to check username" });
+    }
+  });
+
+  // Get Polymarket profile for a wallet
+  app.get("/api/polymarket/profile/:walletAddress", async (req, res) => {
+    try {
+      const { walletAddress } = req.params;
+      
+      if (!/^0x[a-fA-F0-9]{40}$/.test(walletAddress)) {
+        return res.status(400).json({ error: "Invalid wallet address format" });
+      }
+      
+      const { getPolymarketProfile } = await import("./polymarket");
+      const profile = await getPolymarketProfile(walletAddress);
+      res.json(profile || { name: null, pseudonym: null });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to fetch Polymarket profile" });
+    }
+  });
+
   // Update display name
   app.patch("/api/user/display-name", async (req, res) => {
     try {
@@ -3310,6 +3344,12 @@ export async function registerRoutes(
       
       if (!/^[a-zA-Z0-9_]+$/.test(displayName)) {
         return res.status(400).json({ error: "Only letters, numbers, and underscores allowed" });
+      }
+      
+      // Check if username is available
+      const available = await storage.isUsernameAvailable(displayName, walletAddress);
+      if (!available) {
+        return res.status(409).json({ error: "Username is already taken" });
       }
       
       const updated = await storage.updateDisplayName(walletAddress, displayName);

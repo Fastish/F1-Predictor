@@ -1085,3 +1085,47 @@ export async function deployRelayerWallet(
     };
   }
 }
+
+export interface PolymarketProfile {
+  name: string | null;
+  pseudonym: string | null;
+  proxyWallet: string | null;
+  profileImage: string | null;
+  bio: string | null;
+  xUsername: string | null;
+  verifiedBadge: boolean;
+  displayUsernamePublic: boolean;
+}
+
+export async function getPolymarketProfile(walletAddress: string): Promise<PolymarketProfile | null> {
+  try {
+    const url = `${GAMMA_API_URL}/public-profile?user=${walletAddress}`;
+    console.log("Fetching Polymarket profile:", url);
+    
+    const response = await fetch(url);
+    
+    if (!response.ok) {
+      if (response.status === 404) {
+        return null;
+      }
+      console.error("Polymarket profile fetch failed:", response.status);
+      return null;
+    }
+    
+    const data = await response.json();
+    
+    return {
+      name: data.name || null,
+      pseudonym: data.pseudonym || null,
+      proxyWallet: data.proxyWallet || null,
+      profileImage: data.profileImage || null,
+      bio: data.bio || null,
+      xUsername: data.xUsername || null,
+      verifiedBadge: data.verifiedBadge || false,
+      displayUsernamePublic: data.displayUsernamePublic !== false,
+    };
+  } catch (error) {
+    console.error("Error fetching Polymarket profile:", error);
+    return null;
+  }
+}
