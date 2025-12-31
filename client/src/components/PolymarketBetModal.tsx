@@ -32,6 +32,7 @@ import { useTradingSession } from "@/hooks/useTradingSession";
 import { usePlaceOrder, type PolymarketOrderType } from "@/hooks/usePlaceOrder";
 import { PolymarketDepositWizard } from "./PolymarketDepositWizard";
 import { checkDepositRequirements } from "@/lib/polymarketDeposit";
+import { getSafeAddress } from "@/lib/polymarketGasless";
 import { ethers } from "ethers";
 
 const USDC_CONTRACT = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174";
@@ -94,6 +95,7 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
   const [showDepositWizard, setShowDepositWizard] = useState(false);
   const [pendingRetry, setPendingRetry] = useState(false);
   const [approvalStatus, setApprovalStatus] = useState<{ needsApproval: boolean; checked: boolean }>({ needsApproval: false, checked: false });
+  const [tradingWallet, setTradingWallet] = useState<{ address: string | null; balance: number; type: "safe" | "proxy" | "eoa" }>({ address: null, balance: 0, type: "eoa" });
   const { toast } = useToast();
   const { userId } = useMarket();
   const { signer, walletAddress, walletType, provider } = useWallet();
@@ -108,23 +110,60 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
     }
   }, [open]);
   
-  // Check approval status when modal opens
+  // Check approval status and trading wallet balance when modal opens
   useEffect(() => {
-    const checkApproval = async () => {
+    const checkApprovalAndBalance = async () => {
       if (!open || !walletAddress || !provider) {
         setApprovalStatus({ needsApproval: false, checked: false });
+        setTradingWallet({ address: null, balance: 0, type: "eoa" });
         return;
       }
       try {
         const isMagic = walletType === "magic";
-        const status = await checkDepositRequirements(provider, walletAddress, isMagic);
+        let safeAddr: string | null = null;
+        
+        // For external wallets, get the Safe address
+        if (!isMagic) {
+          try {
+            const safeInfo = await getSafeAddress();
+            safeAddr = safeInfo.safeAddress;
+            console.log("Trading via Safe wallet:", safeAddr);
+          } catch (e) {
+            console.warn("Could not get Safe address:", e);
+          }
+        }
+        
+        const status = await checkDepositRequirements(provider, walletAddress, isMagic, safeAddr);
         setApprovalStatus({ needsApproval: status.needsApproval, checked: true });
+        
+        // Set trading wallet info
+        const tradingBalance = parseFloat(status.tradingBalance) || 0;
+        if (isMagic && status.proxyAddress) {
+          setTradingWallet({ 
+            address: status.proxyAddress, 
+            balance: tradingBalance, 
+            type: "proxy" 
+          });
+        } else if (!isMagic && safeAddr) {
+          setTradingWallet({ 
+            address: safeAddr, 
+            balance: parseFloat(status.safeBalance || "0"), 
+            type: "safe" 
+          });
+        } else {
+          setTradingWallet({ 
+            address: walletAddress, 
+            balance: tradingBalance, 
+            type: "eoa" 
+          });
+        }
       } catch (error) {
-        console.error("Failed to check approval status:", error);
+        console.error("Failed to check approval/balance status:", error);
         setApprovalStatus({ needsApproval: false, checked: true });
+        setTradingWallet({ address: null, balance: 0, type: "eoa" });
       }
     };
-    checkApproval();
+    checkApprovalAndBalance();
   }, [open, walletAddress, provider, walletType]);
   
   // Trading session with ClobClient for order placement
@@ -248,10 +287,16 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
       return;
     }
 
-    if (totalCost > userBalance) {
+    // Check trading wallet balance (Safe for external wallets, Proxy for Magic)
+    const effectiveTradingBalance = tradingWallet.balance > 0 ? tradingWallet.balance : userBalance;
+    if (totalCost > effectiveTradingBalance) {
+      const walletTypeLabel = tradingWallet.type === "safe" ? "Safe trading wallet" : 
+                              tradingWallet.type === "proxy" ? "trading proxy" : "wallet";
       toast({
-        title: "Insufficient Balance",
-        description: `You need $${totalCost.toFixed(2)} USDC (including ${feePercentage}% fee) but only have $${userBalance.toFixed(2)}`,
+        title: "Insufficient Trading Balance",
+        description: tradingWallet.type === "safe" 
+          ? `Your Safe trading wallet has $${tradingWallet.balance.toFixed(2)} USDC.e but you need $${totalCost.toFixed(2)}. Use the Deposit Wizard to fund your Safe.`
+          : `You need $${totalCost.toFixed(2)} USDC.e (including ${feePercentage}% fee) but your ${walletTypeLabel} only has $${effectiveTradingBalance.toFixed(2)}`,
         variant: "destructive",
       });
       return;
@@ -441,9 +486,14 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
             setShowDepositWizard(true);
           }
         } else if (isBalanceError) {
+          const balanceMsg = tradingWallet.type === "safe" 
+            ? `Your Safe trading wallet (${tradingWallet.address?.slice(0,6)}...${tradingWallet.address?.slice(-4)}) has insufficient USDC.e. Current balance: $${tradingWallet.balance.toFixed(2)}. Deposit more funds to your Safe wallet to trade.`
+            : tradingWallet.type === "proxy"
+            ? `Your trading proxy has insufficient USDC.e. Balance: $${tradingWallet.balance.toFixed(2)}. Use the Deposit Wizard to add funds.`
+            : "You don't have enough USDC.e in your wallet for this trade.";
           toast({
-            title: "Insufficient Balance",
-            description: "You don't have enough USDC.e in your wallet for this trade.",
+            title: "Insufficient Trading Balance",
+            description: balanceMsg,
             variant: "destructive",
           });
         } else {

@@ -284,7 +284,8 @@ export async function revokeAllCTFApprovals(
 export async function checkDepositRequirements(
   provider: ethers.Provider,
   walletAddress: string,
-  isMagicWallet: boolean
+  isMagicWallet: boolean,
+  safeAddress?: string | null
 ): Promise<{
   usdcBalance: string;
   nativeUsdcBalance: string;
@@ -295,6 +296,9 @@ export async function checkDepositRequirements(
   ctfApprovedForNegRisk: boolean;
   proxyAddress: string | null;
   proxyBalance: string | null;
+  safeAddress: string | null;
+  safeBalance: string | null;
+  tradingBalance: string;
   needsApproval: boolean;
   needsCTFApproval: boolean;
 }> {
@@ -330,13 +334,32 @@ export async function checkDepositRequirements(
   
   let proxyAddress: string | null = null;
   let proxyBalance: string | null = null;
+  let actualSafeAddress: string | null = safeAddress || null;
+  let safeBalance: string | null = null;
   
   if (isMagicWallet) {
+    // Magic wallets use a Proxy address
     proxyAddress = await getMagicProxyAddress(provider, walletAddress);
     if (proxyAddress) {
       proxyBalance = await getUSDCBalance(provider, proxyAddress);
     }
+  } else if (actualSafeAddress) {
+    // External wallets use a Safe address - fetch its balance
+    try {
+      safeBalance = await getUSDCBalance(provider, actualSafeAddress);
+    } catch (error) {
+      console.error("Failed to get Safe balance:", error);
+      safeBalance = "0";
+    }
   }
+  
+  // Trading balance is the balance in the trading wallet (proxy for Magic, Safe for external)
+  // For Magic wallets: proxyBalance
+  // For external wallets: safeBalance
+  // If neither is available, fall back to EOA balance (though trading will fail)
+  const tradingBalance = isMagicWallet 
+    ? (proxyBalance || usdcBalance) 
+    : (safeBalance || usdcBalance);
   
   // Check if allowance is effectively zero (needs approval)
   // Include CTF contract allowance as it's required for splitting positions
@@ -355,6 +378,9 @@ export async function checkDepositRequirements(
     ctfApprovedForNegRisk,
     proxyAddress,
     proxyBalance,
+    safeAddress: actualSafeAddress,
+    safeBalance,
+    tradingBalance,
     needsApproval,
     needsCTFApproval,
   };

@@ -36,6 +36,9 @@ Preferred communication style: Simple, everyday language.
 
 ### Wallet and Trading Integration
 - **Dual-wallet System**: Magic Labs for email-based authentication (creating Polygon wallet) and external wallets (MetaMask, Rainbow).
+- **Trading Wallets**:
+  - **Magic Users**: Trades execute from a Proxy wallet derived from their EOA address
+  - **External Wallet Users**: Trades execute from a Gnosis Safe wallet derived from their EOA address. **Important**: Users must deposit USDC.e to their Safe wallet before trading - the EOA wallet balance is not used for trades.
 - **Polymarket Integration**: Utilizes Polymarket's Gamma API for market data and CLOB client for order execution, supporting gasless transactions via Polymarket Relayer and Gnosis Safe proxy for external wallets.
 - **Order Types**: GTC (Good Til Cancelled), FOK (Fill Or Kill), GTD (Good Til Date) with user-adjustable limit prices.
 
