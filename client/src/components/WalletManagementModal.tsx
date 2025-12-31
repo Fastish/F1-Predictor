@@ -15,6 +15,9 @@ import { ethers } from "ethers";
 interface WalletManagementModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  initialTab?: "receive" | "send";
+  prefilledAddress?: string;
+  title?: string;
 }
 
 const USDC_CONTRACT_ADDRESS = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174";
@@ -26,13 +29,21 @@ const USDC_ABI = [
   "function decimals() view returns (uint8)",
 ];
 
-export function WalletManagementModal({ open, onOpenChange }: WalletManagementModalProps) {
+export function WalletManagementModal({ open, onOpenChange, initialTab = "receive", prefilledAddress = "", title }: WalletManagementModalProps) {
   const { walletAddress, walletType, signer, provider, getUsdcBalance } = useWallet();
   const { toast } = useToast();
   
   const [copied, setCopied] = useState(false);
-  const [recipientAddress, setRecipientAddress] = useState("");
+  const [recipientAddress, setRecipientAddress] = useState(prefilledAddress);
   const [sendAmount, setSendAmount] = useState("");
+  const [activeTab, setActiveTab] = useState<string>(initialTab);
+
+  useEffect(() => {
+    if (open) {
+      setActiveTab(initialTab);
+      setRecipientAddress(prefilledAddress);
+    }
+  }, [open, initialTab, prefilledAddress]);
   const [isSending, setIsSending] = useState(false);
   const [balance, setBalance] = useState<string>("0.00");
   const [isLoadingBalance, setIsLoadingBalance] = useState(false);
@@ -242,14 +253,14 @@ export function WalletManagementModal({ open, onOpenChange }: WalletManagementMo
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Wallet className="h-5 w-5" />
-            Wallet Management
+            {title || "Wallet Management"}
           </DialogTitle>
           <DialogDescription>
             {walletType === "magic" ? "Magic Email Wallet" : "External Wallet"} on Polygon
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs defaultValue="receive" className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="receive" className="gap-1" data-testid="tab-receive">
               <QrCode className="h-4 w-4" />
