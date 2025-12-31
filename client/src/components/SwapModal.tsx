@@ -4,11 +4,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useWallet } from "@/context/WalletContext";
+import { useTradingSession } from "@/hooks/useTradingSession";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowDown, Loader2, AlertCircle, CheckCircle2, ArrowUpRight, ArrowDownLeft } from "lucide-react";
+import { ArrowDown, Loader2, AlertCircle, CheckCircle2, ArrowUpRight, ArrowDownLeft, Wallet, Shield } from "lucide-react";
 import { ethers } from "ethers";
+import { swapFromSafe, approveTokenFromSafe } from "@/lib/polymarketGasless";
 
 interface SwapModalProps {
   open: boolean;
@@ -61,14 +64,20 @@ const ERC20_ABI = [
 ];
 
 export function SwapModal({ open, onOpenChange, initialDirection = "deposit" }: SwapModalProps) {
-  const { walletAddress, provider } = useWallet();
+  const { walletAddress, provider, walletType } = useWallet();
+  const { safeAddress, isTradingSessionComplete } = useTradingSession();
   const { toast } = useToast();
   
   const [direction, setDirection] = useState<"deposit" | "withdraw">(initialDirection);
+  const [walletSource, setWalletSource] = useState<"eoa" | "safe">("eoa");
+  
+  const isExternalWallet = walletType === "external";
+  const hasSafeWallet = isExternalWallet && safeAddress && isTradingSessionComplete;
   
   useEffect(() => {
     if (open) {
       setDirection(initialDirection);
+      setWalletSource("eoa");
     }
   }, [open, initialDirection]);
   const [amount, setAmount] = useState("");
@@ -76,8 +85,13 @@ export function SwapModal({ open, onOpenChange, initialDirection = "deposit" }: 
   const [isApproving, setIsApproving] = useState(false);
   const [needsApproval, setNeedsApproval] = useState(false);
   
-  const [usdcBalance, setUsdcBalance] = useState<number>(0);
-  const [usdceBalance, setUsdceBalance] = useState<number>(0);
+  const [eoaUsdcBalance, setEoaUsdcBalance] = useState<number>(0);
+  const [eoaUsdceBalance, setEoaUsdceBalance] = useState<number>(0);
+  const [safeUsdcBalance, setSafeUsdcBalance] = useState<number>(0);
+  const [safeUsdceBalance, setSafeUsdceBalance] = useState<number>(0);
+  
+  const usdcBalance = walletSource === "safe" ? safeUsdcBalance : eoaUsdcBalance;
+  const usdceBalance = walletSource === "safe" ? safeUsdceBalance : eoaUsdceBalance;
   
   const parsedAmount = parseFloat(amount) || 0;
   
@@ -86,15 +100,17 @@ export function SwapModal({ open, onOpenChange, initialDirection = "deposit" }: 
     enabled: open,
   });
   
+  const currentActiveAddress = walletSource === "safe" && safeAddress ? safeAddress : walletAddress;
+  
   const { data: priceData, isLoading: priceLoading, refetch: refetchPrice } = useQuery<SwapPrice>({
-    queryKey: ["/api/swap/price", direction, amount, walletAddress],
+    queryKey: ["/api/swap/price", direction, amount, currentActiveAddress],
     queryFn: async () => {
-      if (!walletAddress || parsedAmount <= 0) return null;
-      const response = await fetch(`/api/swap/price?direction=${direction}&amount=${parsedAmount}&taker=${walletAddress}`);
+      if (!currentActiveAddress || parsedAmount <= 0) return null;
+      const response = await fetch(`/api/swap/price?direction=${direction}&amount=${parsedAmount}&taker=${currentActiveAddress}`);
       if (!response.ok) throw new Error("Failed to get price");
       return response.json();
     },
-    enabled: open && !!walletAddress && parsedAmount > 0,
+    enabled: open && !!currentActiveAddress && parsedAmount > 0,
     refetchInterval: 10000,
   });
   
@@ -106,13 +122,23 @@ export function SwapModal({ open, onOpenChange, initialDirection = "deposit" }: 
         const usdcContract = new ethers.Contract(USDC_NATIVE, ERC20_ABI, provider);
         const usdceContract = new ethers.Contract(USDC_BRIDGED, ERC20_ABI, provider);
         
-        const [usdcBal, usdceBal] = await Promise.all([
+        const [eoaUsdcBal, eoaUsdceBal] = await Promise.all([
           usdcContract.balanceOf(walletAddress),
           usdceContract.balanceOf(walletAddress),
         ]);
         
-        setUsdcBalance(parseFloat(ethers.formatUnits(usdcBal, 6)));
-        setUsdceBalance(parseFloat(ethers.formatUnits(usdceBal, 6)));
+        setEoaUsdcBalance(parseFloat(ethers.formatUnits(eoaUsdcBal, 6)));
+        setEoaUsdceBalance(parseFloat(ethers.formatUnits(eoaUsdceBal, 6)));
+        
+        if (safeAddress) {
+          const [safeUsdcBal, safeUsdceBal] = await Promise.all([
+            usdcContract.balanceOf(safeAddress),
+            usdceContract.balanceOf(safeAddress),
+          ]);
+          
+          setSafeUsdcBalance(parseFloat(ethers.formatUnits(safeUsdcBal, 6)));
+          setSafeUsdceBalance(parseFloat(ethers.formatUnits(safeUsdceBal, 6)));
+        }
       } catch (error) {
         console.error("Failed to fetch balances:", error);
       }
@@ -121,16 +147,16 @@ export function SwapModal({ open, onOpenChange, initialDirection = "deposit" }: 
     if (open) {
       fetchBalances();
     }
-  }, [open, walletAddress, provider]);
+  }, [open, walletAddress, provider, safeAddress]);
   
   const checkAllowance = async (allowanceTarget: string) => {
-    if (!walletAddress || !provider) return false;
+    if (!currentActiveAddress || !provider) return false;
     
     const tokenAddress = direction === "deposit" ? USDC_NATIVE : USDC_BRIDGED;
     const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
     
     try {
-      const allowance = await tokenContract.allowance(walletAddress, allowanceTarget);
+      const allowance = await tokenContract.allowance(currentActiveAddress, allowanceTarget);
       const requiredAmount = ethers.parseUnits(parsedAmount.toString(), 6);
       return allowance < requiredAmount;
     } catch (error) {
@@ -144,18 +170,31 @@ export function SwapModal({ open, onOpenChange, initialDirection = "deposit" }: 
     
     setIsApproving(true);
     try {
-      const signer = await provider.getSigner();
       const tokenAddress = direction === "deposit" ? USDC_NATIVE : USDC_BRIDGED;
-      const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, signer);
       
-      const tx = await tokenContract.approve(allowanceTarget, ethers.MaxUint256);
-      
-      toast({
-        title: "Approving...",
-        description: "Waiting for transaction confirmation",
-      });
-      
-      await tx.wait();
+      if (walletSource === "safe" && safeAddress) {
+        toast({
+          title: "Approving...",
+          description: "Please sign to approve tokens from Safe",
+        });
+        
+        const result = await approveTokenFromSafe(tokenAddress, allowanceTarget);
+        if (!result.success) {
+          throw new Error(result.error || "Safe approval failed");
+        }
+      } else {
+        const signer = await provider.getSigner();
+        const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, signer);
+        
+        const tx = await tokenContract.approve(allowanceTarget, ethers.MaxUint256);
+        
+        toast({
+          title: "Approving...",
+          description: "Waiting for transaction confirmation",
+        });
+        
+        await tx.wait();
+      }
       
       toast({
         title: "Approved",
@@ -175,12 +214,37 @@ export function SwapModal({ open, onOpenChange, initialDirection = "deposit" }: 
     }
   };
   
+  const refreshBalances = async () => {
+    if (!provider || !walletAddress) return;
+    
+    const usdcContract = new ethers.Contract(USDC_NATIVE, ERC20_ABI, provider);
+    const usdceContract = new ethers.Contract(USDC_BRIDGED, ERC20_ABI, provider);
+    
+    const [eoaUsdcBal, eoaUsdceBal] = await Promise.all([
+      usdcContract.balanceOf(walletAddress),
+      usdceContract.balanceOf(walletAddress),
+    ]);
+    
+    setEoaUsdcBalance(parseFloat(ethers.formatUnits(eoaUsdcBal, 6)));
+    setEoaUsdceBalance(parseFloat(ethers.formatUnits(eoaUsdceBal, 6)));
+    
+    if (safeAddress) {
+      const [safeUsdcBal, safeUsdceBal] = await Promise.all([
+        usdcContract.balanceOf(safeAddress),
+        usdceContract.balanceOf(safeAddress),
+      ]);
+      
+      setSafeUsdcBalance(parseFloat(ethers.formatUnits(safeUsdcBal, 6)));
+      setSafeUsdceBalance(parseFloat(ethers.formatUnits(safeUsdceBal, 6)));
+    }
+  };
+  
   const handleSwap = async () => {
-    if (!walletAddress || !provider || parsedAmount <= 0) return;
+    if (!currentActiveAddress || !provider || parsedAmount <= 0) return;
     
     setIsSwapping(true);
     try {
-      const response = await fetch(`/api/swap/quote?direction=${direction}&amount=${parsedAmount}&taker=${walletAddress}`);
+      const response = await fetch(`/api/swap/quote?direction=${direction}&amount=${parsedAmount}&taker=${currentActiveAddress}`);
       
       if (!response.ok) {
         const error = await response.json();
@@ -218,64 +282,69 @@ export function SwapModal({ open, onOpenChange, initialDirection = "deposit" }: 
         }
       }
       
-      const signer = await provider.getSigner();
-      
-      toast({
-        title: direction === "deposit" ? "Depositing..." : "Withdrawing...",
-        description: "Please confirm the transaction in your wallet",
-      });
-      
-      const txParams: { to: string; data: string; value?: string; gasLimit?: bigint } = {
-        to: quote.transaction.to,
-        data: quote.transaction.data,
-      };
-      
-      if (quote.transaction.value) {
-        txParams.value = quote.transaction.value;
-      }
-      
-      if (quote.transaction.gas) {
-        try {
-          const gasEstimate = BigInt(quote.transaction.gas);
-          txParams.gasLimit = gasEstimate + (gasEstimate / BigInt(2));
-        } catch (e) {
-          console.warn("Could not parse gas estimate, using auto gas");
+      if (walletSource === "safe" && safeAddress) {
+        toast({
+          title: direction === "deposit" ? "Swapping..." : "Swapping...",
+          description: "Please sign to execute swap from Safe",
+        });
+        
+        const result = await swapFromSafe({
+          to: quote.transaction.to,
+          data: quote.transaction.data,
+          value: quote.transaction.value,
+        });
+        
+        if (!result.success) {
+          throw new Error(result.error || "Safe swap failed");
         }
+      } else {
+        const signer = await provider.getSigner();
+        
+        toast({
+          title: direction === "deposit" ? "Swapping..." : "Swapping...",
+          description: "Please confirm the transaction in your wallet",
+        });
+        
+        const txParams: { to: string; data: string; value?: string; gasLimit?: bigint } = {
+          to: quote.transaction.to,
+          data: quote.transaction.data,
+        };
+        
+        if (quote.transaction.value) {
+          txParams.value = quote.transaction.value;
+        }
+        
+        if (quote.transaction.gas) {
+          try {
+            const gasEstimate = BigInt(quote.transaction.gas);
+            txParams.gasLimit = gasEstimate + (gasEstimate / BigInt(2));
+          } catch (e) {
+            console.warn("Could not parse gas estimate, using auto gas");
+          }
+        }
+        
+        const tx = await signer.sendTransaction(txParams);
+        
+        toast({
+          title: "Transaction Submitted",
+          description: "Waiting for confirmation...",
+        });
+        
+        await tx.wait();
       }
       
-      const tx = await signer.sendTransaction(txParams);
-      
       toast({
-        title: "Transaction Submitted",
-        description: "Waiting for confirmation...",
-      });
-      
-      await tx.wait();
-      
-      toast({
-        title: direction === "deposit" ? "Deposit Complete" : "Withdrawal Complete",
+        title: "Swap Complete",
         description: `Successfully swapped ${parsedAmount.toFixed(2)} ${direction === "deposit" ? "USDC" : "USDC.e"}`,
       });
       
       setAmount("");
-      
-      if (provider && walletAddress) {
-        const usdcContract = new ethers.Contract(USDC_NATIVE, ERC20_ABI, provider);
-        const usdceContract = new ethers.Contract(USDC_BRIDGED, ERC20_ABI, provider);
-        
-        const [usdcBal, usdceBal] = await Promise.all([
-          usdcContract.balanceOf(walletAddress),
-          usdceContract.balanceOf(walletAddress),
-        ]);
-        
-        setUsdcBalance(parseFloat(ethers.formatUnits(usdcBal, 6)));
-        setUsdceBalance(parseFloat(ethers.formatUnits(usdceBal, 6)));
-      }
+      await refreshBalances();
       
     } catch (error) {
       console.error("Swap error:", error);
       toast({
-        title: direction === "deposit" ? "Deposit Failed" : "Withdrawal Failed",
+        title: "Swap Failed",
         description: error instanceof Error ? error.message : "Transaction failed",
         variant: "destructive",
       });
@@ -346,6 +415,32 @@ export function SwapModal({ open, onOpenChange, initialDirection = "deposit" }: 
                 </div>
               </TabsContent>
             </Tabs>
+            
+            {hasSafeWallet && (
+              <div className="rounded-md border p-3 space-y-2">
+                <Label className="text-xs text-muted-foreground">Swap from</Label>
+                <RadioGroup
+                  value={walletSource}
+                  onValueChange={(v) => { setWalletSource(v as "eoa" | "safe"); setAmount(""); }}
+                  className="flex gap-4"
+                >
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="eoa" id="eoa" data-testid="radio-eoa" />
+                    <Label htmlFor="eoa" className="flex items-center gap-1.5 cursor-pointer text-sm">
+                      <Wallet className="h-3.5 w-3.5" />
+                      Connected Wallet
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="safe" id="safe" data-testid="radio-safe" />
+                    <Label htmlFor="safe" className="flex items-center gap-1.5 cursor-pointer text-sm">
+                      <Shield className="h-3.5 w-3.5" />
+                      Safe Wallet
+                    </Label>
+                  </div>
+                </RadioGroup>
+              </div>
+            )}
             
             <div className="space-y-3">
               <div className="rounded-md border p-3 space-y-2">

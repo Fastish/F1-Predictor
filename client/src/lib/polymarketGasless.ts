@@ -406,6 +406,72 @@ export async function withdrawFromSafe(recipientAddress: string, amountInWei: bi
   }
 }
 
+export async function swapFromSafe(swapTransaction: { to: string; data: string; value?: string }): Promise<GaslessResult> {
+  console.log(`[SwapFromSafe] Initiating swap via Safe`);
+  
+  try {
+    const transactions: Transaction[] = [
+      {
+        to: swapTransaction.to,
+        data: swapTransaction.data,
+        value: swapTransaction.value || "0",
+      },
+    ];
+    
+    const result = await executeGaslessTransactions(transactions);
+    
+    if (result.success) {
+      console.log(`[SwapFromSafe] Success! TX: ${result.transactionHash}`);
+    } else {
+      console.error(`[SwapFromSafe] Failed: ${result.error}`);
+    }
+    
+    return result;
+  } catch (error) {
+    console.error("[SwapFromSafe] Error during swap:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown swap error",
+    };
+  }
+}
+
+export async function approveTokenFromSafe(tokenAddress: string, spenderAddress: string): Promise<GaslessResult> {
+  console.log(`[ApproveFromSafe] Approving ${tokenAddress} for ${spenderAddress}`);
+  
+  try {
+    const approveData = encodeFunctionData({
+      abi: ERC20_ABI,
+      functionName: "approve",
+      args: [spenderAddress as `0x${string}`, maxUint256],
+    });
+    
+    const transactions: Transaction[] = [
+      {
+        to: tokenAddress,
+        data: approveData,
+        value: "0",
+      },
+    ];
+    
+    const result = await executeGaslessTransactions(transactions);
+    
+    if (result.success) {
+      console.log(`[ApproveFromSafe] Success! TX: ${result.transactionHash}`);
+    } else {
+      console.error(`[ApproveFromSafe] Failed: ${result.error}`);
+    }
+    
+    return result;
+  } catch (error) {
+    console.error("[ApproveFromSafe] Error during approval:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown approval error",
+    };
+  }
+}
+
 export async function approveAllGasless(): Promise<GaslessResult> {
   const transactions: Transaction[] = [
     {
