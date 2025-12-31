@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
+// Updated to use PATCH /api/user/display-name
 import {
   Dialog,
   DialogContent,
