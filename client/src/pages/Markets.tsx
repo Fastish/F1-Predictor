@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useWallet } from "@/context/WalletContext";
+import { useTradingWalletBalance } from "@/hooks/useTradingWalletBalance";
 import { useSEO } from "@/hooks/useSEO";
 import { TrendingUp, Wallet, Car, User } from "lucide-react";
 import { DepositModal } from "@/components/DepositModal";
@@ -96,6 +97,7 @@ export default function Markets() {
   });
 
   const { walletAddress, connectWallet, isConnecting } = useWallet();
+  const { tradingWalletBalance } = useTradingWalletBalance();
   const [activeTab, setActiveTab] = useState<"teams" | "drivers">("teams");
   const [selectedOutcome, setSelectedOutcome] = useState<PolymarketOutcome | null>(null);
   const [betModalOpen, setBetModalOpen] = useState(false);
@@ -110,19 +112,6 @@ export default function Markets() {
     queryKey: ["/api/polymarket/drivers"],
     refetchInterval: 30000,
   });
-
-  const { data: usdcBalance } = useQuery<string>({
-    queryKey: ["polygon-usdc-balance", walletAddress],
-    queryFn: async () => {
-      if (!walletAddress) return "0";
-      const { getUsdcBalance } = await import("@/lib/polygon");
-      return await getUsdcBalance(walletAddress);
-    },
-    enabled: !!walletAddress,
-    staleTime: 30000,
-  });
-
-  const walletUsdcBalance = parseFloat(usdcBalance || "0");
 
   const handleBetClick = (outcome: PolymarketOutcome) => {
     if (!walletAddress) {
@@ -173,7 +162,7 @@ export default function Markets() {
                 {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
               </Badge>
               <Badge variant="secondary">
-                ${walletUsdcBalance.toFixed(2)} USDC
+                ${tradingWalletBalance.toFixed(2)} USDC
               </Badge>
             </div>
           ) : (
@@ -351,7 +340,7 @@ export default function Markets() {
             setSelectedOutcome(null);
           }}
           outcome={selectedOutcome}
-          userBalance={walletUsdcBalance}
+          userBalance={tradingWalletBalance}
         />
       )}
 

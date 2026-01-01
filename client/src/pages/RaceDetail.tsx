@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { PolymarketBetModal } from "@/components/PolymarketBetModal";
 import { CommentsSection } from "@/components/CommentsSection";
 import { useWallet } from "@/context/WalletContext";
+import { useTradingWalletBalance } from "@/hooks/useTradingWalletBalance";
 import { useSEO } from "@/hooks/useSEO";
 import { Flag, MapPin, Calendar, ArrowLeft, Trophy, User, TrendingUp } from "lucide-react";
 import type { RaceMarket, RaceMarketOutcome, Driver } from "@shared/schema";
@@ -40,14 +41,8 @@ export default function RaceDetail() {
   const raceId = params?.id;
   const [selectedOutcome, setSelectedOutcome] = useState<PolymarketOutcome | null>(null);
   const [betModalOpen, setBetModalOpen] = useState(false);
-  const { walletAddress, getUsdcBalance } = useWallet();
-
-  const { data: usdcBalance = "0" } = useQuery({
-    queryKey: ["usdc-balance", walletAddress],
-    queryFn: () => getUsdcBalance(),
-    enabled: !!walletAddress,
-    refetchInterval: 30000,
-  });
+  const { walletAddress } = useWallet();
+  const { tradingWalletBalance } = useTradingWalletBalance();
 
   const { data: race, isLoading } = useQuery<RaceWithOutcomes>({
     queryKey: ["/api/race-markets", raceId],
@@ -253,7 +248,7 @@ export default function RaceDetail() {
           open={betModalOpen}
           onClose={handleCloseModal}
           outcome={selectedOutcome}
-          userBalance={usdcBalance}
+          userBalance={tradingWalletBalance}
         />
       )}
     </div>

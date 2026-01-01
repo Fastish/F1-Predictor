@@ -8,6 +8,7 @@ import { CommentsSection } from "@/components/CommentsSection";
 import { ArbitrageSummary, type ArbitrageOpportunity } from "@/components/ArbitrageValueBadge";
 import { useMarket, type F1Team } from "@/context/MarketContext";
 import { useWallet } from "@/context/WalletContext";
+import { useTradingWalletBalance } from "@/hooks/useTradingWalletBalance";
 import { useSEO } from "@/hooks/useSEO";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -52,17 +53,11 @@ export default function ConstructorsChampionship() {
   });
 
   const { getHolding } = useMarket();
-  const { walletAddress, getUsdcBalance } = useWallet();
+  const { walletAddress } = useWallet();
+  const { tradingWalletBalance } = useTradingWalletBalance();
   const [selectedOutcome, setSelectedOutcome] = useState<PolymarketOutcome | null>(null);
   const [betModalOpen, setBetModalOpen] = useState(false);
   const [arbFilter, setArbFilter] = useState<"all" | "buy_yes" | "buy_no">("all");
-
-  const { data: usdcBalance = "0" } = useQuery({
-    queryKey: ["usdc-balance", walletAddress],
-    queryFn: () => getUsdcBalance(),
-    enabled: !!walletAddress,
-    refetchInterval: 30000,
-  });
 
   const { data: constructors = [], isLoading } = useQuery<PolymarketOutcome[]>({
     queryKey: ["/api/polymarket/constructors"],
@@ -258,7 +253,7 @@ export default function ConstructorsChampionship() {
           open={betModalOpen}
           onClose={handleCloseModal}
           outcome={selectedOutcome}
-          userBalance={parseFloat(usdcBalance || "0")}
+          userBalance={tradingWalletBalance}
         />
       )}
     </div>

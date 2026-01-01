@@ -7,6 +7,7 @@ import { PolymarketBetModal } from "@/components/PolymarketBetModal";
 import { CommentsSection } from "@/components/CommentsSection";
 import { ArbitrageSummary, type ArbitrageOpportunity } from "@/components/ArbitrageValueBadge";
 import { useWallet } from "@/context/WalletContext";
+import { useTradingWalletBalance } from "@/hooks/useTradingWalletBalance";
 import { useSEO } from "@/hooks/useSEO";
 import { Card, CardContent } from "@/components/ui/card";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -64,17 +65,11 @@ export default function DriversChampionship() {
     description: "Bet on who will win the 2026 F1 World Drivers Championship. Trade Verstappen, Norris, Hamilton, Leclerc and more with real USDC on Polymarket."
   });
 
-  const { walletAddress, getUsdcBalance } = useWallet();
+  const { walletAddress } = useWallet();
+  const { tradingWalletBalance } = useTradingWalletBalance();
   const [selectedOutcome, setSelectedOutcome] = useState<PolymarketOutcome | null>(null);
   const [betModalOpen, setBetModalOpen] = useState(false);
   const [arbFilter, setArbFilter] = useState<"all" | "buy_yes" | "buy_no">("all");
-
-  const { data: usdcBalance = "0" } = useQuery({
-    queryKey: ["usdc-balance", walletAddress],
-    queryFn: () => getUsdcBalance(),
-    enabled: !!walletAddress,
-    refetchInterval: 30000,
-  });
 
   const { data: drivers = [], isLoading } = useQuery<PolymarketOutcome[]>({
     queryKey: ["/api/polymarket/drivers"],
@@ -296,7 +291,7 @@ export default function DriversChampionship() {
           open={betModalOpen}
           onClose={handleCloseModal}
           outcome={selectedOutcome}
-          userBalance={parseFloat(usdcBalance || "0")}
+          userBalance={tradingWalletBalance}
         />
       )}
     </div>
