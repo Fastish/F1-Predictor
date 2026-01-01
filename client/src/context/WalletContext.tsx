@@ -412,6 +412,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
               projectId: WALLETCONNECT_PROJECT_ID,
               chains: [POLYGON_CHAIN_ID],
               showQrModal: false,
+              methods: ["eth_sendTransaction", "personal_sign"],
+              optionalMethods: ["eth_signTypedData", "eth_signTypedData_v4", "eth_sign"],
               metadata: {
                 name: "F1 Predict",
                 description: "F1 Prediction Market",
@@ -538,6 +540,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
           projectId: WALLETCONNECT_PROJECT_ID,
           chains: [POLYGON_CHAIN_ID],
           showQrModal: false,
+          methods: ["eth_sendTransaction", "personal_sign"],
+          optionalMethods: ["eth_signTypedData", "eth_signTypedData_v4", "eth_sign"],
           metadata: {
             name: "F1 Predict",
             description: "F1 Prediction Market",
@@ -974,6 +978,9 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         chains: [POLYGON_CHAIN_ID],
         showQrModal: true, // Modal handles mobile detection internally
         optionalChains: [],
+        // Required methods for Polymarket CLOB API credential derivation
+        methods: ["eth_sendTransaction", "personal_sign"],
+        optionalMethods: ["eth_signTypedData", "eth_signTypedData_v4", "eth_sign"],
         metadata: {
           name: "F1 Predict",
           description: "F1 Prediction Market - Trade on F1 Championship outcomes",
