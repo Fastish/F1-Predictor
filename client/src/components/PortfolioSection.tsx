@@ -255,7 +255,7 @@ export function PortfolioSection() {
   const [sellModalOpen, setSellModalOpen] = useState(false);
   
   const { tradingSession, isTradingSessionComplete, clobClient } = useTradingSession();
-  const { cancelOrder } = usePlaceOrder(clobClient, undefined);
+  const { cancelOrder } = usePlaceOrder(clobClient, undefined, tradingSession?.apiCredentials);
   const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
   const { data: positionsData, isLoading: isLoadingPositions, refetch: refetchPositions, error: positionsError, isError: isPositionsError } = usePolymarketPositions();
 
@@ -420,7 +420,7 @@ export function PortfolioSection() {
               portfolioValue={portfolioValue} 
               totalPnl={totalPnl} 
               cashBalance={cashBalance || 0} 
-              safeAddress={safeAddress}
+              safeAddress={safeAddress ?? undefined}
             />
 
             <Tabs defaultValue="positions" className="w-full">

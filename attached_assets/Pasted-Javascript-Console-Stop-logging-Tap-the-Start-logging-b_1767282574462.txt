@@ -1,0 +1,114 @@
+Javascript Console
+
+Stop logging
+Tap the "Start logging" button to collect future JavaScript console logs and errors from all tabs. Logs will be collected (and stored only in memory) until this page is closed or "Stop logging" is tapped.
+https://6cb45853-3712-4329-8597-1b81ee5c5952-00-dbv4taifez9e.spock.replit.dev/constructors
+LOG[WC Visibility] Already connected, skipping session check
+LOGDerived Safe address for 0x234cc20818238c0d54a28b696374a95d3c59302b: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+ERRORFailed to fetch balances: Error: network changed: 1 => 137  (event="changed", code=NETWORK_ERROR, version=6.16.0)
+ERRORError fetching USDC balance: Error: network changed: 1 => 137  (event="changed", code=NETWORK_ERROR, version=6.16.0)
+ERROR[object Object]
+ERROR[object Object]
+ERROR[object Object]
+ERROR[object Object]
+ERROR[object Object]
+ERROR[object Object]
+ERROR[object Object]
+ERROR[object Object]
+ERROR[object Object]
+ERROR[object Object]
+ERROR[object Object]
+ERROR[object Object]
+ERROR[object Object]
+ERROR[object Object]
+ERROR[object Object]
+ERROR[object Object]
+ERROR[object Object]
+ERROR[object Object]
+ERROR[object Object]
+ERROR[object Object]
+ERROR[object Object]
+ERROR[object Object]
+ERROR[object Object]
+ERROR[object Object]
+LOG[WC Visibility] Already connected, skipping session check
+ERROR[CLOB Client] request error {"status":400,"statusText":"Bad Request","data":{"error":"GetBalanceAndAllowance invalid params: assetId invalid value -1, as this is a erc1155 operation, asset must be a valid tokenId value"},"config":{"transitional":{"silentJSONParsing":true,"forcedJSONParsing":true,"clarifyTimeoutError":false},"adapter":["xhr","http","fetch"],"transformRequest":[null],"transformResponse":[null],"timeout":0,"xsrfCookieName":"XSRF-TOKEN","xsrfHeaderName":"X-XSRF-TOKEN","maxContentLength":-1,"maxBodyLength":-1,"env":{},"headers":{"Accept":"application/json, text/plain, */*","POLY_ADDRESS":"0x234Cc20818238c0D54a28b696374A95D3C59302B","POLY_SIGNATURE":"jgrazE9xHZ6YRPDNs_aNSFysxBMKO2irp0MiFTK1Jww=","POLY_TIMESTAMP":"1767282377","POLY_API_KEY":"61894bfc-e22f-98d8-7f11-095d4bfc98cd","POLY_PASSPHRASE":"807e1eae0a8c3ed1434f1b8cf3d15b82c459c9d9904f6e1db18f53385684fa66"},"method":"get","url":"https://clob.polymarket.com/balance-allowance","params":{"asset_type":"CONDITIONAL","signature_type":2},"allowAbsoluteUrls":true}}
+LOGBalance allowance response: [object Object]
+LOGDerived Safe address for 0x234cc20818238c0d54a28b696374a95d3c59302b: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOGDerived Safe address for 0x234cc20818238c0d54a28b696374a95d3c59302b: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOG[DepositModal] Auto-init check: [object Object]
+LOGDerived Safe address for 0x234cc20818238c0d54a28b696374a95d3c59302b: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+ERROR`DialogContent` requires a `DialogTitle` for the component to be accessible for screen reader users.
+
+If you want to hide the `DialogTitle`, you can wrap it with our VisuallyHidden component.
+
+For more information, see https://radix-ui.com/primitives/docs/components/dialog
+WARNINGWarning: Missing `Description` or `aria-describedby={undefined}` for {DialogContent}.
+LOGDerived Safe address for 0x234cc20818238c0d54a28b696374a95d3c59302b: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOGDerived Safe address for 0x234cc20818238c0d54a28b696374a95d3c59302b: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOG[DepositModal] Auto-init check: [object Object]
+LOGCreating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOGCreating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOGCreating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOGCreating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOGCreating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOGDerived Safe address for 0x234cc20818238c0d54a28b696374a95d3c59302b: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOGCreating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOGCreating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOGCreating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOGCreating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOGCreating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOG[DepositModal] Auto-init check: [object Object]
+LOGDerived Safe address for 0x234cc20818238c0d54a28b696374a95d3c59302b: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOGDerived Safe address for 0x234cc20818238c0d54a28b696374a95d3c59302b: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOGDerived Safe address for 0x234cc20818238c0d54a28b696374a95d3c59302b: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOGDerived Safe address for 0x234cc20818238c0d54a28b696374a95d3c59302b: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOGTrading via Safe wallet (derived for WalletConnect): 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+WARNINGWarning: Missing `Description` or `aria-describedby={undefined}` for {DialogContent}.
+ERRORFailed to check approval/balance status: Error: network changed: 1 => 137  (event="changed", code=NETWORK_ERROR, version=6.16.0)
+LOGCreating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+ERROR[object Object]
+ERROR[object Object]
+ERROR[object Object]
+ERROR[object Object]
+ERROR[object Object]
+ERROR[object Object]
+ERROR[object Object]
+ERROR[object Object]
+ERROR[object Object]
+ERROR[object Object]
+ERROR[object Object]
+ERROR[object Object]
+LOG[WC Visibility] Already connected, skipping session check
+LOGCreating order with ClobClient: [object Object]
+LOGDerived Safe address for 0x234cc20818238c0d54a28b696374a95d3c59302b: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOGGTC order: Price: 0.1, Size: 10
+ERROR[object Object]
+ERROR[object Object]
+ERROR[object Object]
+ERROR[object Object]
+ERROR[object Object]
+ERROR[object Object]
+ERROR[object Object]
+ERROR[object Object]
+ERROR[object Object]
+ERROR[object Object]
+ERROR[object Object]
+ERROR[object Object]
+LOGSigned order created: [object Object]
+ERROR[CLOB Client] request error {"error":"Network Error"}
+LOGpostOrder response: {
+  "error": "Network Error"
+}
+ERRORPolymarket order rejected: Network Error Full response: [object Object]
+ERROROrder failed with result: {
+  "success": false,
+  "error": "Network Error",
+  "rawResponse": {
+    "error": "Network Error"
+  }
+}
+LOGError analysis: [object Object]
+LOGDerived Safe address for 0x234cc20818238c0d54a28b696374a95d3c59302b: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOG[WC Visibility] Already connected, skipping session check
+LOGDerived Safe address for 0x234cc20818238c0d54a28b696374a95d3c59302b: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f

@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Copy, Check, Send, QrCode, Wallet, AlertCircle, Loader2, ExternalLink, Shield } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { ethers } from "ethers";
+import { getReadOnlyPolygonProvider } from "@/lib/polymarketDeposit";
 
 interface WalletManagementModalProps {
   open: boolean;
@@ -31,8 +32,21 @@ const USDC_ABI = [
   "function decimals() view returns (uint8)",
 ];
 
+// Helper to fetch USDC balance using read-only provider
+async function fetchUsdcBalanceReadOnly(address: string): Promise<string> {
+  try {
+    const readOnlyProvider = getReadOnlyPolygonProvider();
+    const usdcContract = new ethers.Contract(USDC_CONTRACT_ADDRESS, USDC_ABI, readOnlyProvider);
+    const balance = await usdcContract.balanceOf(address);
+    return ethers.formatUnits(balance, USDC_DECIMALS);
+  } catch (error) {
+    console.error("Error fetching USDC balance:", error);
+    return "0";
+  }
+}
+
 export function WalletManagementModal({ open, onOpenChange, initialTab = "receive", prefilledAddress = "", title, sendLabel = "Send" }: WalletManagementModalProps) {
-  const { walletAddress, walletType, signer, provider, getUsdcBalance } = useWallet();
+  const { walletAddress, walletType, signer, provider } = useWallet();
   const { safeAddress } = useTradingSession();
   const { toast } = useToast();
   const [safeCopied, setSafeCopied] = useState(false);
@@ -55,14 +69,18 @@ export function WalletManagementModal({ open, onOpenChange, initialTab = "receiv
 
   useEffect(() => {
     const fetchBalances = async () => {
-      if (open && walletAddress && provider) {
+      if (open && walletAddress) {
         setIsLoadingBalance(true);
         try {
+          // Use read-only Polygon provider to avoid triggering WalletConnect/MetaMask
+          const readOnlyProvider = getReadOnlyPolygonProvider();
+          const usdcContract = new ethers.Contract(USDC_CONTRACT_ADDRESS, USDC_ABI, readOnlyProvider);
+          
           const [usdcBal, maticBal] = await Promise.all([
-            getUsdcBalance(),
-            provider.getBalance(walletAddress),
+            usdcContract.balanceOf(walletAddress),
+            readOnlyProvider.getBalance(walletAddress),
           ]);
-          setBalance(usdcBal);
+          setBalance(ethers.formatUnits(usdcBal, USDC_DECIMALS));
           setMaticBalance(ethers.formatEther(maticBal));
         } catch (error) {
           console.error("Failed to fetch balances:", error);
@@ -72,7 +90,7 @@ export function WalletManagementModal({ open, onOpenChange, initialTab = "receiv
       }
     };
     fetchBalances();
-  }, [open, walletAddress, provider, getUsdcBalance]);
+  }, [open, walletAddress]);
 
   const handleCopyAddress = async () => {
     if (!walletAddress) return;
@@ -210,7 +228,7 @@ export function WalletManagementModal({ open, onOpenChange, initialTab = "receiv
     setIsSending(true);
 
     try {
-      const freshBalance = await getUsdcBalance();
+      const freshBalance = await fetchUsdcBalanceReadOnly(walletAddress);
       setBalance(freshBalance);
       if (amount > parseFloat(freshBalance)) {
         toast({
@@ -248,7 +266,7 @@ export function WalletManagementModal({ open, onOpenChange, initialTab = "receiv
         setRecipientAddress("");
         setSendAmount("");
         
-        const newBalance = await getUsdcBalance();
+        const newBalance = await fetchUsdcBalanceReadOnly(walletAddress);
         setBalance(newBalance);
       } else {
         throw new Error("Transaction failed");

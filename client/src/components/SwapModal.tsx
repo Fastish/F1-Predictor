@@ -12,6 +12,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ArrowDown, Loader2, AlertCircle, CheckCircle2, ArrowUpRight, ArrowDownLeft, Wallet, Shield } from "lucide-react";
 import { ethers } from "ethers";
 import { swapFromSafe, approveTokenFromSafe } from "@/lib/polymarketGasless";
+import { getReadOnlyPolygonProvider } from "@/lib/polymarketDeposit";
 
 interface SwapModalProps {
   open: boolean;
@@ -116,11 +117,13 @@ export function SwapModal({ open, onOpenChange, initialDirection = "deposit" }: 
   
   useEffect(() => {
     const fetchBalances = async () => {
-      if (!walletAddress || !provider) return;
+      if (!walletAddress) return;
       
       try {
-        const usdcContract = new ethers.Contract(USDC_NATIVE, ERC20_ABI, provider);
-        const usdceContract = new ethers.Contract(USDC_BRIDGED, ERC20_ABI, provider);
+        // Use read-only Polygon provider to avoid triggering WalletConnect/MetaMask
+        const readOnlyProvider = getReadOnlyPolygonProvider();
+        const usdcContract = new ethers.Contract(USDC_NATIVE, ERC20_ABI, readOnlyProvider);
+        const usdceContract = new ethers.Contract(USDC_BRIDGED, ERC20_ABI, readOnlyProvider);
         
         const [eoaUsdcBal, eoaUsdceBal] = await Promise.all([
           usdcContract.balanceOf(walletAddress),
@@ -147,13 +150,15 @@ export function SwapModal({ open, onOpenChange, initialDirection = "deposit" }: 
     if (open) {
       fetchBalances();
     }
-  }, [open, walletAddress, provider, safeAddress]);
+  }, [open, walletAddress, safeAddress]);
   
   const checkAllowance = async (allowanceTarget: string) => {
-    if (!currentActiveAddress || !provider) return false;
+    if (!currentActiveAddress) return false;
     
     const tokenAddress = direction === "deposit" ? USDC_NATIVE : USDC_BRIDGED;
-    const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
+    // Use read-only provider to avoid triggering WalletConnect/MetaMask
+    const readOnlyProvider = getReadOnlyPolygonProvider();
+    const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, readOnlyProvider);
     
     try {
       const allowance = await tokenContract.allowance(currentActiveAddress, allowanceTarget);

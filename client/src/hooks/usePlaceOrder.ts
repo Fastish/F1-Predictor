@@ -33,9 +33,16 @@ export interface OrderResult {
   rawResponse?: any;
 }
 
+export interface ApiCredentials {
+  key: string;
+  secret: string;
+  passphrase: string;
+}
+
 export function usePlaceOrder(
   clobClient: ClobClient | null,
-  onCredentialError?: () => void
+  onCredentialError?: () => void,
+  apiCredentials?: ApiCredentials | null
 ) {
   const [isPlacing, setIsPlacing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -123,10 +130,34 @@ export function usePlaceOrder(
         console.log("Signed order created:", signedOrder);
         await logToServer("ORDER_SIGNED", { signedOrder: { ...signedOrder, signature: signedOrder.signature?.substring(0, 20) + "..." } });
 
-        // Post the order to Polymarket
-        const result = await clobClient.postOrder(signedOrder, sdkOrderType);
-        console.log("postOrder response:", JSON.stringify(result, null, 2));
-        await logToServer("ORDER_RESPONSE", { result });
+        // Submit order through server-side proxy to avoid CORS issues
+        // The signed order contains the EIP-712 signature, we send it to our server
+        // which forwards it to Polymarket with proper HMAC authentication
+        if (!apiCredentials) {
+          throw new Error("API credentials required for order submission");
+        }
+        
+        // Send credentials via headers (not body) for security
+        // Send the full signedOrder unchanged - server will forward it to Polymarket
+        const proxyResponse = await fetch("/api/polymarket/submit-order", {
+          method: "POST",
+          headers: { 
+            "Content-Type": "application/json",
+            "X-POLY-API-KEY": apiCredentials.key,
+            "X-POLY-API-SECRET": apiCredentials.secret,
+            "X-POLY-PASSPHRASE": apiCredentials.passphrase,
+          },
+          body: JSON.stringify({ signedOrder }),
+        });
+        
+        if (!proxyResponse.ok) {
+          const errorData = await proxyResponse.json().catch(() => ({ error: "Unknown error" }));
+          throw new Error(errorData.error || `Server error: ${proxyResponse.status}`);
+        }
+        
+        const result = await proxyResponse.json();
+        console.log("Server proxy order response:", JSON.stringify(result, null, 2));
+        await logToServer("ORDER_RESPONSE", { result, proxyStatus: proxyResponse.status });
 
         // Check if the response contains an error (Polymarket returns errors in response body)
         const resultAny = result as any;
@@ -196,7 +227,7 @@ export function usePlaceOrder(
         return { success: false, error: errorMessage };
       }
     },
-    [clobClient, onCredentialError]
+    [clobClient, onCredentialError, apiCredentials]
   );
 
   const cancelOrder = useCallback(

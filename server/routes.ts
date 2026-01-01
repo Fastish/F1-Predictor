@@ -1568,24 +1568,39 @@ export async function registerRoutes(
   });
 
   // Server-side proxy for submitting orders to Polymarket CLOB
+  // Accepts signedOrder from ClobClient unchanged and forwards to Polymarket
+  // Credentials are passed via headers for security (not logged)
   app.post("/api/polymarket/submit-order", async (req, res) => {
     try {
-      const { order, signature, apiKey, apiSecret, passphrase } = req.body;
+      // Read credentials from headers (more secure than body)
+      const apiKey = req.headers["x-poly-api-key"] as string;
+      const apiSecret = req.headers["x-poly-api-secret"] as string;
+      const passphrase = req.headers["x-poly-passphrase"] as string;
       
-      if (!order || !signature || !apiKey || !apiSecret || !passphrase) {
-        return res.status(400).json({ error: "Missing required fields" });
+      // Support both new format (signedOrder) and legacy format (order + signature)
+      let signedOrder = req.body.signedOrder;
+      if (!signedOrder && req.body.order) {
+        // Legacy format: reconstruct signedOrder from order + signature
+        signedOrder = { ...req.body.order, signature: req.body.signature };
+      }
+      
+      if (!signedOrder || !apiKey || !apiSecret || !passphrase) {
+        return res.status(400).json({ error: "Missing required fields: signedOrder or API credentials" });
       }
 
+      // Only log non-sensitive order info (tokenID not credentials)
       console.log("Proxying order submission:", { 
-        tokenId: order.tokenId, 
-        side: order.side === 0 ? "BUY" : "SELL" 
+        tokenID: signedOrder.tokenID,
+        side: signedOrder.side === 0 ? "BUY" : "SELL",
+        price: signedOrder.price,
+        size: signedOrder.size
       });
 
-      // Create HMAC signature for the request
+      // Create HMAC signature for the Polymarket API request
       const timestamp = Math.floor(Date.now() / 1000).toString();
       const method = "POST";
       const path = "/order";
-      const body = JSON.stringify(order);
+      const body = JSON.stringify(signedOrder);
       const message = timestamp + method + path + body;
       
       // Decode secret (base64url or hex)
@@ -1613,10 +1628,8 @@ export async function registerRoutes(
         "POLY_TIMESTAMP": timestamp,
         "POLY_SIGNATURE": hmacSignature,
       };
-      const submitBody = JSON.stringify({
-        ...order,
-        signature: signature,
-      });
+      // Send signedOrder unchanged to Polymarket (includes signature)
+      const submitBody = JSON.stringify(signedOrder);
       
       if (proxyAgent) {
         console.log("Using Oxylabs proxy (undici) for submit-order");

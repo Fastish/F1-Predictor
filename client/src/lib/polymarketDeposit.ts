@@ -1,5 +1,16 @@
 import { ethers } from "ethers";
 
+// Read-only Polygon RPC provider for balance checks (avoids triggering WalletConnect)
+const POLYGON_RPC = "https://polygon-rpc.com";
+let readOnlyProvider: ethers.JsonRpcProvider | null = null;
+
+export function getReadOnlyPolygonProvider(): ethers.JsonRpcProvider {
+  if (!readOnlyProvider) {
+    readOnlyProvider = new ethers.JsonRpcProvider(POLYGON_RPC, 137);
+  }
+  return readOnlyProvider;
+}
+
 // Polymarket Contract Addresses on Polygon
 export const POLYMARKET_CONTRACTS = {
   CTF_EXCHANGE: "0x4bFb41d5B3570DeFd03C39a9A4D8dE6Bd8B8982E",
@@ -282,7 +293,7 @@ export async function revokeAllCTFApprovals(
 }
 
 export async function checkDepositRequirements(
-  provider: ethers.Provider,
+  _provider: ethers.Provider, // Kept for backward compatibility but not used
   walletAddress: string,
   isMagicWallet: boolean,
   safeAddress?: string | null
@@ -302,6 +313,9 @@ export async function checkDepositRequirements(
   needsApproval: boolean;
   needsCTFApproval: boolean;
 }> {
+  // Use a dedicated read-only Polygon provider to avoid triggering WalletConnect/MetaMask
+  const provider = getReadOnlyPolygonProvider();
+  
   const usdcBalance = await getUSDCBalance(provider, walletAddress);
   const nativeUsdcBalance = await getNativeUSDCBalance(provider, walletAddress);
   
