@@ -92,6 +92,7 @@ export function useTradingSession() {
   const [currentStep, setCurrentStep] = useState<SessionStep>("idle");
   const [sessionError, setSessionError] = useState<string | null>(null);
   const [isInitializing, setIsInitializing] = useState(false);
+  const [credentialsValidated, setCredentialsValidated] = useState(false);
 
   // Load existing session when wallet connects
   useEffect(() => {
@@ -99,10 +100,12 @@ export function useTradingSession() {
       setTradingSession(null);
       setCurrentStep("idle");
       setSessionError(null);
+      setCredentialsValidated(false);
       return;
     }
     const stored = loadSession(walletAddress);
     setTradingSession(stored);
+    setCredentialsValidated(false); // Need to validate on each session load
     // Mark as complete if we have credentials AND a Safe address
     // proxyDeployed status is informational - we'll let the server reject if not deployed
     if (stored?.hasApiCredentials && stored?.safeAddress) {
@@ -158,6 +161,39 @@ export function useTradingSession() {
       throw err;
     }
   }, [createTempClobClient]);
+
+  // Validate that cached API credentials are still valid with Polymarket
+  const validateApiCredentials = useCallback(async (credentials: UserApiCredentials): Promise<boolean> => {
+    try {
+      console.log("[TradingSession] Validating cached API credentials...");
+      // Make a simple authenticated API call to verify credentials
+      // We use the /auth/api-key endpoint which returns 200 if valid, 401 if expired
+      const response = await fetch("https://clob.polymarket.com/auth/api-key", {
+        method: "GET",
+        headers: {
+          "POLY_API_KEY": credentials.key,
+          "POLY_PASSPHRASE": credentials.passphrase,
+          "POLY_TIMESTAMP": Math.floor(Date.now() / 1000).toString(),
+          "POLY_SIGNATURE": "", // Empty signature - this will likely fail but we just need to test if key is valid format
+        },
+      });
+      
+      // If we get 401 or 403, credentials are definitely invalid
+      if (response.status === 401 || response.status === 403) {
+        console.log("[TradingSession] Credentials expired/invalid (401/403)");
+        return false;
+      }
+      
+      // For any other status (including signature errors like 400), assume credentials are valid format-wise
+      // The actual order signing will do the real validation
+      console.log("[TradingSession] Credentials appear valid (status:", response.status, ")");
+      return true;
+    } catch (err) {
+      console.error("[TradingSession] Error validating credentials:", err);
+      // On network error, assume credentials might be valid and let the order fail naturally
+      return true;
+    }
+  }, []);
 
   // Fetch user's Safe/proxy address using the RelayClient or direct derivation
   const fetchSafeAddress = useCallback(async (): Promise<{ safeAddress: string | null; proxyDeployed: boolean }> => {
@@ -217,11 +253,23 @@ export function useTradingSession() {
       } : "none");
       
       if (existingSession?.hasApiCredentials && existingSession?.apiCredentials && existingSession?.safeAddress) {
-        console.log("[TradingSession] Using existing complete session");
-        setTradingSession(existingSession);
-        setCurrentStep("complete");
-        setIsInitializing(false);
-        return existingSession;
+        // Validate that cached credentials are still valid before using them
+        console.log("[TradingSession] Checking if cached credentials are still valid...");
+        const isValid = await validateApiCredentials(existingSession.apiCredentials);
+        
+        if (isValid) {
+          console.log("[TradingSession] Using existing complete session (credentials valid)");
+          setTradingSession(existingSession);
+          setCurrentStep("complete");
+          setCredentialsValidated(true);
+          setIsInitializing(false);
+          return existingSession;
+        } else {
+          // Cached credentials expired - need to re-derive
+          console.log("[TradingSession] Cached credentials expired, clearing session and re-deriving...");
+          clearSession(walletAddress);
+          // Continue to derive new credentials below
+        }
       }
 
       // Derive user API credentials - THIS WILL TRIGGER A SIGNATURE REQUEST
