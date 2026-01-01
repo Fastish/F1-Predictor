@@ -804,20 +804,66 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
               </TabsContent>
 
               <TabsContent value="external" className="space-y-4 mt-4">
-                <div className="rounded-md bg-muted p-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <SiPolygon className="h-5 w-5 text-purple-500" />
-                    <span className="font-medium">Connect Wallet</span>
+                {/* Show Phantom connect prominently when inside Phantom's browser */}
+                {isPhantomInstalled() && (
+                  <>
+                    <div className="rounded-md bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/20 p-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <PhantomIcon className="h-5 w-5" />
+                        <span className="font-medium">Phantom Detected</span>
+                      </div>
+                      <p className="text-sm text-muted-foreground mb-3">
+                        Connect your Phantom wallet to start trading.
+                      </p>
+                      <Button
+                        onClick={handlePhantomConnect}
+                        disabled={isConnecting}
+                        className="w-full"
+                        data-testid="button-connect-phantom"
+                      >
+                        {isConnecting ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Connecting...
+                          </>
+                        ) : (
+                          <>
+                            <PhantomIcon className="h-4 w-4 mr-2" />
+                            Connect Phantom
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                    <div className="relative">
+                      <div className="absolute inset-0 flex items-center">
+                        <span className="w-full border-t" />
+                      </div>
+                      <div className="relative flex justify-center text-xs uppercase">
+                        <span className="bg-background px-2 text-muted-foreground">Or use another wallet</span>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* Standard wallet connect options */}
+                {!isPhantomInstalled() && (
+                  <div className="rounded-md bg-muted p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <SiPolygon className="h-5 w-5 text-purple-500" />
+                      <span className="font-medium">Connect Wallet</span>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      Connect with a browser extension or mobile wallet app.
+                    </p>
                   </div>
-                  <p className="text-sm text-muted-foreground">
-                    Connect with a browser extension or mobile wallet app.
-                  </p>
-                </div>
+                )}
+                
                 <div className="space-y-2">
                   <Button
                     onClick={handleWalletConnectConnect}
                     disabled={isConnecting}
                     className="w-full"
+                    variant={isPhantomInstalled() ? "outline" : "default"}
                     data-testid="button-connect-walletconnect"
                   >
                     {isConnecting ? (
@@ -833,78 +879,57 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
                     )}
                   </Button>
                   <p className="text-xs text-muted-foreground text-center">
-                    Works with MetaMask, Rainbow, Trust Wallet, and 300+ wallets. Note: Phantom doesn't support WalletConnect for Polygon.
+                    Works with MetaMask, Rainbow, Trust Wallet, and 300+ wallets.
                   </p>
                 </div>
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t" />
-                  </div>
-                  <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-background px-2 text-muted-foreground">Open Wallet App</span>
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    className="flex-1"
-                    data-testid="button-open-phantom-app"
-                    onClick={() => {
-                      window.location.href = `https://phantom.app/ul/browse/${encodeURIComponent(window.location.href)}?ref=${encodeURIComponent(window.location.origin)}`;
-                    }}
-                  >
-                    <PhantomIcon className="h-4 w-4 mr-2" />
-                    Phantom (Mobile)
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="flex-1"
-                    data-testid="button-open-metamask-app"
-                    onClick={() => {
-                      window.location.href = `https://metamask.app.link/dapp/${window.location.host}${window.location.pathname}`;
-                    }}
-                  >
-                    <MetaMaskIcon className="h-4 w-4 mr-2" />
-                    MetaMask (Mobile)
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground text-center">
-                  Opens this site in the wallet's built-in browser. Once loaded, tap the Phantom or MetaMask button above to connect.
-                </p>
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t" />
-                  </div>
-                  <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-background px-2 text-muted-foreground">Desktop Extensions</span>
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  {isPhantomInstalled() && (
-                    <Button
-                      onClick={handlePhantomConnect}
-                      disabled={isConnecting}
-                      className="flex-1"
-                      variant="outline"
-                      data-testid="button-connect-phantom"
-                    >
-                      {isConnecting ? (
-                        <>
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          Connecting...
-                        </>
-                      ) : (
-                        <>
-                          <PhantomIcon className="h-4 w-4 mr-2" />
-                          Phantom
-                        </>
-                      )}
-                    </Button>
-                  )}
+
+                {/* Mobile deep links - only show when NOT inside a wallet browser */}
+                {!isPhantomInstalled() && (
+                  <>
+                    <div className="relative">
+                      <div className="absolute inset-0 flex items-center">
+                        <span className="w-full border-t" />
+                      </div>
+                      <div className="relative flex justify-center text-xs uppercase">
+                        <span className="bg-background px-2 text-muted-foreground">Open Wallet App</span>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        className="flex-1"
+                        data-testid="button-open-phantom-app"
+                        onClick={() => {
+                          window.location.href = `https://phantom.app/ul/browse/${encodeURIComponent(window.location.href)}?ref=${encodeURIComponent(window.location.origin)}`;
+                        }}
+                      >
+                        <PhantomIcon className="h-4 w-4 mr-2" />
+                        Phantom
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="flex-1"
+                        data-testid="button-open-metamask-app"
+                        onClick={() => {
+                          window.location.href = `https://metamask.app.link/dapp/${window.location.host}${window.location.pathname}`;
+                        }}
+                      >
+                        <MetaMaskIcon className="h-4 w-4 mr-2" />
+                        MetaMask
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground text-center">
+                      Opens this site in the wallet's built-in browser for mobile connection.
+                    </p>
+                  </>
+                )}
+
+                {/* MetaMask/other browser extension - show when Phantom detected (for users who have both) */}
+                {isPhantomInstalled() && (
                   <Button
                     onClick={handleExternalWalletConnect}
                     disabled={isConnecting}
-                    className="flex-1"
+                    className="w-full"
                     variant="outline"
                     data-testid="button-connect-external"
                   >
@@ -916,14 +941,47 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
                     ) : (
                       <>
                         <MetaMaskIcon className="h-4 w-4 mr-2" />
-                        {isPhantomInstalled() ? "MetaMask / Other" : "Browser Extension"}
+                        MetaMask / Other
                       </>
                     )}
                   </Button>
-                </div>
-                <p className="text-xs text-muted-foreground text-center">
-                  For desktop with MetaMask, Phantom, or Rabby installed.
-                </p>
+                )}
+
+                {/* Desktop extensions - only show when no wallet detected */}
+                {!isPhantomInstalled() && (
+                  <>
+                    <div className="relative">
+                      <div className="absolute inset-0 flex items-center">
+                        <span className="w-full border-t" />
+                      </div>
+                      <div className="relative flex justify-center text-xs uppercase">
+                        <span className="bg-background px-2 text-muted-foreground">Desktop Extensions</span>
+                      </div>
+                    </div>
+                    <Button
+                      onClick={handleExternalWalletConnect}
+                      disabled={isConnecting}
+                      className="w-full"
+                      variant="outline"
+                      data-testid="button-connect-external"
+                    >
+                      {isConnecting ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Connecting...
+                        </>
+                      ) : (
+                        <>
+                          <MetaMaskIcon className="h-4 w-4 mr-2" />
+                          Browser Extension
+                        </>
+                      )}
+                    </Button>
+                    <p className="text-xs text-muted-foreground text-center">
+                      For desktop with MetaMask, Phantom, or Rabby installed.
+                    </p>
+                  </>
+                )}
               </TabsContent>
             </Tabs>
           )}
