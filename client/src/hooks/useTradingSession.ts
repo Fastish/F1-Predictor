@@ -128,6 +128,42 @@ export function useTradingSession() {
     return new ClobClient(CLOB_API_URL, POLYGON_CHAIN_ID, wrappedSigner);
   }, [wrappedSigner]);
 
+  // Validate that cached API credentials are still valid with Polymarket
+  // Note: We can't properly validate without HMAC signing, so we use server-side validation
+  const validateApiCredentials = useCallback(async (credentials: UserApiCredentials): Promise<boolean> => {
+    try {
+      console.log("[TradingSession] Validating cached API credentials via server...");
+      console.log("[TradingSession] API key prefix:", credentials.key?.substring(0, 10) + "...");
+      
+      // Use server-side endpoint to validate credentials with proper HMAC signing
+      const response = await fetch("/api/polymarket/validate-credentials", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-POLY-API-KEY": credentials.key,
+          "X-POLY-API-SECRET": credentials.secret,
+          "X-POLY-PASSPHRASE": credentials.passphrase,
+        },
+      });
+      
+      const result = await response.json();
+      console.log("[TradingSession] Credential validation result:", result);
+      
+      if (result.valid) {
+        console.log("[TradingSession] Credentials are valid");
+        return true;
+      } else {
+        console.log("[TradingSession] Credentials invalid:", result.error);
+        return false;
+      }
+    } catch (err) {
+      console.error("[TradingSession] Error validating credentials:", err);
+      // On network error, assume credentials might be valid and let the order fail naturally
+      // This prevents blocking users when validation endpoint is unavailable
+      return true;
+    }
+  }, []);
+
   // Derive or create user API credentials
   const deriveApiCredentials = useCallback(async (): Promise<UserApiCredentials> => {
     console.log("[TradingSession] deriveApiCredentials called");
@@ -136,64 +172,47 @@ export function useTradingSession() {
       console.error("[TradingSession] No signer available for ClobClient");
       throw new Error("No signer available");
     }
-    console.log("[TradingSession] Created temporary ClobClient, calling deriveApiKey()...");
-    console.log("[TradingSession] This should trigger a signature request from your wallet!");
+    console.log("[TradingSession] Created temporary ClobClient for credential derivation");
+    console.log("[TradingSession] This will trigger a signature request from your wallet!");
 
     try {
       // Try to derive existing credentials first - THIS TRIGGERS SIGNATURE
       console.log("[TradingSession] Calling tempClient.deriveApiKey() - SIGNATURE REQUEST SHOULD APPEAR NOW");
-      const derivedCreds = await tempClient.deriveApiKey().catch((err) => {
+      const derivedCreds = await tempClient.deriveApiKey().catch((err: any) => {
         console.log("[TradingSession] deriveApiKey failed:", err?.message || err);
+        console.log("[TradingSession] Full error:", JSON.stringify(err, Object.getOwnPropertyNames(err)));
         return null;
       });
       if (derivedCreds?.key && derivedCreds?.secret && derivedCreds?.passphrase) {
-        console.log("[TradingSession] Successfully derived existing User API Credentials");
+        console.log("[TradingSession] Successfully derived API Credentials!");
+        console.log("[TradingSession] API key prefix:", derivedCreds.key.substring(0, 15) + "...");
+        
+        // Immediately validate the newly derived credentials
+        console.log("[TradingSession] Validating freshly derived credentials...");
+        const isValid = await validateApiCredentials(derivedCreds);
+        if (!isValid) {
+          console.error("[TradingSession] CRITICAL: Freshly derived credentials are INVALID!");
+          console.log("[TradingSession] This wallet may not have completed setup on polymarket.com");
+          // Don't throw - let the order fail naturally with a better error message
+        } else {
+          console.log("[TradingSession] Freshly derived credentials validated successfully!");
+        }
+        
         return derivedCreds;
       }
 
       // Create new credentials if derivation failed
-      console.log("[TradingSession] Creating new User API Credentials...");
+      console.log("[TradingSession] deriveApiKey returned null, trying createApiKey...");
       const newCreds = await tempClient.createApiKey();
       console.log("[TradingSession] Successfully created new User API Credentials");
+      console.log("[TradingSession] New API key prefix:", newCreds.key.substring(0, 15) + "...");
       return newCreds;
-    } catch (err) {
-      console.error("[TradingSession] Failed to get credentials:", err);
+    } catch (err: any) {
+      console.error("[TradingSession] Failed to get credentials:", err?.message || err);
+      console.log("[TradingSession] Full error:", JSON.stringify(err, Object.getOwnPropertyNames(err)));
       throw err;
     }
-  }, [createTempClobClient]);
-
-  // Validate that cached API credentials are still valid with Polymarket
-  const validateApiCredentials = useCallback(async (credentials: UserApiCredentials): Promise<boolean> => {
-    try {
-      console.log("[TradingSession] Validating cached API credentials...");
-      // Make a simple authenticated API call to verify credentials
-      // We use the /auth/api-key endpoint which returns 200 if valid, 401 if expired
-      const response = await fetch("https://clob.polymarket.com/auth/api-key", {
-        method: "GET",
-        headers: {
-          "POLY_API_KEY": credentials.key,
-          "POLY_PASSPHRASE": credentials.passphrase,
-          "POLY_TIMESTAMP": Math.floor(Date.now() / 1000).toString(),
-          "POLY_SIGNATURE": "", // Empty signature - this will likely fail but we just need to test if key is valid format
-        },
-      });
-      
-      // If we get 401 or 403, credentials are definitely invalid
-      if (response.status === 401 || response.status === 403) {
-        console.log("[TradingSession] Credentials expired/invalid (401/403)");
-        return false;
-      }
-      
-      // For any other status (including signature errors like 400), assume credentials are valid format-wise
-      // The actual order signing will do the real validation
-      console.log("[TradingSession] Credentials appear valid (status:", response.status, ")");
-      return true;
-    } catch (err) {
-      console.error("[TradingSession] Error validating credentials:", err);
-      // On network error, assume credentials might be valid and let the order fail naturally
-      return true;
-    }
-  }, []);
+  }, [createTempClobClient, validateApiCredentials]);
 
   // Fetch user's Safe/proxy address using the RelayClient or direct derivation
   const fetchSafeAddress = useCallback(async (): Promise<{ safeAddress: string | null; proxyDeployed: boolean }> => {

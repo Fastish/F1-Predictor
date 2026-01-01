@@ -1567,6 +1567,80 @@ export async function registerRoutes(
     }
   });
 
+  // Validate API credentials by making an authenticated request to Polymarket
+  // This uses proper HMAC signing to check if credentials are still valid
+  app.post("/api/polymarket/validate-credentials", async (req, res) => {
+    try {
+      const apiKey = req.headers["x-poly-api-key"] as string;
+      const apiSecret = req.headers["x-poly-api-secret"] as string;
+      const passphrase = req.headers["x-poly-passphrase"] as string;
+
+      if (!apiKey || !apiSecret || !passphrase) {
+        return res.json({ valid: false, error: "Missing credentials" });
+      }
+
+      console.log("[validate-credentials] Validating API key:", apiKey.substring(0, 10) + "...");
+
+      // Create HMAC signature for a simple GET request to validate credentials
+      // We use GET /auth/api-key which returns the API key info if valid
+      const timestamp = Math.floor(Date.now() / 1000).toString();
+      const method = "GET";
+      const path = "/auth/api-key";
+      const message = timestamp + method + path;
+
+      // Decode secret (base64url or hex)
+      let secretBytes: Buffer;
+      if (/^[0-9a-fA-F]+$/.test(apiSecret) && apiSecret.length % 2 === 0) {
+        secretBytes = Buffer.from(apiSecret, "hex");
+      } else {
+        let base64 = apiSecret.replace(/-/g, '+').replace(/_/g, '/');
+        while (base64.length % 4) base64 += '=';
+        secretBytes = Buffer.from(base64, "base64");
+      }
+
+      const crypto = await import("crypto");
+      const hmac = crypto.createHmac("sha256", secretBytes);
+      hmac.update(message);
+      const hmacSignature = hmac.digest("base64");
+
+      const proxyAgent = getOxylabsProxyAgent();
+      const headers = {
+        ...getBrowserHeaders(),
+        "POLY_API_KEY": apiKey,
+        "POLY_PASSPHRASE": passphrase,
+        "POLY_TIMESTAMP": timestamp,
+        "POLY_SIGNATURE": hmacSignature,
+      };
+
+      const response = await (proxyAgent
+        ? undiciFetch("https://clob.polymarket.com/auth/api-key", {
+            method: "GET",
+            headers,
+            dispatcher: proxyAgent,
+          } as any)
+        : fetch("https://clob.polymarket.com/auth/api-key", { method: "GET", headers }));
+
+      const responseText = await response.text();
+      console.log("[validate-credentials] Response:", response.status, responseText.substring(0, 100));
+
+      if (response.status === 401 || response.status === 403) {
+        return res.json({ valid: false, error: "Credentials expired or invalid" });
+      }
+
+      if (response.status === 200) {
+        return res.json({ valid: true });
+      }
+
+      // For other errors, log and return invalid
+      console.log("[validate-credentials] Unexpected response:", response.status);
+      return res.json({ valid: false, error: `Unexpected response: ${response.status}` });
+    } catch (error: any) {
+      console.error("[validate-credentials] Error:", error.message);
+      // On network error, assume valid to not block users
+      return res.json({ valid: true, warning: "Could not reach Polymarket API" });
+    }
+  });
+
   // Server-side proxy for submitting orders to Polymarket CLOB
   // Accepts signedOrder from ClobClient unchanged and forwards to Polymarket
   // Credentials are passed via headers for security (not logged)
