@@ -108,9 +108,14 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
       }
       try {
         const isMagic = walletType === "magic";
-        // For external wallets, check approvals on the Safe address, not EOA
-        const addressToCheck = ((walletType === "external" || walletType === "walletconnect" || walletType === "phantom") && displaySafeAddress) ? displaySafeAddress : walletAddress;
-        const status = await checkDepositRequirements(provider, addressToCheck, isMagic);
+        const isExternalType = walletType === "external" || walletType === "walletconnect" || walletType === "phantom";
+        // Pass Safe address as 4th parameter for external wallets
+        const status = await checkDepositRequirements(
+          provider, 
+          walletAddress, 
+          isMagic, 
+          isExternalType ? displaySafeAddress : null
+        );
         setApprovalStatus({ needsApproval: status.needsApproval, checked: true });
       } catch (error) {
         console.error("Failed to check approval status:", error);
@@ -1109,11 +1114,16 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
         onClose={() => {
           setShowDepositWizard(false);
           // Recheck approval status after wizard closes
-          // For external wallets, check the Safe address since approvals are done there
+          // For external wallets, pass the Safe address as 4th parameter
           if (walletAddress && provider) {
             const isMagic = walletType === "magic";
-            const addressToCheck = ((walletType === "external" || walletType === "walletconnect" || walletType === "phantom") && displaySafeAddress) ? displaySafeAddress : walletAddress;
-            checkDepositRequirements(provider, addressToCheck, isMagic)
+            const isExternalType = walletType === "external" || walletType === "walletconnect" || walletType === "phantom";
+            checkDepositRequirements(
+              provider, 
+              walletAddress, 
+              isMagic, 
+              isExternalType ? displaySafeAddress : null
+            )
               .then(status => setApprovalStatus({ needsApproval: status.needsApproval, checked: true }))
               .catch(() => {});
           }
