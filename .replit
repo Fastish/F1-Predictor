@@ -46,3 +46,4 @@ integrations = ["javascript_database:1.0.0", "javascript_websocket:1.0.0"]
 
 [userenv.shared]
 ADMIN_WALLET_ADDRESS = "0xb600979a5EF3ebA5302DE667d47c9F9A73a983b8"
+VITE_WALLETCONNECT_PROJECT_ID = "169d35a3169eb06b8d3b4a9b6e2c013e"
