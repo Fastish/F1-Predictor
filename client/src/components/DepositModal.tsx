@@ -823,6 +823,49 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
                     <span className="w-full border-t" />
                   </div>
                   <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-background px-2 text-muted-foreground">Open Wallet App</span>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    asChild
+                    variant="outline"
+                    className="flex-1"
+                    data-testid="button-open-phantom-app"
+                  >
+                    <a 
+                      href={`https://phantom.app/ul/browse/${encodeURIComponent(window.location.href)}?ref=${encodeURIComponent(window.location.origin)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <ExternalLink className="h-4 w-4 mr-2" />
+                      Phantom
+                    </a>
+                  </Button>
+                  <Button
+                    asChild
+                    variant="outline"
+                    className="flex-1"
+                    data-testid="button-open-metamask-app"
+                  >
+                    <a 
+                      href={`https://metamask.app.link/dapp/${window.location.host}${window.location.pathname}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <ExternalLink className="h-4 w-4 mr-2" />
+                      MetaMask
+                    </a>
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground text-center">
+                  Opens the wallet app on your device. Use these links on mobile.
+                </p>
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
                     <span className="bg-background px-2 text-muted-foreground">Desktop Extensions</span>
                   </div>
                 </div>
