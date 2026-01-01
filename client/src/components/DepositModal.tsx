@@ -32,6 +32,7 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
     userEmail,
     connectWithMagic,
     connectExternalWallet,
+    connectWalletConnect,
     disconnectWallet,
     provider,
   } = useWallet();
@@ -72,7 +73,7 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
       try {
         const isMagic = walletType === "magic";
         // For external wallets, check approvals on the Safe address, not EOA
-        const addressToCheck = (walletType === "external" && safeAddress) ? safeAddress : walletAddress;
+        const addressToCheck = ((walletType === "external" || walletType === "walletconnect") && safeAddress) ? safeAddress : walletAddress;
         const status = await checkDepositRequirements(provider, addressToCheck, isMagic);
         setApprovalStatus({ needsApproval: status.needsApproval, checked: true });
       } catch (error) {
@@ -92,10 +93,10 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
     }
   }, [open, walletAddress]);
 
-  // Auto-initialize trading session for external wallets when connected
+  // Auto-initialize trading session for external wallets and WalletConnect when connected
   useEffect(() => {
     const autoInitSession = async () => {
-      if (walletType === "external" && walletAddress && !isTradingSessionComplete && !isInitializing && !autoInitAttempted && open) {
+      if ((walletType === "external" || walletType === "walletconnect") && walletAddress && !isTradingSessionComplete && !isInitializing && !autoInitAttempted && open) {
         setAutoInitAttempted(true);
         try {
           await initializeTradingSession();
@@ -296,6 +297,55 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
     }
   };
 
+  const handleWalletConnectConnect = async () => {
+    try {
+      const success = await connectWalletConnect();
+      if (success) {
+        if (userId) {
+          try {
+            const res = await fetch(`/api/users/${userId}/link-wallet`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ walletAddress }),
+            });
+            if (!res.ok) {
+              const error = await res.json();
+              if (res.status === 404 && error.error === "User not found") {
+                resetUser();
+                onOpenChange(false);
+                toast({
+                  title: "Session Reset",
+                  description: "Your session was reset. Please try connecting again.",
+                });
+                return;
+              }
+            }
+          } catch (e) {
+            console.error("Failed to link wallet:", e);
+          }
+        }
+        toast({
+          title: "Wallet Connected",
+          description: "Your wallet has been connected via WalletConnect.",
+        });
+        refetchBalance();
+      } else {
+        toast({
+          title: "Connection Failed",
+          description: "WalletConnect connection was cancelled or failed. Please try again.",
+          variant: "destructive",
+        });
+      }
+    } catch (error: any) {
+      console.error("WalletConnect connection error:", error);
+      toast({
+        title: "Connection Failed",
+        description: error.message || "Failed to connect via WalletConnect. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
     toast({
@@ -326,7 +376,7 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
                     <SiPolygon className="h-4 w-4 text-purple-500" />
                     <span className="font-medium text-sm">Polygon Wallet</span>
                     <Badge variant="outline" className="text-xs">
-                      {walletType === "magic" ? "Magic" : "External"}
+                      {walletType === "magic" ? "Magic" : walletType === "walletconnect" ? "WalletConnect" : "External"}
                     </Badge>
                   </div>
                   <Button
@@ -385,7 +435,7 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
                 )}
               </div>
 
-              {walletType === "external" && (
+              {(walletType === "external" || walletType === "walletconnect") && (
                 <div className="space-y-2 pt-2 border-t">
                   {isInitializing ? (
                     <div className="flex items-center gap-2 rounded-md bg-blue-500/10 p-2 text-sm">
@@ -688,11 +738,42 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
                 <div className="rounded-md bg-muted p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <SiPolygon className="h-5 w-5 text-purple-500" />
-                    <span className="font-medium">Connect External Wallet</span>
+                    <span className="font-medium">Connect Wallet</span>
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    Connect MetaMask, Rainbow, or any Polygon-compatible wallet.
+                    Connect with a browser extension or mobile wallet app.
                   </p>
+                </div>
+                <div className="space-y-2">
+                  <Button
+                    onClick={handleWalletConnectConnect}
+                    disabled={isConnecting}
+                    className="w-full"
+                    data-testid="button-connect-walletconnect"
+                  >
+                    {isConnecting ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Connecting...
+                      </>
+                    ) : (
+                      <>
+                        <Wallet className="h-4 w-4 mr-2" />
+                        WalletConnect
+                      </>
+                    )}
+                  </Button>
+                  <p className="text-xs text-muted-foreground text-center">
+                    Recommended for mobile. Works with MetaMask, Rainbow, Trust Wallet, and 300+ wallets.
+                  </p>
+                </div>
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-background px-2 text-muted-foreground">or</span>
+                  </div>
                 </div>
                 <Button
                   onClick={handleExternalWalletConnect}
@@ -709,21 +790,13 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
                   ) : (
                     <>
                       <Wallet className="h-4 w-4 mr-2" />
-                      Connect Wallet
+                      Browser Extension
                     </>
                   )}
                 </Button>
-                <div className="flex justify-center gap-4 text-xs text-muted-foreground">
-                  <a 
-                    href="https://metamask.io" 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="hover:text-foreground inline-flex items-center gap-1"
-                  >
-                    <ExternalLink className="h-3 w-3" />
-                    Get MetaMask
-                  </a>
-                </div>
+                <p className="text-xs text-muted-foreground text-center">
+                  For desktop with MetaMask, Phantom, or Rabby installed.
+                </p>
               </TabsContent>
             </Tabs>
           )}
@@ -738,7 +811,7 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
           // For external wallets, check the Safe address since approvals are done there
           if (walletAddress && provider) {
             const isMagic = walletType === "magic";
-            const addressToCheck = (walletType === "external" && safeAddress) ? safeAddress : walletAddress;
+            const addressToCheck = ((walletType === "external" || walletType === "walletconnect") && safeAddress) ? safeAddress : walletAddress;
             checkDepositRequirements(provider, addressToCheck, isMagic)
               .then(status => setApprovalStatus({ needsApproval: status.needsApproval, checked: true }))
               .catch(() => {});

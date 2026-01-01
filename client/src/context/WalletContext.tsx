@@ -1,9 +1,12 @@
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from "react";
 import { Magic } from "magic-sdk";
 import { ethers } from "ethers";
 import { queryClient } from "@/lib/queryClient";
+import WCEthereumProvider from "@walletconnect/ethereum-provider";
 
-type WalletType = "magic" | "external" | null;
+type WalletType = "magic" | "external" | "walletconnect" | null;
+
+const WALLETCONNECT_PROJECT_ID = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || "";
 
 export interface PolymarketCredentials {
   apiKey: string;
@@ -25,6 +28,7 @@ interface WalletContextType {
   connectWallet: () => Promise<boolean>;
   connectWithMagic: (email: string) => Promise<boolean>;
   connectExternalWallet: () => Promise<boolean>;
+  connectWalletConnect: () => Promise<boolean>;
   disconnectWallet: () => Promise<void>;
   signMessage: (message: string) => Promise<string>;
   getUsdcBalance: () => Promise<string>;
@@ -276,6 +280,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [provider, setProvider] = useState<ethers.BrowserProvider | null>(null);
   const [signer, setSigner] = useState<ethers.Signer | null>(null);
   const [polymarketCredentials, setPolymarketCredentials] = useState<PolymarketCredentials | null>(null);
+  const wcProviderRef = useRef<Awaited<ReturnType<typeof WCEthereumProvider.init>> | null>(null);
 
   useEffect(() => {
     const checkExistingSession = async () => {
@@ -331,6 +336,58 @@ export function WalletProvider({ children }: { children: ReactNode }) {
               localStorage.removeItem("polygon_wallet_type");
               localStorage.removeItem("polygon_wallet_address");
             }
+          }
+        } else if (savedType === "walletconnect" && savedAddress && WALLETCONNECT_PROJECT_ID) {
+          // Try to restore WalletConnect session
+          try {
+            const wcProvider = await WCEthereumProvider.init({
+              projectId: WALLETCONNECT_PROJECT_ID,
+              chains: [POLYGON_CHAIN_ID],
+              showQrModal: false,
+              metadata: {
+                name: "F1 Predict",
+                description: "F1 Prediction Market",
+                url: window.location.origin,
+                icons: [`${window.location.origin}/favicon.ico`],
+              },
+            });
+            
+            if (wcProvider.session) {
+              const accounts = wcProvider.accounts;
+              if (accounts && accounts.length > 0 && accounts[0].toLowerCase() === savedAddress.toLowerCase()) {
+                wcProviderRef.current = wcProvider;
+                setWalletAddress(accounts[0]);
+                setWalletType("walletconnect");
+                
+                const wcBrowserProvider = new ethers.BrowserProvider(wcProvider);
+                setProvider(wcBrowserProvider);
+                const wcSigner = await wcBrowserProvider.getSigner();
+                setSigner(wcSigner);
+                
+                // Set up event listeners
+                wcProvider.on("accountsChanged", (accts: string[]) => {
+                  if (accts.length === 0) {
+                    disconnectWallet();
+                  } else {
+                    setWalletAddress(accts[0]);
+                    localStorage.setItem("polygon_wallet_address", accts[0]);
+                  }
+                });
+                wcProvider.on("disconnect", () => {
+                  disconnectWallet();
+                });
+              } else {
+                localStorage.removeItem("polygon_wallet_type");
+                localStorage.removeItem("polygon_wallet_address");
+              }
+            } else {
+              localStorage.removeItem("polygon_wallet_type");
+              localStorage.removeItem("polygon_wallet_address");
+            }
+          } catch (error) {
+            console.log("Could not restore WalletConnect session:", error);
+            localStorage.removeItem("polygon_wallet_type");
+            localStorage.removeItem("polygon_wallet_address");
           }
         }
       } catch (error) {
@@ -522,6 +579,80 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const connectWalletConnect = useCallback(async (): Promise<boolean> => {
+    if (!WALLETCONNECT_PROJECT_ID) {
+      throw new Error("WalletConnect is not configured. Missing project ID.");
+    }
+    
+    setIsConnecting(true);
+    try {
+      console.log("Initializing WalletConnect...");
+      
+      const wcProvider = await WCEthereumProvider.init({
+        projectId: WALLETCONNECT_PROJECT_ID,
+        chains: [POLYGON_CHAIN_ID],
+        showQrModal: true,
+        optionalChains: [],
+        metadata: {
+          name: "F1 Predict",
+          description: "F1 Prediction Market - Trade on F1 Championship outcomes",
+          url: window.location.origin,
+          icons: [`${window.location.origin}/favicon.ico`],
+        },
+      });
+      
+      console.log("WalletConnect provider initialized, enabling...");
+      
+      // This will show QR code modal on desktop or deep link on mobile
+      await wcProvider.enable();
+      
+      const accounts = wcProvider.accounts;
+      if (!accounts || accounts.length === 0) {
+        throw new Error("No accounts returned from WalletConnect.");
+      }
+      
+      const address = accounts[0];
+      console.log("WalletConnect connected:", address);
+      
+      // Store provider reference
+      wcProviderRef.current = wcProvider;
+      
+      // Set up wallet state
+      setWalletAddress(address);
+      setWalletType("walletconnect");
+      setUserEmail(null);
+      localStorage.setItem("polygon_wallet_type", "walletconnect");
+      localStorage.setItem("polygon_wallet_address", address);
+      
+      const wcBrowserProvider = new ethers.BrowserProvider(wcProvider);
+      setProvider(wcBrowserProvider);
+      const wcSigner = await wcBrowserProvider.getSigner();
+      setSigner(wcSigner);
+      
+      // Set up event listeners
+      wcProvider.on("accountsChanged", (accts: string[]) => {
+        if (accts.length === 0) {
+          disconnectWallet();
+        } else {
+          setWalletAddress(accts[0]);
+          localStorage.setItem("polygon_wallet_address", accts[0]);
+        }
+      });
+      
+      wcProvider.on("disconnect", () => {
+        disconnectWallet();
+      });
+      
+      console.log("WalletConnect setup complete!");
+      return true;
+    } catch (error: any) {
+      console.error("WalletConnect connection error:", error);
+      throw error;
+    } finally {
+      setIsConnecting(false);
+    }
+  }, []);
+
   const disconnectWallet = useCallback(async () => {
     try {
       if (walletType === "magic") {
@@ -529,6 +660,13 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         if (magic) {
           await magic.user.logout();
         }
+      } else if (walletType === "walletconnect" && wcProviderRef.current) {
+        try {
+          await wcProviderRef.current.disconnect();
+        } catch (e) {
+          console.log("WalletConnect disconnect error:", e);
+        }
+        wcProviderRef.current = null;
       }
     } catch (error) {
       console.error("Logout error:", error);
@@ -589,6 +727,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         connectWallet,
         connectWithMagic,
         connectExternalWallet,
+        connectWalletConnect,
         disconnectWallet,
         signMessage,
         getUsdcBalance,

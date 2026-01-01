@@ -71,7 +71,7 @@ export function SwapModal({ open, onOpenChange, initialDirection = "deposit" }: 
   const [direction, setDirection] = useState<"deposit" | "withdraw">(initialDirection);
   const [walletSource, setWalletSource] = useState<"eoa" | "safe">("eoa");
   
-  const isExternalWallet = walletType === "external";
+  const isExternalWallet = walletType === "external" || walletType === "walletconnect";
   const hasSafeWallet = isExternalWallet && safeAddress && isTradingSessionComplete;
   
   useEffect(() => {

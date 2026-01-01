@@ -107,7 +107,7 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
         ctfContractAllowance: rawStatus.ctfContractAllowance,
       }, null, 2));
       
-      if (walletType === "external") {
+      if (walletType === "external" || walletType === "walletconnect") {
         // Derive Safe address deterministically from EOA (no signer needed)
         const safeAddress = deriveSafeAddressFromEOA(walletAddress);
         if (safeAddress) {
@@ -172,7 +172,7 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
       let safeAddr: string | null = null;
       let safeBalance: string | null = null;
       
-      if (walletType === "external") {
+      if (walletType === "external" || walletType === "walletconnect") {
         safeAddr = deriveSafeAddressFromEOA(walletAddress);
         if (safeAddr) {
           try {
@@ -266,7 +266,7 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
       // For Magic wallets or non-gasless, check the EOA address
       // Use deterministic derivation (no signer needed) for reliable Safe address lookup
       let addressToCheck = walletAddress;
-      if (useRelayer && walletType === "external") {
+      if (useRelayer && (walletType === "external" || walletType === "walletconnect")) {
         const derivedSafe = deriveSafeAddressFromEOA(walletAddress);
         if (derivedSafe) {
           addressToCheck = derivedSafe;
@@ -349,7 +349,7 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
       // For Magic wallets or non-gasless, check the EOA address
       // Use deterministic derivation (no signer needed) for reliable Safe address lookup
       let addressToCheck = walletAddress;
-      if (useRelayer && walletType === "external") {
+      if (useRelayer && (walletType === "external" || walletType === "walletconnect")) {
         const derivedSafe = deriveSafeAddressFromEOA(walletAddress);
         if (derivedSafe) {
           addressToCheck = derivedSafe;
@@ -875,7 +875,7 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
               </div>
             </div>
 
-            {depositStatus && walletType === "external" && (
+            {depositStatus && (walletType === "external" || walletType === "walletconnect") && (
               <Card className="p-4 space-y-3">
                 <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Your Safe Trading Wallet</div>
                 {(() => {
@@ -912,7 +912,7 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
                 </div>
               </Card>
             )}
-            {depositStatus && walletType !== "external" && (
+            {depositStatus && walletType !== "external" && walletType !== "walletconnect" && (
               <Card className="p-4 space-y-3">
                 <div className="flex justify-between items-center">
                   <span className="text-sm">USDC.e in Wallet (for trading)</span>
@@ -977,7 +977,7 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
               </div>
             )}
 
-            {depositStatus && walletType === "external" && parseFloat(depositStatus.safeBalance || "0") < 1 && parseFloat(depositStatus.usdcBalance) >= 1 && (
+            {depositStatus && (walletType === "external" || walletType === "walletconnect") && parseFloat(depositStatus.safeBalance || "0") < 1 && parseFloat(depositStatus.usdcBalance) >= 1 && (
               <div className="flex items-start gap-3 p-4 bg-blue-500/10 rounded-lg">
                 <DollarSign className="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" />
                 <div>
@@ -996,12 +996,12 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
                 <div>
                   <p className="font-medium text-sm">Add USDC.e to Trade</p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    {walletType === "external" 
+                    {(walletType === "external" || walletType === "walletconnect")
                       ? "Send USDC.e to your Safe wallet address (shown above) to start trading."
                       : "You need USDC.e (bridged USDC) on Polygon to place orders. Visit Polymarket to deposit funds, or transfer USDC.e directly to your Polygon wallet."
                     }
                   </p>
-                  {walletType !== "external" && (
+                  {walletType !== "external" && walletType !== "walletconnect" && (
                     <a
                       href="https://polymarket.com"
                       target="_blank"
