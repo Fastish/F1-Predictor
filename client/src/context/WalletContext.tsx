@@ -968,10 +968,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       // while user is in MetaMask. Clearing storage would erase that session.
       // Only clear storage when we detect a stale/invalid session error.
       
+      // WalletConnect modal handles both desktop (shows QR) and mobile (shows wallet selection)
       const wcProvider = await WCEthereumProvider.init({
         projectId: WALLETCONNECT_PROJECT_ID,
         chains: [POLYGON_CHAIN_ID],
-        showQrModal: true,
+        showQrModal: true, // Modal handles mobile detection internally
         optionalChains: [],
         metadata: {
           name: "F1 Predict",
@@ -1023,7 +1024,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         return true;
       }
       
-      // This will show QR code modal on desktop or deep link on mobile
+      // WalletConnect modal handles both desktop (QR) and mobile (wallet selection) automatically
       await wcProvider.enable();
       
       const accounts = wcProvider.accounts;

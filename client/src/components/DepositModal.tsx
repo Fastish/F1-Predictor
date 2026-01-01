@@ -581,20 +581,48 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
                       </Button>
                     </div>
                   ) : sessionError ? (
-                    <div className="flex items-center gap-2 rounded-md bg-orange-500/10 p-2 text-xs border border-orange-500/20">
-                      <AlertCircle className="h-3.5 w-3.5 text-orange-500 flex-shrink-0" />
-                      <div className="flex-1">
-                        <p className="text-orange-600 dark:text-orange-400 font-medium">Setup Required</p>
-                        <a 
-                          href="https://polymarket.com"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-orange-600 dark:text-orange-400 hover:underline"
-                        >
-                          <ExternalLink className="h-2.5 w-2.5" />
-                          Complete on Polymarket
-                        </a>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 rounded-md bg-orange-500/10 p-2 text-xs border border-orange-500/20">
+                        <AlertCircle className="h-3.5 w-3.5 text-orange-500 flex-shrink-0" />
+                        <div className="flex-1">
+                          <p className="text-orange-600 dark:text-orange-400 font-medium">Setup Required</p>
+                          <p className="text-muted-foreground text-xs mt-0.5">
+                            First time? Complete setup on Polymarket, then try again.
+                          </p>
+                        </div>
                       </div>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => initializeTradingSession()}
+                          disabled={isInitializing || !signerAvailable}
+                          className="flex-1"
+                          data-testid="button-retry-init-session"
+                        >
+                          <Key className="h-3 w-3 mr-1" />
+                          Retry Setup
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setShowDepositWizard(true)}
+                          className="flex-1"
+                          data-testid="button-deposit-wizard-error"
+                        >
+                          <ArrowDownLeft className="h-3 w-3 mr-1" />
+                          Deposit
+                        </Button>
+                      </div>
+                      <a 
+                        href="https://polymarket.com"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:underline"
+                      >
+                        <ExternalLink className="h-2.5 w-2.5" />
+                        Set up on Polymarket first
+                      </a>
                     </div>
                   ) : !signerAvailable ? (
                     <div className="flex items-center gap-2 rounded-md bg-yellow-500/10 p-2 text-xs border border-yellow-500/20">
