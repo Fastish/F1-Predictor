@@ -429,9 +429,11 @@ export function useTradingSession() {
     isProxyDeployed: !!tradingSession?.proxyDeployed,
     safeAddress: tradingSession?.safeAddress,
     signerAvailable: !!signer, // Expose signer availability for UI checks
+    credentialsValidated,
     initializeTradingSession,
     endTradingSession,
     invalidateSession,
+    forceReinitialize,
     clobClient,
   };
 }
