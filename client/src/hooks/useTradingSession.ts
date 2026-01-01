@@ -344,6 +344,7 @@ export function useTradingSession() {
     isTradingSessionComplete: !!tradingSession?.hasApiCredentials && !!tradingSession?.safeAddress,
     isProxyDeployed: !!tradingSession?.proxyDeployed,
     safeAddress: tradingSession?.safeAddress,
+    signerAvailable: !!signer, // Expose signer availability for UI checks
     initializeTradingSession,
     endTradingSession,
     invalidateSession,

@@ -70,6 +70,7 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
     currentStep,
     sessionError,
     safeAddress,
+    signerAvailable,
   } = useTradingSession();
   const { toast } = useToast();
   const [email, setEmail] = useState("");
@@ -131,12 +132,25 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
   // Auto-initialize trading session for external wallets and WalletConnect when connected
   useEffect(() => {
     const autoInitSession = async () => {
-      if ((walletType === "external" || walletType === "walletconnect" || walletType === "phantom") && walletAddress && !isTradingSessionComplete && !isInitializing && !autoInitAttempted && open) {
+      // Must have wallet connected, signer available, modal open, and session not yet complete
+      const canAutoInit = (walletType === "external" || walletType === "walletconnect" || walletType === "phantom") 
+        && walletAddress 
+        && signerAvailable 
+        && !isTradingSessionComplete 
+        && !isInitializing 
+        && !autoInitAttempted 
+        && open;
+      
+      console.log("[DepositModal] Auto-init check:", { walletType, walletAddress: !!walletAddress, signerAvailable, isTradingSessionComplete, isInitializing, autoInitAttempted, open, canAutoInit });
+      
+      if (canAutoInit) {
         setAutoInitAttempted(true);
         try {
+          console.log("[DepositModal] Starting auto-init trading session...");
           await initializeTradingSession();
+          console.log("[DepositModal] Auto-init completed successfully");
         } catch (error) {
-          console.error("Auto-init session failed:", error);
+          console.error("[DepositModal] Auto-init session failed:", error);
           toast({
             title: "Session Setup",
             description: "Trading session setup was cancelled or failed. Click 'Initialize Trading Session' to try again.",
@@ -145,7 +159,7 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
       }
     };
     autoInitSession();
-  }, [walletType, walletAddress, isTradingSessionComplete, isInitializing, autoInitAttempted, open, initializeTradingSession, toast]);
+  }, [walletType, walletAddress, signerAvailable, isTradingSessionComplete, isInitializing, autoInitAttempted, open, initializeTradingSession, toast]);
 
   const handleResetSession = () => {
     endTradingSession();
@@ -582,12 +596,20 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
                         </a>
                       </div>
                     </div>
+                  ) : !signerAvailable ? (
+                    <div className="flex items-center gap-2 rounded-md bg-yellow-500/10 p-2 text-xs border border-yellow-500/20">
+                      <Loader2 className="h-3.5 w-3.5 text-yellow-500 animate-spin flex-shrink-0" />
+                      <div className="flex-1">
+                        <p className="text-yellow-600 dark:text-yellow-400 font-medium">Waiting for wallet...</p>
+                        <p className="text-muted-foreground">Approve connection in your wallet app</p>
+                      </div>
+                    </div>
                   ) : (
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => initializeTradingSession()}
-                      disabled={isInitializing}
+                      disabled={isInitializing || !signerAvailable}
                       className="w-full"
                       data-testid="button-init-session"
                     >
