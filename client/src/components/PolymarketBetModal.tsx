@@ -198,8 +198,9 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
     tradingSession
   } = useTradingSession();
   
-  // Pass API credentials to usePlaceOrder for server-side proxy submission (avoids CORS)
-  const { placeOrder, isPlacing } = usePlaceOrder(clobClient, invalidateSession, tradingSession?.apiCredentials);
+  // Pass API credentials and signer to usePlaceOrder for server-side proxy submission (avoids CORS)
+  // Signer is needed to ensure we're on Polygon network before signing orders
+  const { placeOrder, isPlacing } = usePlaceOrder(clobClient, invalidateSession, tradingSession?.apiCredentials, signer);
 
   const { data: orderBook, isLoading: orderBookLoading } = useQuery<OrderBook>({
     queryKey: ["/api/polymarket/orderbook", outcome.tokenId],

@@ -1,5 +1,7 @@
 import { useState, useCallback } from "react";
 import { ClobClient, Side, OrderType } from "@polymarket/clob-client";
+import { ensurePolygonNetwork } from "@/lib/polymarketDeposit";
+import { ethers } from "ethers";
 
 // Helper to log debug info to server for visibility
 async function logToServer(event: string, data?: any, error?: any, walletAddress?: string) {
@@ -42,7 +44,8 @@ export interface ApiCredentials {
 export function usePlaceOrder(
   clobClient: ClobClient | null,
   onCredentialError?: () => void,
-  apiCredentials?: ApiCredentials | null
+  apiCredentials?: ApiCredentials | null,
+  signer?: ethers.Signer | null
 ) {
   const [isPlacing, setIsPlacing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -59,6 +62,21 @@ export function usePlaceOrder(
       try {
         console.log("Creating order with ClobClient:", params);
         await logToServer("ORDER_START", { params });
+        
+        // Ensure we're on Polygon network before signing
+        // This prevents "Active chainId is 0x1 but received 0x89" errors
+        if (signer) {
+          try {
+            console.log("[usePlaceOrder] Ensuring Polygon network before signing...");
+            await ensurePolygonNetwork(signer);
+            console.log("[usePlaceOrder] Network check passed");
+          } catch (networkError: any) {
+            console.error("[usePlaceOrder] Network switch failed:", networkError);
+            setIsPlacing(false);
+            setError("Please switch your wallet to Polygon network");
+            return { success: false, error: "Please switch your wallet to Polygon network to sign this order" };
+          }
+        }
 
         const isFOK = !params.orderType || params.orderType === "FOK";
         let signedOrder;
@@ -227,7 +245,7 @@ export function usePlaceOrder(
         return { success: false, error: errorMessage };
       }
     },
-    [clobClient, onCredentialError, apiCredentials]
+    [clobClient, onCredentialError, apiCredentials, signer]
   );
 
   const cancelOrder = useCallback(

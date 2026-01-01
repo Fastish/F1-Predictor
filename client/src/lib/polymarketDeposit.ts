@@ -97,7 +97,19 @@ export async function ensurePolygonNetwork(signer: ethers.Signer): Promise<void>
       await (provider as any).send("wallet_switchEthereumChain", [
         { chainId: "0x89" } // 137 in hex
       ]);
-      console.log("[ensurePolygonNetwork] Successfully switched to Polygon");
+      console.log("[ensurePolygonNetwork] Switch request sent");
+      
+      // Wait a brief moment for the network switch to propagate
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Verify the switch actually happened
+      const newNetwork = await provider.getNetwork();
+      const newChainId = Number(newNetwork.chainId);
+      if (newChainId !== POLYGON_CHAIN_ID) {
+        console.error(`[ensurePolygonNetwork] Network switch verification failed: still on ${newChainId}`);
+        throw new Error(`Please manually switch your wallet to Polygon network (currently on chain ${newChainId})`);
+      }
+      console.log("[ensurePolygonNetwork] Successfully verified switch to Polygon");
     } catch (switchError: any) {
       // If the network doesn't exist in the wallet, add it
       if (switchError.code === 4902) {
@@ -113,6 +125,16 @@ export async function ensurePolygonNetwork(signer: ethers.Signer): Promise<void>
           rpcUrls: ["https://polygon-rpc.com"],
           blockExplorerUrls: ["https://polygonscan.com"]
         }]);
+        
+        // Wait and verify after adding
+        await new Promise(resolve => setTimeout(resolve, 500));
+        const addedNetwork = await provider.getNetwork();
+        if (Number(addedNetwork.chainId) !== POLYGON_CHAIN_ID) {
+          throw new Error("Please manually switch your wallet to Polygon network after adding it");
+        }
+      } else if (switchError.message?.includes("manually switch")) {
+        // Re-throw our verification error
+        throw switchError;
       } else {
         console.error("[ensurePolygonNetwork] Failed to switch network:", switchError);
         throw new Error("Please switch your wallet to Polygon network to continue");
