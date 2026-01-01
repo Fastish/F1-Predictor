@@ -1,17 +1,76 @@
 import { ethers } from "ethers";
 
-// Read-only Polygon RPC provider for balance checks (avoids triggering WalletConnect)
-const POLYGON_RPC = "https://polygon-rpc.com";
-let readOnlyProvider: ethers.JsonRpcProvider | null = null;
-
 // Polygon network chain ID
 export const POLYGON_CHAIN_ID = 137;
 
+// Multiple Polygon RPC endpoints with fallback support
+const POLYGON_RPC_ENDPOINTS = [
+  "https://polygon.llamarpc.com",
+  "https://polygon-bor-rpc.publicnode.com",
+  "https://rpc.ankr.com/polygon",
+  "https://polygon-rpc.com",
+];
+
+// Track current RPC index for rotation on failures
+let currentRpcIndex = 0;
+let readOnlyProvider: ethers.JsonRpcProvider | null = null;
+let providerCreatedAt: number = 0;
+const PROVIDER_REFRESH_INTERVAL = 60000; // Refresh provider every 60 seconds to avoid stale connections
+
 export function getReadOnlyPolygonProvider(): ethers.JsonRpcProvider {
-  if (!readOnlyProvider) {
-    readOnlyProvider = new ethers.JsonRpcProvider(POLYGON_RPC, POLYGON_CHAIN_ID);
+  const now = Date.now();
+  
+  // Recreate provider if it's stale or doesn't exist
+  if (!readOnlyProvider || (now - providerCreatedAt) > PROVIDER_REFRESH_INTERVAL) {
+    const rpcUrl = POLYGON_RPC_ENDPOINTS[currentRpcIndex];
+    console.log(`[Polygon RPC] Creating provider with endpoint: ${rpcUrl}`);
+    readOnlyProvider = new ethers.JsonRpcProvider(rpcUrl, POLYGON_CHAIN_ID);
+    providerCreatedAt = now;
   }
   return readOnlyProvider;
+}
+
+// Rotate to next RPC endpoint on failure
+export function rotateRpcEndpoint(): void {
+  currentRpcIndex = (currentRpcIndex + 1) % POLYGON_RPC_ENDPOINTS.length;
+  readOnlyProvider = null; // Force recreation on next call
+  console.log(`[Polygon RPC] Rotated to endpoint index ${currentRpcIndex}: ${POLYGON_RPC_ENDPOINTS[currentRpcIndex]}`);
+}
+
+// Helper to check if an error is a rate limit error
+function isRateLimitError(error: any): boolean {
+  const errorMessage = error?.message || error?.toString() || "";
+  return (
+    errorMessage.includes("Too many requests") ||
+    errorMessage.includes("rate limit") ||
+    errorMessage.includes("-32090") ||
+    errorMessage.includes("missing response")
+  );
+}
+
+// Retry wrapper with RPC rotation for rate limit errors
+async function withRpcRetry<T>(operation: () => Promise<T>, maxRetries = 3): Promise<T> {
+  let lastError: any;
+  
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await operation();
+    } catch (error: any) {
+      lastError = error;
+      
+      if (isRateLimitError(error) && attempt < maxRetries - 1) {
+        console.log(`[Polygon RPC] Rate limit hit, rotating endpoint (attempt ${attempt + 1}/${maxRetries})`);
+        rotateRpcEndpoint();
+        // Small delay before retry
+        await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
+      } else if (!isRateLimitError(error)) {
+        // Non-rate-limit error, throw immediately
+        throw error;
+      }
+    }
+  }
+  
+  throw lastError;
 }
 
 // Switch wallet to Polygon network before transactions
@@ -388,11 +447,13 @@ export async function checkDepositRequirements(
   needsApproval: boolean;
   needsCTFApproval: boolean;
 }> {
-  // Use a dedicated read-only Polygon provider to avoid triggering WalletConnect/MetaMask
-  const provider = getReadOnlyPolygonProvider();
-  
-  const usdcBalance = await getUSDCBalance(provider, walletAddress);
-  const nativeUsdcBalance = await getNativeUSDCBalance(provider, walletAddress);
+  // Wrap the entire check in retry logic to handle RPC rate limits
+  return withRpcRetry(async () => {
+    // Use a dedicated read-only Polygon provider to avoid triggering WalletConnect/MetaMask
+    const provider = getReadOnlyPolygonProvider();
+    
+    const usdcBalance = await getUSDCBalance(provider, walletAddress);
+    const nativeUsdcBalance = await getNativeUSDCBalance(provider, walletAddress);
   
   let proxyAddress: string | null = null;
   let proxyBalance: string | null = null;
@@ -484,22 +545,23 @@ export async function checkDepositRequirements(
     needsCTFApproval,
   });
   
-  return {
-    usdcBalance,
-    nativeUsdcBalance,
-    ctfExchangeAllowance,
-    negRiskExchangeAllowance,
-    ctfContractAllowance,
-    ctfApprovedForExchange,
-    ctfApprovedForNegRisk,
-    proxyAddress,
-    proxyBalance,
-    safeAddress: actualSafeAddress,
-    safeBalance,
-    tradingBalance,
-    needsApproval,
-    needsCTFApproval,
-  };
+    return {
+      usdcBalance,
+      nativeUsdcBalance,
+      ctfExchangeAllowance,
+      negRiskExchangeAllowance,
+      ctfContractAllowance,
+      ctfApprovedForExchange,
+      ctfApprovedForNegRisk,
+      proxyAddress,
+      proxyBalance,
+      safeAddress: actualSafeAddress,
+      safeBalance,
+      tradingBalance,
+      needsApproval,
+      needsCTFApproval,
+    };
+  }); // Close withRpcRetry
 }
 
 // Get Polymarket balance via their API

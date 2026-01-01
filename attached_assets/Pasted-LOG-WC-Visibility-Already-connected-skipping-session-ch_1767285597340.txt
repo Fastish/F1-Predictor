@@ -1,0 +1,51 @@
+LOG[WC Visibility] Already connected, skipping session check
+ERROR[CLOB Client] request error {"status":400,"statusText":"Bad Request","data":{"error":"GetBalanceAndAllowance invalid params: assetId invalid value -1, as this is a erc1155 operation, asset must be a valid tokenId value"},"config":{"transitional":{"silentJSONParsing":true,"forcedJSONParsing":true,"clarifyTimeoutError":false},"adapter":["xhr","http","fetch"],"transformRequest":[null],"transformResponse":[null],"timeout":0,"xsrfCookieName":"XSRF-TOKEN","xsrfHeaderName":"X-XSRF-TOKEN","maxContentLength":-1,"maxBodyLength":-1,"env":{},"headers":{"Accept":"application/json, text/plain, */*","POLY_ADDRESS":"0x234Cc20818238c0D54a28b696374A95D3C59302B","POLY_SIGNATURE":"HwwEOj8DC_1Pbd3iuFHBa6N7bHPNyKoZcLQM0KI-G38=","POLY_TIMESTAMP":"1767285423","POLY_API_KEY":"61894bfc-e22f-98d8-7f11-095d4bfc98cd","POLY_PASSPHRASE":"807e1eae0a8c3ed1434f1b8cf3d15b82c459c9d9904f6e1db18f53385684fa66"},"method":"get","url":"https://clob.polymarket.com/balance-allowance","params":{"asset_type":"CONDITIONAL","signature_type":2},"allowAbsoluteUrls":true}}
+LOGBalance allowance response: [object Object]
+LOGDerived Safe address for 0x234cc20818238c0d54a28b696374a95d3c59302b: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOG[DepositModal] Auto-init check: [object Object]
+LOG[checkDepositRequirements] Checking approvals on EOA: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOG[checkDepositRequirements] Results: [object Object]
+LOGDerived Safe address for 0x234cc20818238c0d54a28b696374a95d3c59302b: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOG[DepositModal] Session complete but approval needed - auto-opening deposit wizard
+LOGDerived Safe address for 0x234cc20818238c0d54a28b696374a95d3c59302b: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOG[checkDepositRequirements] Checking approvals on EOA: 0x234cc20818238c0d54a28b696374a95d3c59302b
+LOG[checkDepositRequirements] Results: [object Object]
+LOG[DepositWizard] EOA (0x234cc20818238c0d54a28b696374a95d3c59302b) status: {
+  "needsApproval": true,
+  "needsCTFApproval": true,
+  "ctfExchangeAllowance": "0.0",
+  "negRiskExchangeAllowance": "0.0",
+  "ctfContractAllowance": "0.0"
+}
+LOG[DepositWizard] Checking Safe address: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOG[checkDepositRequirements] Checking approvals on EOA: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+WARNING[DepositWizard] Failed to check Safe address for approvals: Error: missing response for request (value=[ { "error": { "code": -32090, "data": { "trace_id": "0399b9d84c382671aa11ceee303ff975" }, "message": "Too many requests, reason: call rate limit exhausted, retry in 10s" }, "id": null, "jsonrpc": "2.0" } ], info={ "payload": { "id": 37, "jsonrpc": "2.0", "method": "eth_call", "params": [ { "data": "0xdd62ed3e00000000000000000000000022f60a0d59a710df8242df5e8d7a4b7518871a9f0000000000000000000000004d97dcd97ec945f40cf65f87097ace5ea0476045", "to": "0x2791bca1f2de4661ed88a30c99a7a9449aa84174" }, "latest" ] } }, code=BAD_DATA, version=6.16.0)
+LOGDerived Safe address for 0x234cc20818238c0d54a28b696374a95d3c59302b: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOG[checkDepositRequirements] Checking approvals on EOA: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOG[checkDepositRequirements] Results: [object Object]
+LOGDerived Safe address for 0x234cc20818238c0d54a28b696374a95d3c59302b: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOGDerived Safe address for 0x234cc20818238c0d54a28b696374a95d3c59302b: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOG[checkDepositRequirements] Checking approvals on EOA: 0x234cc20818238c0d54a28b696374a95d3c59302b
+ERRORFailed to check deposit status: Error: missing response for request (value=[ { "error": { "code": -32090, "data": { "trace_id": "99f547f4c5969596d71584b927290792" }, "message": "Too many requests, reason: call rate limit exhausted, retry in 10m0s" }, "id": null, "jsonrpc": "2.0" } ], info={ "payload": { "id": 65, "jsonrpc": "2.0", "method": "eth_call", "params": [ { "data": "0xe985e9c5000000000000000000000000234cc20818238c0d54a28b696374a95d3c59302b000000000000000000000000c5d563a36ae78145c45a50134d48a1215220f80a", "to": "0x4d97dcd97ec945f40cf65f87097ace5ea0476045" }, "latest" ] } }, code=BAD_DATA, version=6.16.0)
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGDerived Safe address for 0x234cc20818238c0d54a28b696374a95d3c59302b: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+ERROR[CLOB Client] request error {"status":400,"statusText":"Bad Request","data":{"error":"GetBalanceAndAllowance invalid params: assetId invalid value -1, as this is a erc1155 operation, asset must be a valid tokenId value"},"config":{"transitional":{"silentJSONParsing":true,"forcedJSONParsing":true,"clarifyTimeoutError":false},"adapter":["xhr","http","fetch"],"transformRequest":[null],"transformResponse":[null],"timeout":0,"xsrfCookieName":"XSRF-TOKEN","xsrfHeaderName":"X-XSRF-TOKEN","maxContentLength":-1,"maxBodyLength":-1,"env":{},"headers":{"Accept":"application/json, text/plain, */*","POLY_ADDRESS":"0x234Cc20818238c0D54a28b696374A95D3C59302B","POLY_SIGNATURE":"jluDXPc2MIlQs75smzqb1F5siXC2vWl06CK3CNg91PI=","POLY_TIMESTAMP":"1767285454","POLY_API_KEY":"61894bfc-e22f-98d8-7f11-095d4bfc98cd","POLY_PASSPHRASE":"807e1eae0a8c3ed1434f1b8cf3d15b82c459c9d9904f6e1db18f53385684fa66"},"method":"get","url":"https://clob.polymarket.com/balance-allowance","params":{"asset_type":"CONDITIONAL","signature_type":2},"allowAbsoluteUrls":true}}
+LOGBalance allowance response: [object Object]
+LOGDerived Safe address for 0x234cc20818238c0d54a28b696374a95d3c59302b: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+ERRORFailed to check deposit status: Error: missing response for request (value=[ { "error": { "code": -32090, "data": { "trace_id": "a038b7ab8b19eeb739129fd1da412569" }, "message": "Too many requests, reason: call rate limit exhausted, retry in 10m0s" }, "id": null, "jsonrpc": "2.0" } ], info={ "payload": { "id": 69, "jsonrpc": "2.0", "method": "eth_call", "params": [ { "data": "0x70a08231000000000000000000000000234cc20818238c0d54a28b696374a95d3c59302b", "to": "0x2791bca1f2de4661ed88a30c99a7a9449aa84174" }, "latest" ] } }, code=BAD_DATA, version=6.16.0)
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGDerived Safe address for 0x234cc20818238c0d54a28b696374a95d3c59302b: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOGDerived Safe address for 0x234cc20818238c0d54a28b696374a95d3c59302b: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+ERRORFailed to check deposit status: Error: missing response for request (value=[ { "error": { "code": -32090, "data": { "trace_id": "18ad458d7df6c9d7102cc5df069b2fa3" }, "message": "Too many requests, reason: call rate limit exhausted, retry in 10m0s" }, "id": null, "jsonrpc": "2.0" } ], info={ "payload": { "id": 75, "jsonrpc": "2.0", "method": "eth_call", "params": [ { "data": "0x70a08231000000000000000000000000234cc20818238c0d54a28b696374a95d3c59302b", "to": "0x3c499c542cef5e3811e1192ce70d8cc03d5c3359" }, "latest" ] } }, code=BAD_DATA, version=6.16.0)
+ERRORFailed to check deposit status: Error: missing response for request (value=[ { "error": { "code": -32090, "data": { "trace_id": "fdf40041877faf02ff65f8bed9fc98f5" }, "message": "Too many requests, reason: call rate limit exhausted, retry in 10m0s" }, "id": null, "jsonrpc": "2.0" } ], info={ "payload": { "id": 77, "jsonrpc": "2.0", "method": "eth_call", "params": [ { "data": "0x70a08231000000000000000000000000234cc20818238c0d54a28b696374a95d3c59302b", "to": "0x2791bca1f2de4661ed88a30c99a7a9449aa84174" }, "latest" ] } }, code=BAD_DATA, version=6.16.0)
+ERRORFailed to check deposit status: Error: missing response for request (value=[ { "error": { "code": -32090, "data": { "trace_id": "862aca2af370fa31347432a16ca44d28" }, "message": "Too many requests, reason: call rate limit exhausted, retry in 10m0s" }, "id": null, 
