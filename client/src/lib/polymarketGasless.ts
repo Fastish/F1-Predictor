@@ -62,7 +62,7 @@ function getActiveEthereumProvider(): any {
   return (window as any).ethereum;
 }
 
-export async function checkGaslessAvailable(): Promise<boolean> {
+export async function checkGaslessAvailable(hasExternalSigner: boolean = false): Promise<boolean> {
   try {
     // Check if Builder credentials are configured on server
     const response = await fetch("/api/polymarket/relayer-status");
@@ -70,10 +70,11 @@ export async function checkGaslessAvailable(): Promise<boolean> {
     const data = await response.json();
     if (!data.available) return false;
     
-    // Gasless only works with external wallets (window.ethereum or window.phantom.ethereum)
-    // Magic wallets require a different flow
+    // Gasless works with:
+    // 1. External wallets (window.ethereum or window.phantom.ethereum)
+    // 2. WalletConnect (when hasExternalSigner is true - signer passed from wagmi)
     const ethereum = getActiveEthereumProvider();
-    if (!ethereum) return false;
+    if (!ethereum && !hasExternalSigner) return false;
     
     return true;
   } catch {
@@ -109,10 +110,50 @@ async function getEthersV5Signer() {
   return provider.getSigner();
 }
 
-async function createRelayClient(): Promise<RelayClient> {
-  const signer = await getEthersV5Signer();
+// Store for external EIP-1193 provider (used by WalletConnect)
+let externalEIP1193Provider: any = null;
+
+export function setExternalProviderForGasless(provider: any) {
+  externalEIP1193Provider = provider;
+  console.log("[Gasless] External EIP-1193 provider set for gasless operations");
+}
+
+export function clearExternalProviderForGasless() {
+  externalEIP1193Provider = null;
+}
+
+async function getExternalV5Signer() {
+  if (!externalEIP1193Provider) return null;
+  
+  try {
+    const provider = new Web3Provider(externalEIP1193Provider);
+    const network = await provider.getNetwork();
+    if (network.chainId !== POLYGON_CHAIN_ID) {
+      throw new Error(`Please switch to Polygon network. Current: ${network.chainId}, Required: ${POLYGON_CHAIN_ID}`);
+    }
+    return provider.getSigner();
+  } catch (error) {
+    console.error("[Gasless] Error creating signer from external provider:", error);
+    return null;
+  }
+}
+
+async function createRelayClient(providedSigner?: any): Promise<RelayClient> {
+  // Priority: provided signer > external WalletConnect signer > window.ethereum signer
+  let signer = providedSigner;
+  
   if (!signer) {
-    throw new Error("No wallet connected. Please connect an external wallet (MetaMask, Rainbow, etc.)");
+    // Try external EIP-1193 provider (WalletConnect)
+    signer = await getExternalV5Signer();
+  }
+  
+  if (!signer) {
+    // Try window.ethereum (MetaMask, Phantom, etc.)
+    signer = await getEthersV5Signer();
+  }
+  
+  if (!signer) {
+    throw new Error("No wallet connected. Please connect an external wallet (MetaMask, Rainbow, etc.) or use WalletConnect");
   }
   
   const builderConfig = createBuilderConfig();

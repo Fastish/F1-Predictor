@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useWallet } from "@/context/WalletContext";
+import { useWalletClient } from "wagmi";
 import { 
   checkDepositRequirements, 
   approveUSDCForExchange,
@@ -22,6 +23,8 @@ import {
   approveUSDCGasless,
   approveCTFGasless,
   isExternalWalletAvailable,
+  setExternalProviderForGasless,
+  clearExternalProviderForGasless,
 } from "@/lib/polymarketGasless";
 import { deriveSafe } from "@polymarket/builder-relayer-client/dist/builder/derive";
 import { getContractConfig } from "@polymarket/builder-relayer-client/dist/config";
@@ -58,6 +61,7 @@ interface DepositStatus {
 
 export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWizardProps) {
   const { walletAddress, walletType, signer, provider } = useWallet();
+  const { data: walletClient } = useWalletClient();
   const [step, setStep] = useState<Step>("check");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -71,9 +75,25 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
   useEffect(() => {
     if (open && walletAddress) {
       checkStatus();
-      checkGaslessAvailable().then(setRelayerAvailable);
+      
+      // For WalletConnect users, set the external provider so gasless can use it
+      const isWalletConnect = walletType === "walletconnect";
+      if (isWalletConnect && walletClient?.transport) {
+        console.log("[DepositWizard] Setting external provider for gasless (WalletConnect)");
+        setExternalProviderForGasless(walletClient.transport);
+      }
+      
+      // Check if gasless is available (pass true for WalletConnect since we have a provider)
+      checkGaslessAvailable(isWalletConnect && !!walletClient?.transport).then(setRelayerAvailable);
     }
-  }, [open, walletAddress]);
+    
+    // Cleanup on unmount
+    return () => {
+      if (walletType === "walletconnect") {
+        clearExternalProviderForGasless();
+      }
+    };
+  }, [open, walletAddress, walletType, walletClient]);
 
   // Helper to derive Safe address deterministically (no signer needed)
   const deriveSafeAddressFromEOA = (eoaAddress: string): string | null => {
