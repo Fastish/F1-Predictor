@@ -109,13 +109,33 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
       try {
         const isMagic = walletType === "magic";
         const isExternalType = walletType === "external" || walletType === "walletconnect" || walletType === "phantom";
+        const safeAddrToCheck = isExternalType ? displaySafeAddress : null;
+        
+        console.log("[DepositModal] Checking approvals:", {
+          walletType,
+          walletAddress,
+          isExternalType,
+          displaySafeAddress,
+          safeAddrToCheck,
+        });
+        
         // Pass Safe address as 4th parameter for external wallets
         const status = await checkDepositRequirements(
           provider, 
           walletAddress, 
           isMagic, 
-          isExternalType ? displaySafeAddress : null
+          safeAddrToCheck
         );
+        
+        console.log("[DepositModal] Approval check result:", {
+          needsApproval: status.needsApproval,
+          needsCTFApproval: status.needsCTFApproval,
+          ctfExchangeAllowance: status.ctfExchangeAllowance,
+          negRiskExchangeAllowance: status.negRiskExchangeAllowance,
+          safeAddress: status.safeAddress,
+          safeBalance: status.safeBalance,
+        });
+        
         setApprovalStatus({ needsApproval: status.needsApproval, checked: true });
       } catch (error) {
         console.error("Failed to check approval status:", error);
