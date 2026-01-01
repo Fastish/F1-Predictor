@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useMemo } from "react";
 import { ClobClient } from "@polymarket/clob-client";
 import { BuilderConfig } from "@polymarket/builder-signing-sdk";
 import { useWallet } from "@/context/WalletContext";
-import { getSafeAddress as fetchSafeAddressFromRelayer, isExternalWalletAvailable } from "@/lib/polymarketGasless";
+import { getSafeAddress as fetchSafeAddressFromRelayer, isExternalWalletAvailable, deriveSafeAddressFromEoa } from "@/lib/polymarketGasless";
 import type { ethers } from "ethers";
 
 const CLOB_API_URL = "https://clob.polymarket.com";
@@ -149,28 +149,40 @@ export function useTradingSession() {
     }
   }, [createTempClobClient]);
 
-  // Fetch user's Safe/proxy address using the RelayClient
+  // Fetch user's Safe/proxy address using the RelayClient or direct derivation
   const fetchSafeAddress = useCallback(async (): Promise<{ safeAddress: string | null; proxyDeployed: boolean }> => {
     try {
-      // Check if external wallet is available (RelayClient requires window.ethereum)
-      if (!isExternalWalletAvailable()) {
-        console.log("External wallet not available for Safe address derivation");
-        return { safeAddress: null, proxyDeployed: false };
+      // If external wallet is available (window.ethereum), use RelayClient for deployment check
+      if (isExternalWalletAvailable()) {
+        const result = await fetchSafeAddressFromRelayer();
+        console.log("Safe address result (from RelayClient):", result);
+        return {
+          safeAddress: result.safeAddress,
+          proxyDeployed: result.proxyDeployed,
+        };
       }
       
-      // Use the RelayClient to derive and check Safe address
-      const result = await fetchSafeAddressFromRelayer();
-      console.log("Safe address result:", result);
+      // For WalletConnect users (no window.ethereum), derive Safe address directly from EOA
+      // This works because Safe address is deterministic based on EOA address
+      if (walletAddress) {
+        console.log("Deriving Safe address directly for WalletConnect user:", walletAddress);
+        const safeAddress = deriveSafeAddressFromEoa(walletAddress);
+        console.log("Safe address result (direct derivation):", safeAddress);
+        // We can't check deployment status without RelayClient, assume not deployed
+        // Trading will still work as long as user has set up on polymarket.com
+        return {
+          safeAddress,
+          proxyDeployed: false, // Can't verify without RelayClient
+        };
+      }
       
-      return {
-        safeAddress: result.safeAddress,
-        proxyDeployed: result.proxyDeployed,
-      };
+      console.log("No wallet address available for Safe address derivation");
+      return { safeAddress: null, proxyDeployed: false };
     } catch (err) {
       console.error("Failed to fetch Safe address:", err);
       return { safeAddress: null, proxyDeployed: false };
     }
-  }, []);
+  }, [walletAddress]);
 
   // Initialize trading session
   const initializeTradingSession = useCallback(async () => {

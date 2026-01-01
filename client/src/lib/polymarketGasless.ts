@@ -135,6 +135,16 @@ export interface SafeAddressResult {
   eoaAddress: string;
 }
 
+// Derive Safe address from EOA address without needing window.ethereum
+// This works for all wallet types including WalletConnect
+export function deriveSafeAddressFromEoa(eoaAddress: string): string {
+  const config = getContractConfig(POLYGON_CHAIN_ID);
+  const safeAddress = deriveSafe(eoaAddress, config.SafeContracts.SafeFactory);
+  console.log(`Derived Safe address for ${eoaAddress}: ${safeAddress}`);
+  return safeAddress;
+}
+
+// Get Safe address with deployment check - requires window.ethereum (for RelayClient)
 export async function getSafeAddress(): Promise<SafeAddressResult> {
   try {
     const signer = await getEthersV5Signer();
