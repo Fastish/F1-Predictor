@@ -595,7 +595,12 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => initializeTradingSession()}
+                          onClick={() => {
+                            console.log("[DepositModal] Retry Setup clicked");
+                            initializeTradingSession().catch(err => {
+                              console.error("[DepositModal] Retry Setup failed:", err);
+                            });
+                          }}
                           disabled={isInitializing || !signerAvailable}
                           className="flex-1"
                           data-testid="button-retry-init-session"
@@ -636,7 +641,12 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => initializeTradingSession()}
+                      onClick={() => {
+                        console.log("[DepositModal] Initialize Trading clicked");
+                        initializeTradingSession().catch(err => {
+                          console.error("[DepositModal] Initialize Trading failed:", err);
+                        });
+                      }}
                       disabled={isInitializing || !signerAvailable}
                       className="w-full"
                       data-testid="button-init-session"

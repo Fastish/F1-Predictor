@@ -127,24 +127,34 @@ export function useTradingSession() {
 
   // Derive or create user API credentials
   const deriveApiCredentials = useCallback(async (): Promise<UserApiCredentials> => {
+    console.log("[TradingSession] deriveApiCredentials called");
     const tempClient = createTempClobClient();
-    if (!tempClient) throw new Error("No signer available");
+    if (!tempClient) {
+      console.error("[TradingSession] No signer available for ClobClient");
+      throw new Error("No signer available");
+    }
+    console.log("[TradingSession] Created temporary ClobClient, calling deriveApiKey()...");
+    console.log("[TradingSession] This should trigger a signature request from your wallet!");
 
     try {
-      // Try to derive existing credentials first
-      const derivedCreds = await tempClient.deriveApiKey().catch(() => null);
+      // Try to derive existing credentials first - THIS TRIGGERS SIGNATURE
+      console.log("[TradingSession] Calling tempClient.deriveApiKey() - SIGNATURE REQUEST SHOULD APPEAR NOW");
+      const derivedCreds = await tempClient.deriveApiKey().catch((err) => {
+        console.log("[TradingSession] deriveApiKey failed:", err?.message || err);
+        return null;
+      });
       if (derivedCreds?.key && derivedCreds?.secret && derivedCreds?.passphrase) {
-        console.log("Successfully derived existing User API Credentials");
+        console.log("[TradingSession] Successfully derived existing User API Credentials");
         return derivedCreds;
       }
 
       // Create new credentials if derivation failed
-      console.log("Creating new User API Credentials...");
+      console.log("[TradingSession] Creating new User API Credentials...");
       const newCreds = await tempClient.createApiKey();
-      console.log("Successfully created new User API Credentials");
+      console.log("[TradingSession] Successfully created new User API Credentials");
       return newCreds;
     } catch (err) {
-      console.error("Failed to get credentials:", err);
+      console.error("[TradingSession] Failed to get credentials:", err);
       throw err;
     }
   }, [createTempClobClient]);
@@ -186,7 +196,10 @@ export function useTradingSession() {
 
   // Initialize trading session
   const initializeTradingSession = useCallback(async () => {
+    console.log("[TradingSession] initializeTradingSession called", { walletAddress, hasSigner: !!signer });
+    
     if (!walletAddress || !signer) {
+      console.error("[TradingSession] Cannot initialize - wallet not connected");
       throw new Error("Wallet not connected");
     }
 
@@ -197,16 +210,25 @@ export function useTradingSession() {
     try {
       // Check for existing session with valid credentials and Safe address
       const existingSession = loadSession(walletAddress);
+      console.log("[TradingSession] Existing session:", existingSession ? {
+        hasCredentials: existingSession.hasApiCredentials,
+        hasSafeAddress: !!existingSession.safeAddress,
+        safeAddress: existingSession.safeAddress?.substring(0, 10) + "...",
+      } : "none");
+      
       if (existingSession?.hasApiCredentials && existingSession?.apiCredentials && existingSession?.safeAddress) {
+        console.log("[TradingSession] Using existing complete session");
         setTradingSession(existingSession);
         setCurrentStep("complete");
         setIsInitializing(false);
         return existingSession;
       }
 
-      // Derive user API credentials
+      // Derive user API credentials - THIS WILL TRIGGER A SIGNATURE REQUEST
+      console.log("[TradingSession] Deriving API credentials (will request signature from wallet)...");
       setCurrentStep("credentials");
       const apiCreds = await deriveApiCredentials();
+      console.log("[TradingSession] Got API credentials:", apiCreds ? "success" : "failed");
 
       // Fetch the user's Safe proxy address from Polymarket RelayClient
       console.log("Fetching Safe address from Polymarket...");
