@@ -18,6 +18,12 @@ import { checkDepositRequirements } from "@/lib/polymarketDeposit";
 import { useTradingWalletBalance } from "@/hooks/useTradingWalletBalance";
 import { withdrawFromSafe } from "@/lib/polymarketGasless";
 
+// Helper to detect mobile devices - for UI simplification
+const isMobileDevice = () => {
+  if (typeof window === "undefined") return false;
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+};
+
 const PhantomIcon = ({ className }: { className?: string }) => (
   <svg viewBox="0 0 128 128" className={className} fill="currentColor">
     <path d="M64 0C28.7 0 0 28.7 0 64s28.7 64 64 64 64-28.7 64-64S99.3 0 64 0zm35.3 85.3c-2.4 6.5-7.1 11.2-13.6 13.6-6.5 2.4-13.3 2.4-19.8 0-6.5-2.4-11.2-7.1-13.6-13.6-2.4-6.5-2.4-13.3 0-19.8 2.4-6.5 7.1-11.2 13.6-13.6 6.5-2.4 13.3-2.4 19.8 0 6.5 2.4 11.2 7.1 13.6 13.6 2.4 6.5 2.4 13.3 0 19.8z"/>
@@ -199,8 +205,10 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
     tradingWalletBalance, 
     isLoadingTradingBalance: isLoadingBalance,
     eoaBalance,
+    isLoadingEoaBalance,
     isExternalWallet,
     refetchTradingBalance: refetchBalance,
+    refetchEoaBalance,
   } = useTradingWalletBalance();
   
   const usdcBalance = tradingWalletBalance.toFixed(6);
@@ -349,6 +357,7 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
           description: "Your wallet has been connected via WalletConnect.",
         });
         refetchBalance();
+        refetchEoaBalance();
       } else {
         toast({
           title: "Connection Failed",
@@ -494,12 +503,21 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
                   </div>
                 )}
 
-                {isExternalWallet && eoaBalance > 0 && (
+                {isExternalWallet && (
                   <div className="p-2 rounded-md bg-background border">
                     <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <span>In Connected Wallet</span>
-                      <span className="tabular-nums">${eoaBalance.toFixed(2)} USDC.e</span>
+                      <span>In Connected Wallet (EOA)</span>
+                      {isLoadingEoaBalance ? (
+                        <span className="tabular-nums">Loading...</span>
+                      ) : (
+                        <span className="tabular-nums" data-testid="text-eoa-balance">${eoaBalance.toFixed(2)} USDC.e</span>
+                      )}
                     </div>
+                    {eoaBalance > 0 && (
+                      <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                        Deposit this to your Safe wallet to trade
+                      </p>
+                    )}
                   </div>
                 )}
               </div>
@@ -883,8 +901,8 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
                   </p>
                 </div>
 
-                {/* Mobile deep links - only show when NOT inside a wallet browser */}
-                {!isPhantomInstalled() && (
+                {/* Desktop-only: Open wallet app deep links - hidden on mobile since WalletConnect is preferred */}
+                {!isPhantomInstalled() && !isMobileDevice() && (
                   <>
                     <div className="relative">
                       <div className="absolute inset-0 flex items-center">
