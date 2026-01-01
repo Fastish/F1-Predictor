@@ -4,11 +4,62 @@ import { ethers } from "ethers";
 const POLYGON_RPC = "https://polygon-rpc.com";
 let readOnlyProvider: ethers.JsonRpcProvider | null = null;
 
+// Polygon network chain ID
+export const POLYGON_CHAIN_ID = 137;
+
 export function getReadOnlyPolygonProvider(): ethers.JsonRpcProvider {
   if (!readOnlyProvider) {
-    readOnlyProvider = new ethers.JsonRpcProvider(POLYGON_RPC, 137);
+    readOnlyProvider = new ethers.JsonRpcProvider(POLYGON_RPC, POLYGON_CHAIN_ID);
   }
   return readOnlyProvider;
+}
+
+// Switch wallet to Polygon network before transactions
+// This is required for WalletConnect to show correct network and gas token (MATIC)
+export async function ensurePolygonNetwork(signer: ethers.Signer): Promise<void> {
+  const provider = signer.provider;
+  if (!provider) {
+    throw new Error("No provider available");
+  }
+  
+  // Get current network
+  const network = await provider.getNetwork();
+  const currentChainId = Number(network.chainId);
+  
+  console.log(`[ensurePolygonNetwork] Current chain ID: ${currentChainId}, required: ${POLYGON_CHAIN_ID}`);
+  
+  if (currentChainId !== POLYGON_CHAIN_ID) {
+    console.log("[ensurePolygonNetwork] Switching to Polygon network...");
+    
+    // Request network switch via provider
+    // This works for both injected wallets and WalletConnect
+    try {
+      // First try to switch to the network
+      await (provider as any).send("wallet_switchEthereumChain", [
+        { chainId: "0x89" } // 137 in hex
+      ]);
+      console.log("[ensurePolygonNetwork] Successfully switched to Polygon");
+    } catch (switchError: any) {
+      // If the network doesn't exist in the wallet, add it
+      if (switchError.code === 4902) {
+        console.log("[ensurePolygonNetwork] Polygon not found, adding network...");
+        await (provider as any).send("wallet_addEthereumChain", [{
+          chainId: "0x89",
+          chainName: "Polygon Mainnet",
+          nativeCurrency: {
+            name: "MATIC",
+            symbol: "MATIC",
+            decimals: 18
+          },
+          rpcUrls: ["https://polygon-rpc.com"],
+          blockExplorerUrls: ["https://polygonscan.com"]
+        }]);
+      } else {
+        console.error("[ensurePolygonNetwork] Failed to switch network:", switchError);
+        throw new Error("Please switch your wallet to Polygon network to continue");
+      }
+    }
+  }
 }
 
 // Polymarket Contract Addresses on Polygon
@@ -114,6 +165,9 @@ export async function approveUSDCForExchange(
   amount?: string
 ): Promise<{ success: boolean; txHash?: string; error?: string }> {
   try {
+    // Ensure we're on Polygon network before approval (shows MATIC for gas, not ETH)
+    await ensurePolygonNetwork(signer);
+    
     const usdc = new ethers.Contract(POLYMARKET_CONTRACTS.USDC, ERC20_ABI, signer);
     
     // Approve max amount or specific amount
@@ -140,6 +194,9 @@ export async function approveUSDCForNegRiskExchange(
   amount?: string
 ): Promise<{ success: boolean; txHash?: string; error?: string }> {
   try {
+    // Ensure we're on Polygon network before approval
+    await ensurePolygonNetwork(signer);
+    
     const usdc = new ethers.Contract(POLYMARKET_CONTRACTS.USDC, ERC20_ABI, signer);
     
     const approveAmount = amount 
@@ -165,6 +222,9 @@ export async function approveUSDCForCTFContract(
   amount?: string
 ): Promise<{ success: boolean; txHash?: string; error?: string }> {
   try {
+    // Ensure we're on Polygon network before approval
+    await ensurePolygonNetwork(signer);
+    
     const usdc = new ethers.Contract(POLYMARKET_CONTRACTS.USDC, ERC20_ABI, signer);
     
     const approveAmount = amount 
@@ -188,6 +248,9 @@ export async function approveCTFForExchange(
   signer: ethers.Signer
 ): Promise<{ success: boolean; txHash?: string; error?: string }> {
   try {
+    // Ensure we're on Polygon network before approval
+    await ensurePolygonNetwork(signer);
+    
     const ctf = new ethers.Contract(POLYMARKET_CONTRACTS.CTF, ERC1155_ABI, signer);
     
     // Approve CTF Exchange to transfer conditional tokens
@@ -208,6 +271,9 @@ export async function approveCTFForNegRiskExchange(
   signer: ethers.Signer
 ): Promise<{ success: boolean; txHash?: string; error?: string }> {
   try {
+    // Ensure we're on Polygon network before approval
+    await ensurePolygonNetwork(signer);
+    
     const ctf = new ethers.Contract(POLYMARKET_CONTRACTS.CTF, ERC1155_ABI, signer);
     
     const tx = await ctf.setApprovalForAll(POLYMARKET_CONTRACTS.NEG_RISK_CTF_EXCHANGE, true);
@@ -229,6 +295,9 @@ export async function transferUSDCToProxy(
   amount: string
 ): Promise<{ success: boolean; txHash?: string; error?: string }> {
   try {
+    // Ensure we're on Polygon network before transfer
+    await ensurePolygonNetwork(signer);
+    
     const usdc = new ethers.Contract(POLYMARKET_CONTRACTS.USDC, ERC20_ABI, signer);
     
     const transferAmount = ethers.parseUnits(amount, 6);
@@ -249,6 +318,9 @@ export async function revokeAllUSDCApprovals(
   signer: ethers.Signer
 ): Promise<{ success: boolean; txHash?: string; error?: string }> {
   try {
+    // Ensure we're on Polygon network before revoke
+    await ensurePolygonNetwork(signer);
+    
     const usdc = new ethers.Contract(POLYMARKET_CONTRACTS.USDC, ERC20_ABI, signer);
     
     const tx1 = await usdc.approve(POLYMARKET_CONTRACTS.CTF_EXCHANGE, 0);
@@ -274,6 +346,9 @@ export async function revokeAllCTFApprovals(
   signer: ethers.Signer
 ): Promise<{ success: boolean; txHash?: string; error?: string }> {
   try {
+    // Ensure we're on Polygon network before revoke
+    await ensurePolygonNetwork(signer);
+    
     const ctf = new ethers.Contract(POLYMARKET_CONTRACTS.CTF, ERC1155_ABI, signer);
     
     const tx1 = await ctf.setApprovalForAll(POLYMARKET_CONTRACTS.CTF_EXCHANGE, false);
