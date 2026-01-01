@@ -6,6 +6,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -745,14 +746,15 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-md flex flex-col max-h-[85vh] md:max-h-[90vh] overflow-hidden">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <span>{isSellMode ? `Sell ${position?.outcome || outcome.name}` : `Bet on ${outcome.name}`}</span>
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <ScrollArea className="flex-1 overflow-y-auto pr-4 -mr-4">
+          <div className="space-y-4 pb-4">
           {isSellMode && position ? (
             <>
               <div className="rounded-md bg-muted/50 p-3 space-y-2">
@@ -1153,7 +1155,11 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
               </Button>
             </div>
           )}
+          </div>
+        </ScrollArea>
 
+        {/* Sticky footer with action buttons - always visible on mobile */}
+        <div className="flex-shrink-0 border-t border-border bg-background pt-4 pb-[env(safe-area-inset-bottom,0)] space-y-3">
           <div className="flex gap-2">
             <Button variant="outline" onClick={onClose} className="flex-1" data-testid="button-cancel-bet">
               Cancel
