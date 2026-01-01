@@ -367,7 +367,45 @@ export function WalletProvider({ children }: { children: ReactNode }) {
               localStorage.removeItem("polygon_wallet_address");
             }
           }
-        } else if (savedType === "walletconnect" && savedAddress && WALLETCONNECT_PROJECT_ID) {
+        } else if (!savedType || !savedAddress) {
+          // No saved session - check if we're inside Phantom's browser and it has authorized accounts
+          // This handles the case where user arrives via deep link from mobile browser
+          const phantomProvider = window.phantom?.ethereum || (window.ethereum?.isPhantom ? window.ethereum : null);
+          if (phantomProvider) {
+            console.log("[Phantom Auto-Connect] Phantom detected, checking for authorized accounts...");
+            try {
+              // eth_accounts returns already-authorized accounts without prompting
+              const accounts = await phantomProvider.request({ method: "eth_accounts" });
+              if (accounts && accounts.length > 0) {
+                console.log("[Phantom Auto-Connect] Found authorized account:", accounts[0]);
+                const address = accounts[0];
+                
+                // Auto-connect since Phantom already authorized this account
+                setWalletAddress(address);
+                setWalletType("phantom");
+                setUserEmail(null);
+                localStorage.setItem("polygon_wallet_type", "phantom");
+                localStorage.setItem("polygon_wallet_address", address);
+                
+                const phantomBrowserProvider = new ethers.BrowserProvider(phantomProvider);
+                setProvider(phantomBrowserProvider);
+                try {
+                  const phantomSigner = await phantomBrowserProvider.getSigner();
+                  setSigner(phantomSigner);
+                  console.log("[Phantom Auto-Connect] Auto-connected successfully!");
+                } catch (signerError) {
+                  console.log("[Phantom Auto-Connect] Connected but signer failed:", signerError);
+                }
+              } else {
+                console.log("[Phantom Auto-Connect] No authorized accounts found");
+              }
+            } catch (error) {
+              console.log("[Phantom Auto-Connect] Could not check for accounts:", error);
+            }
+          }
+        }
+        
+        if (savedType === "walletconnect" && savedAddress && WALLETCONNECT_PROJECT_ID) {
           // Try to restore WalletConnect session
           try {
             const wcProvider = await WCEthereumProvider.init({
