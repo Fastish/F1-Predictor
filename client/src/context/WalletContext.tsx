@@ -251,6 +251,16 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         const savedAddress = localStorage.getItem("polygon_wallet_address");
         
         console.log("[Init] Saved wallet type:", savedType, "address:", savedAddress);
+        console.log("[Init] Wagmi state - isConnected:", wagmiIsConnected, "address:", wagmiAddress, "activeConnector:", activeConnector?.id);
+        
+        // IMPORTANT: If wagmi shows WalletConnect is connected, prioritize that over localStorage
+        // This handles the mobile browser case where page reloads after returning from wallet app
+        if (wagmiIsConnected && wagmiAddress && activeConnector?.id === 'walletConnect') {
+          console.log("[Init] WalletConnect already connected via wagmi, skipping localStorage init");
+          // The wagmi connection effect will handle this
+          setIsLoading(false);
+          return;
+        }
         
         if (savedType === "magic" && savedAddress) {
           try {
@@ -318,7 +328,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     };
 
     initWallet();
-  }, [wagmiIsConnected, wagmiAddress]);
+  }, [wagmiIsConnected, wagmiAddress, activeConnector]);
 
   useEffect(() => {
     if ((walletType !== "external" && walletType !== "phantom") || !walletAddress) {
