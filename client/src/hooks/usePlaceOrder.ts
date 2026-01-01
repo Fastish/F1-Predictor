@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { ClobClient, Side, OrderType } from "@polymarket/clob-client";
-import { verifyPolygonNetwork } from "@/lib/polymarketDeposit";
+import { verifyPolygonNetwork, requestPolygonSwitch } from "@/lib/polymarketDeposit";
 import { ethers } from "ethers";
 
 // Helper to log debug info to server for visibility
@@ -83,16 +83,30 @@ export function usePlaceOrder(
               };
             }
             
-            // Check if wallet is on wrong network
+            // Check if wallet is on wrong network - try to switch automatically
             if (networkError.message?.startsWith("WRONG_NETWORK:")) {
               const currentChain = networkError.message.split(":")[1];
               const chainName = currentChain === "1" ? "Ethereum" : `chain ${currentChain}`;
-              setIsPlacing(false);
-              setError(`Please switch to Polygon network`);
-              return { 
-                success: false, 
-                error: `Your wallet is on ${chainName}. Please switch to Polygon network in your wallet, then disconnect and reconnect to refresh the trading session.` 
-              };
+              
+              console.log("[usePlaceOrder] Wallet on wrong network, attempting to switch...");
+              try {
+                await requestPolygonSwitch();
+                console.log("[usePlaceOrder] Network switch requested - user needs to reconnect");
+                setIsPlacing(false);
+                setError("Network switched. Please reconnect to continue.");
+                return { 
+                  success: false, 
+                  error: "Network switched to Polygon. Please disconnect and reconnect your wallet, then try again." 
+                };
+              } catch (switchErr: any) {
+                console.error("[usePlaceOrder] Network switch failed:", switchErr);
+                setIsPlacing(false);
+                setError(`Please switch to Polygon network`);
+                return { 
+                  success: false, 
+                  error: `Your wallet is on ${chainName}. Please switch to Polygon network in your wallet, then disconnect and reconnect to refresh the trading session.` 
+                };
+              }
             }
             
             setIsPlacing(false);
