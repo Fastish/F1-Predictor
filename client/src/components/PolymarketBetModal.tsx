@@ -33,7 +33,7 @@ import { useTradingSession } from "@/hooks/useTradingSession";
 import { usePlaceOrder, type PolymarketOrderType } from "@/hooks/usePlaceOrder";
 import { PolymarketDepositWizard } from "./PolymarketDepositWizard";
 import { checkDepositRequirements } from "@/lib/polymarketDeposit";
-import { getSafeAddress } from "@/lib/polymarketGasless";
+import { getSafeAddress, deriveSafeAddressFromEoa } from "@/lib/polymarketGasless";
 import { ethers } from "ethers";
 
 const USDC_CONTRACT = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174";
@@ -134,14 +134,23 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
         const isMagic = walletType === "magic";
         let safeAddr: string | null = null;
         
-        // For external wallets, get the Safe address
-        if (!isMagic) {
-          try {
-            const safeInfo = await getSafeAddress();
-            safeAddr = safeInfo.safeAddress;
-            console.log("Trading via Safe wallet:", safeAddr);
-          } catch (e) {
-            console.warn("Could not get Safe address:", e);
+        // For external/WalletConnect/phantom wallets, get Safe address
+        if (!isMagic && (walletType === "external" || walletType === "walletconnect" || walletType === "phantom")) {
+          // For WalletConnect, use local derivation to avoid triggering MetaMask deep links
+          // For external/phantom wallets with window.ethereum, try getSafeAddress() first for deployment detection
+          if (walletType === "walletconnect") {
+            safeAddr = deriveSafeAddressFromEoa(walletAddress);
+            console.log("Trading via Safe wallet (derived for WalletConnect):", safeAddr);
+          } else {
+            try {
+              const safeInfo = await getSafeAddress();
+              safeAddr = safeInfo.safeAddress;
+              console.log("Trading via Safe wallet:", safeAddr);
+            } catch (e) {
+              // Fallback to local derivation if getSafeAddress fails
+              console.warn("Could not get Safe address, using derived:", e);
+              safeAddr = deriveSafeAddressFromEoa(walletAddress);
+            }
           }
         }
         
@@ -1302,7 +1311,7 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
             ) : (
               <Button
                 onClick={handlePlaceBet}
-                disabled={parsedAmount <= 0 || totalCost > userBalance || isPlacing || isPlacingOrderLocal || !walletAddress || !isTradingSessionComplete || (approvalStatus.checked && approvalStatus.needsApproval)}
+                disabled={parsedAmount <= 0 || totalCost > (tradingWallet.balance > 0 ? tradingWallet.balance : userBalance) || isPlacing || isPlacingOrderLocal || !walletAddress || !isTradingSessionComplete || (approvalStatus.checked && approvalStatus.needsApproval)}
                 className="flex-1"
                 data-testid="button-confirm-bet"
               >

@@ -161,6 +161,26 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
     autoInitSession();
   }, [walletType, walletAddress, signerAvailable, isTradingSessionComplete, isInitializing, autoInitAttempted, open, initializeTradingSession, toast]);
 
+  // Auto-launch approval wizard after trading session completes (if approvals are needed)
+  const [approvalWizardAutoOpened, setApprovalWizardAutoOpened] = useState(false);
+  const approvalChecked = approvalStatus.checked;
+  const approvalNeeded = approvalStatus.needsApproval;
+  useEffect(() => {
+    // When session completes and approvals are needed, auto-open the deposit wizard ONCE
+    if (isTradingSessionComplete && approvalChecked && approvalNeeded && !showDepositWizard && !approvalWizardAutoOpened) {
+      console.log("[DepositModal] Session complete but approval needed - auto-opening deposit wizard");
+      setApprovalWizardAutoOpened(true);
+      setShowDepositWizard(true);
+    }
+  }, [isTradingSessionComplete, approvalChecked, approvalNeeded, showDepositWizard, approvalWizardAutoOpened]);
+  
+  // Reset approval wizard auto-open flag when modal closes
+  useEffect(() => {
+    if (!open) {
+      setApprovalWizardAutoOpened(false);
+    }
+  }, [open]);
+
   const handleResetSession = () => {
     endTradingSession();
     toast({

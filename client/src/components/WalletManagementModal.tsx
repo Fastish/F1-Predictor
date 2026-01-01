@@ -133,19 +133,31 @@ export function WalletManagementModal({ open, onOpenChange, initialTab = "receiv
       return;
     }
 
-    try {
-      const network = await provider.getNetwork();
-      if (network.chainId !== 137n) {
+    // Check network - but skip for WalletConnect to avoid triggering mobile wallet deep links
+    // WalletConnect is already configured for Polygon (chain 137) at connection time
+    if (walletType !== "walletconnect") {
+      try {
+        const network = await provider.getNetwork();
+        if (network.chainId !== BigInt(137)) {
+          toast({
+            title: "Wrong Network",
+            description: "Please switch to Polygon network to send USDC",
+            variant: "destructive",
+          });
+          return;
+        }
+      } catch (error: any) {
+        console.error("Failed to check network:", error);
+        // For non-WalletConnect, warn about network check failure
         toast({
-          title: "Wrong Network",
-          description: "Please switch to Polygon network to send USDC",
+          title: "Network Check Failed",
+          description: "Could not verify network. Ensure you're on Polygon.",
           variant: "destructive",
         });
         return;
       }
-    } catch (error) {
-      console.error("Failed to check network:", error);
     }
+    // For WalletConnect, trust that it's on Polygon as configured during connection
 
     const currentMaticBalance = parseFloat(maticBalance);
     if (currentMaticBalance < 0.001) {
