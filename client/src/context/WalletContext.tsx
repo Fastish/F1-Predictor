@@ -2,90 +2,10 @@ import { createContext, useContext, useState, useEffect, useCallback, useRef, ty
 import { Magic } from "magic-sdk";
 import { ethers } from "ethers";
 import { queryClient } from "@/lib/queryClient";
-import WCEthereumProvider from "@walletconnect/ethereum-provider";
+import { useConnect, useDisconnect, useAccount, useWalletClient, Connector } from "wagmi";
+import { walletConnect, injected } from "@wagmi/connectors";
 
 type WalletType = "magic" | "external" | "walletconnect" | "phantom" | null;
-
-const WALLETCONNECT_PROJECT_ID = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || "";
-const POLYGON_CHAIN_ID_CONST = 137;
-
-// WalletConnect Singleton - prevents multiple Core initializations
-// The key insight: WalletConnect Core can only be initialized ONCE per page load
-// So we use a singleton pattern with careful state management
-let wcProviderInstance: InstanceType<typeof WCEthereumProvider> | null = null;
-let wcProviderInitializing = false;
-let wcProviderInitPromise: Promise<InstanceType<typeof WCEthereumProvider>> | null = null;
-let wcProviderShowQrModal: boolean | null = null;
-
-async function getOrCreateWCProvider(showQrModal: boolean = false): Promise<InstanceType<typeof WCEthereumProvider>> {
-  // Return existing instance if available (even if showQrModal differs - it's set at init time)
-  if (wcProviderInstance) {
-    console.log("[WC Singleton] Returning existing provider instance (showQrModal was:", wcProviderShowQrModal, ")");
-    return wcProviderInstance;
-  }
-  
-  // If already initializing, wait for that to complete
-  if (wcProviderInitializing && wcProviderInitPromise) {
-    console.log("[WC Singleton] Waiting for existing initialization to complete");
-    return wcProviderInitPromise;
-  }
-  
-  console.log("[WC Singleton] Creating new provider instance, showQrModal:", showQrModal);
-  wcProviderInitializing = true;
-  wcProviderShowQrModal = showQrModal;
-  
-  wcProviderInitPromise = WCEthereumProvider.init({
-    projectId: WALLETCONNECT_PROJECT_ID,
-    chains: [POLYGON_CHAIN_ID_CONST],
-    showQrModal,
-    optionalChains: [],
-    methods: ["eth_sendTransaction", "personal_sign"],
-    optionalMethods: ["eth_signTypedData", "eth_signTypedData_v4", "eth_sign"],
-    relayUrl: "wss://relay.walletconnect.com",
-    metadata: {
-      name: "F1 Predict",
-      description: "F1 Prediction Market - Trade on F1 Championship outcomes",
-      url: window.location.origin,
-      icons: [`${window.location.origin}/favicon.ico`],
-    },
-  }).then(provider => {
-    console.log("[WC Singleton] Provider created successfully");
-    wcProviderInstance = provider;
-    wcProviderInitializing = false;
-    return provider;
-  }).catch(error => {
-    console.error("[WC Singleton] Provider creation failed:", error);
-    wcProviderInitializing = false;
-    wcProviderInitPromise = null;
-    wcProviderShowQrModal = null;
-    throw error;
-  });
-  
-  return wcProviderInitPromise;
-}
-
-function resetWCProviderSingleton() {
-  console.log("[WC Singleton] Resetting singleton");
-  if (wcProviderInstance) {
-    try {
-      wcProviderInstance.disconnect();
-    } catch (e) {
-      console.log("[WC Singleton] Disconnect error during reset:", e);
-    }
-  }
-  wcProviderInstance = null;
-  wcProviderInitializing = false;
-  wcProviderInitPromise = null;
-  wcProviderShowQrModal = null;
-}
-
-function hasWCProviderInstance(): boolean {
-  return wcProviderInstance !== null;
-}
-
-function getExistingWCProvider(): InstanceType<typeof WCEthereumProvider> | null {
-  return wcProviderInstance;
-}
 
 export interface PolymarketCredentials {
   apiKey: string;
@@ -117,21 +37,16 @@ interface WalletContextType {
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
-// Magic API key - prefer build-time env var, fallback to runtime config
 let MAGIC_API_KEY = import.meta.env.VITE_MAGIC_API_KEY || "";
+const WALLETCONNECT_PROJECT_ID = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || "";
 
-// Runtime config fetch for production resilience
-// In production, VITE_* vars may not be injected at build time if secrets weren't available
-// The /api/config endpoint provides a runtime fallback
 let runtimeConfigLoaded = false;
 async function ensureMagicApiKey(): Promise<string> {
-  // If we already have the key from build-time env or previous fetch, return it
   if (MAGIC_API_KEY) {
     console.log("[Magic Debug] Using build-time Magic API key");
     return MAGIC_API_KEY;
   }
   
-  // Only try runtime fetch once
   if (runtimeConfigLoaded) {
     if (!MAGIC_API_KEY) {
       console.error("[Magic Debug] No Magic API key available after runtime config fetch. Email login will not work.");
@@ -149,7 +64,7 @@ async function ensureMagicApiKey(): Promise<string> {
         MAGIC_API_KEY = config.magicApiKey;
         console.log("[Magic Debug] Magic API key loaded from runtime config successfully");
       } else {
-        console.error("[Magic Debug] /api/config returned empty magicApiKey. Ensure MAGIC_PUBLISHABLE_KEY or VITE_MAGIC_API_KEY is set in production secrets.");
+        console.error("[Magic Debug] /api/config returned empty magicApiKey.");
       }
     } else {
       console.error("[Magic Debug] Failed to fetch /api/config:", response.status, response.statusText);
@@ -169,7 +84,7 @@ async function ensureMagicApiKey(): Promise<string> {
 
 const POLYGON_RPC = "https://polygon-rpc.com";
 const POLYGON_CHAIN_ID = 137;
-const USDC_CONTRACT_ADDRESS = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"; // USDC.e on Polygon (used by Polymarket)
+const USDC_CONTRACT_ADDRESS = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174";
 
 const USDC_ABI = [
   "function balanceOf(address owner) view returns (uint256)",
@@ -186,7 +101,6 @@ interface EthereumProvider {
 
 declare global {
   interface Window {
-    ethereum?: EthereumProvider;
     phantom?: {
       ethereum?: EthereumProvider;
     };
@@ -194,160 +108,62 @@ declare global {
 }
 
 function getEthereumProvider(): EthereumProvider | null {
-  // First check window.phantom.ethereum (Phantom's preferred injection point)
   if (window.phantom?.ethereum) {
     console.log("Found provider at window.phantom.ethereum");
     return window.phantom.ethereum;
   }
-  // Check window.ethereum with isPhantom flag (Phantom can also inject here)
-  if (window.ethereum?.isPhantom) {
+  const ethereum = (window as any).ethereum;
+  if (ethereum?.isPhantom) {
     console.log("Found Phantom provider at window.ethereum");
-    return window.ethereum;
+    return ethereum as EthereumProvider;
   }
-  // Fallback to standard window.ethereum (MetaMask, Rainbow, etc.)
-  if (window.ethereum) {
+  if (ethereum) {
     console.log("Found provider at window.ethereum");
-    return window.ethereum;
+    return ethereum as EthereumProvider;
   }
-  console.log("No Ethereum provider found");
   return null;
 }
 
-// Wait for provider to be injected using multiple strategies
-async function waitForProvider(): Promise<EthereumProvider | null> {
-  console.log("Starting provider detection...");
-  console.log("Document readyState:", document.readyState);
-  
-  // Strategy 1: Check immediately
-  let provider = getEthereumProvider();
-  if (provider) {
-    console.log("Provider found immediately");
-    return provider;
-  }
-  
-  // Strategy 2: Wait for DOMContentLoaded if not ready
-  if (document.readyState !== 'complete') {
-    console.log("Waiting for document to be ready...");
-    await new Promise<void>(resolve => {
-      if (document.readyState === 'complete') {
-        resolve();
-      } else {
-        window.addEventListener('load', () => resolve(), { once: true });
-      }
-    });
-    provider = getEthereumProvider();
+function getProviderDiagnostics(): string {
+  const diagnostics = [];
+  const ethereum = (window as any).ethereum;
+  if (ethereum) diagnostics.push(`window.ethereum exists (isMetaMask: ${ethereum.isMetaMask}, isPhantom: ${ethereum.isPhantom})`);
+  if (window.phantom?.ethereum) diagnostics.push("window.phantom.ethereum exists");
+  if (diagnostics.length === 0) diagnostics.push("No Ethereum providers detected");
+  return diagnostics.join("; ");
+}
+
+async function waitForProvider(maxAttempts = 10, intervalMs = 200): Promise<EthereumProvider | null> {
+  for (let i = 0; i < maxAttempts; i++) {
+    const provider = getEthereumProvider();
     if (provider) {
-      console.log("Provider found after document ready");
       return provider;
     }
-  }
-  
-  // Strategy 3: Listen for eip6963:announceProvider event (modern standard)
-  // This runs in the background while we also poll
-  let eip6963Provider: EthereumProvider | null = null;
-  const eip6963Handler = (event: any) => {
-    console.log("EIP-6963 provider announced:", event.detail);
-    if (event.detail?.provider) {
-      eip6963Provider = event.detail.provider;
-    }
-  };
-  window.addEventListener('eip6963:announceProvider', eip6963Handler);
-  window.dispatchEvent(new Event('eip6963:requestProvider'));
-  
-  // Strategy 4: Poll with increasing delays (total ~5.5 seconds)
-  const delays = [100, 200, 300, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500];
-  for (const delay of delays) {
-    await new Promise(r => setTimeout(r, delay));
-    
-    // Check if EIP-6963 found a provider
-    if (eip6963Provider) {
-      console.log("Provider found via EIP-6963");
-      window.removeEventListener('eip6963:announceProvider', eip6963Handler);
-      return eip6963Provider;
-    }
-    
-    // Check standard provider locations
-    const p = getEthereumProvider();
-    if (p) {
-      console.log(`Provider found after ${delay}ms poll`);
-      window.removeEventListener('eip6963:announceProvider', eip6963Handler);
-      return p;
+    if (i < maxAttempts - 1) {
+      await new Promise(resolve => setTimeout(resolve, intervalMs));
     }
   }
-  
-  // Cleanup EIP-6963 listener
-  window.removeEventListener('eip6963:announceProvider', eip6963Handler);
-  
-  // Final checks
-  if (eip6963Provider) {
-    console.log("Provider found via EIP-6963 (final check)");
-    return eip6963Provider;
-  }
-  
-  provider = getEthereumProvider();
-  if (provider) {
-    console.log("Provider found on final check");
-    return provider;
-  }
-  
-  console.log("No provider detected after all strategies (~5.5s wait)");
   return null;
-}
-
-// Get diagnostic info about what providers are available
-function getProviderDiagnostics(): string {
-  const diagnostics: string[] = [];
-  if (window.phantom) {
-    diagnostics.push("Phantom extension detected");
-    if (window.phantom.ethereum) {
-      diagnostics.push("Phantom Ethereum provider available");
-    }
-  }
-  if (window.ethereum) {
-    diagnostics.push("window.ethereum available");
-    if (window.ethereum.isPhantom) diagnostics.push("(isPhantom)");
-    if (window.ethereum.isMetaMask) diagnostics.push("(isMetaMask)");
-  }
-  return diagnostics.length > 0 ? diagnostics.join(", ") : "No providers detected";
 }
 
 let magicInstance: Magic | null = null;
 
 async function getMagic(): Promise<Magic | null> {
-  console.log("[Magic Debug] getMagic() called");
-  
-  // Ensure API key is available (fallback to runtime config if not baked into build)
   const apiKey = await ensureMagicApiKey();
   
-  console.log("[Magic Debug] MAGIC_API_KEY exists:", !!apiKey);
-  console.log("[Magic Debug] MAGIC_API_KEY length:", apiKey?.length || 0);
-  if (apiKey) {
-    console.log("[Magic Debug] MAGIC_API_KEY prefix:", apiKey.substring(0, 10) + "...");
-  }
-  
   if (!apiKey) {
-    console.warn("[Magic Debug] Magic API key not configured - returning null");
+    console.error("[Magic Debug] Cannot create Magic instance: no API key");
     return null;
   }
+  
   if (!magicInstance) {
-    console.log("[Magic Debug] Creating new Magic instance with config:", {
-      rpcUrl: POLYGON_RPC,
-      chainId: POLYGON_CHAIN_ID,
+    console.log("[Magic Debug] Creating new Magic instance with API key");
+    magicInstance = new Magic(apiKey, {
+      network: {
+        rpcUrl: POLYGON_RPC,
+        chainId: POLYGON_CHAIN_ID,
+      },
     });
-    try {
-      magicInstance = new Magic(apiKey, {
-        network: {
-          rpcUrl: POLYGON_RPC,
-          chainId: POLYGON_CHAIN_ID,
-        },
-      });
-      console.log("[Magic Debug] Magic instance created successfully");
-    } catch (error) {
-      console.error("[Magic Debug] Failed to create Magic instance:", error);
-      return null;
-    }
-  } else {
-    console.log("[Magic Debug] Returning existing Magic instance");
   }
   return magicInstance;
 }
@@ -361,201 +177,131 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [provider, setProvider] = useState<ethers.BrowserProvider | null>(null);
   const [signer, setSigner] = useState<ethers.Signer | null>(null);
   const [polymarketCredentials, setPolymarketCredentials] = useState<PolymarketCredentials | null>(null);
-  const wcProviderRef = useRef<Awaited<ReturnType<typeof WCEthereumProvider.init>> | null>(null);
+  
+  const { connect, connectors, isPending: wagmiConnecting, error: wagmiError } = useConnect();
+  const { disconnect: wagmiDisconnect } = useDisconnect();
+  const { address: wagmiAddress, isConnected: wagmiIsConnected, connector: activeConnector } = useAccount();
+  const { data: walletClient } = useWalletClient();
+
+  const wcConnectorRef = useRef<Connector | null>(null);
 
   useEffect(() => {
-    const checkExistingSession = async () => {
+    const wcConnector = connectors.find(c => c.id === 'walletConnect');
+    if (wcConnector) {
+      wcConnectorRef.current = wcConnector;
+    }
+  }, [connectors]);
+
+  useEffect(() => {
+    if (wagmiIsConnected && wagmiAddress && activeConnector?.id === 'walletConnect' && walletType !== 'walletconnect') {
+      console.log("[Wagmi] WalletConnect connected via wagmi:", wagmiAddress);
+      setWalletAddress(wagmiAddress);
+      setWalletType("walletconnect");
+      setUserEmail(null);
+      localStorage.setItem("polygon_wallet_type", "walletconnect");
+      localStorage.setItem("polygon_wallet_address", wagmiAddress);
+      setIsConnecting(false);
+    }
+  }, [wagmiIsConnected, wagmiAddress, activeConnector, walletType]);
+
+  useEffect(() => {
+    if (walletClient && wagmiIsConnected && wagmiAddress && walletType === 'walletconnect') {
+      console.log("[Wagmi] Setting up provider from walletClient");
+      const transport = walletClient.transport;
+      if (transport) {
+        const ethersProvider = new ethers.BrowserProvider(transport);
+        setProvider(ethersProvider);
+        ethersProvider.getSigner().then(s => {
+          setSigner(s);
+          console.log("[Wagmi] Signer ready");
+        }).catch(err => {
+          console.error("[Wagmi] Error getting signer:", err);
+        });
+      }
+    }
+  }, [walletClient, wagmiIsConnected, wagmiAddress, walletType]);
+
+  useEffect(() => {
+    const initWallet = async () => {
       try {
         const savedType = localStorage.getItem("polygon_wallet_type") as WalletType;
         const savedAddress = localStorage.getItem("polygon_wallet_address");
-
-        if (savedType === "magic" && savedAddress) {
-          const magic = await getMagic();
-          if (magic) {
-            const isLoggedIn = await magic.user.isLoggedIn();
-            if (isLoggedIn) {
-              const metadata = await magic.user.getInfo();
-              const publicAddress = (metadata as any).wallets?.ethereum?.publicAddress || metadata.publicAddress;
-              setWalletAddress(publicAddress || null);
-              setUserEmail(metadata.email || null);
-              setWalletType("magic");
-              
-              const magicProvider = new ethers.BrowserProvider(magic.rpcProvider as any);
-              setProvider(magicProvider);
-              const magicSigner = await magicProvider.getSigner();
-              setSigner(magicSigner);
-            } else {
-              localStorage.removeItem("polygon_wallet_type");
-              localStorage.removeItem("polygon_wallet_address");
-            }
-          }
-        } else if (savedType === "external" && savedAddress) {
-          const ethProvider = getEthereumProvider();
-          if (ethProvider) {
-            try {
-              const accounts = await ethProvider.request({ method: "eth_accounts" });
-              if (accounts && accounts.length > 0 && accounts[0].toLowerCase() === savedAddress.toLowerCase()) {
-                setWalletAddress(accounts[0]);
-                setWalletType("external");
-                
-                const externalProvider = new ethers.BrowserProvider(ethProvider);
-                setProvider(externalProvider);
-                try {
-                  const externalSigner = await externalProvider.getSigner();
-                  setSigner(externalSigner);
-                } catch (signerError) {
-                  // Signer may fail if wallet requires re-authorization
-                  // User will need to connect again to get signing capability
-                  console.log("Could not get signer, user may need to re-connect:", signerError);
-                }
-              } else {
-                localStorage.removeItem("polygon_wallet_type");
-                localStorage.removeItem("polygon_wallet_address");
-              }
-            } catch (error) {
-              console.log("Could not restore external wallet session:", error);
-              localStorage.removeItem("polygon_wallet_type");
-              localStorage.removeItem("polygon_wallet_address");
-            }
-          }
-        } else if (savedType === "phantom" && savedAddress) {
-          // Try to restore Phantom wallet session
-          const phantomProvider = window.phantom?.ethereum || (window.ethereum?.isPhantom ? window.ethereum : null);
-          if (phantomProvider) {
-            try {
-              const accounts = await phantomProvider.request({ method: "eth_accounts" });
-              if (accounts && accounts.length > 0 && accounts[0].toLowerCase() === savedAddress.toLowerCase()) {
-                setWalletAddress(accounts[0]);
-                setWalletType("phantom");
-                
-                const phantomBrowserProvider = new ethers.BrowserProvider(phantomProvider);
-                setProvider(phantomBrowserProvider);
-                try {
-                  const phantomSigner = await phantomBrowserProvider.getSigner();
-                  setSigner(phantomSigner);
-                } catch (signerError) {
-                  console.log("Could not get signer, user may need to re-connect:", signerError);
-                }
-              } else {
-                localStorage.removeItem("polygon_wallet_type");
-                localStorage.removeItem("polygon_wallet_address");
-              }
-            } catch (error) {
-              console.log("Could not restore Phantom wallet session:", error);
-              localStorage.removeItem("polygon_wallet_type");
-              localStorage.removeItem("polygon_wallet_address");
-            }
-          }
-        } else if (!savedType || !savedAddress) {
-          // No saved session - check if we're inside Phantom's browser and it has authorized accounts
-          // This handles the case where user arrives via deep link from mobile browser
-          const phantomProvider = window.phantom?.ethereum || (window.ethereum?.isPhantom ? window.ethereum : null);
-          if (phantomProvider) {
-            console.log("[Phantom Auto-Connect] Phantom detected, checking for authorized accounts...");
-            try {
-              // eth_accounts returns already-authorized accounts without prompting
-              const accounts = await phantomProvider.request({ method: "eth_accounts" });
-              if (accounts && accounts.length > 0) {
-                console.log("[Phantom Auto-Connect] Found authorized account:", accounts[0]);
-                const address = accounts[0];
-                
-                // Auto-connect since Phantom already authorized this account
-                setWalletAddress(address);
-                setWalletType("phantom");
-                setUserEmail(null);
-                localStorage.setItem("polygon_wallet_type", "phantom");
-                localStorage.setItem("polygon_wallet_address", address);
-                
-                const phantomBrowserProvider = new ethers.BrowserProvider(phantomProvider);
-                setProvider(phantomBrowserProvider);
-                try {
-                  const phantomSigner = await phantomBrowserProvider.getSigner();
-                  setSigner(phantomSigner);
-                  console.log("[Phantom Auto-Connect] Auto-connected successfully!");
-                } catch (signerError) {
-                  console.log("[Phantom Auto-Connect] Connected but signer failed:", signerError);
-                }
-              } else {
-                console.log("[Phantom Auto-Connect] No authorized accounts found");
-              }
-            } catch (error) {
-              console.log("[Phantom Auto-Connect] Could not check for accounts:", error);
-            }
-          }
-        }
         
-        if (savedType === "walletconnect" && savedAddress && WALLETCONNECT_PROJECT_ID) {
-          // Try to restore WalletConnect session
+        console.log("[Init] Saved wallet type:", savedType, "address:", savedAddress);
+        
+        if (savedType === "magic" && savedAddress) {
           try {
-            const wcProvider = await WCEthereumProvider.init({
-              projectId: WALLETCONNECT_PROJECT_ID,
-              chains: [POLYGON_CHAIN_ID],
-              showQrModal: false,
-              methods: ["eth_sendTransaction", "personal_sign"],
-              optionalMethods: ["eth_signTypedData", "eth_signTypedData_v4", "eth_sign"],
-              metadata: {
-                name: "F1 Predict",
-                description: "F1 Prediction Market",
-                url: window.location.origin,
-                icons: [`${window.location.origin}/favicon.ico`],
-              },
-            });
-            
-            if (wcProvider.session) {
-              const accounts = wcProvider.accounts;
-              if (accounts && accounts.length > 0 && accounts[0].toLowerCase() === savedAddress.toLowerCase()) {
-                wcProviderRef.current = wcProvider;
-                setWalletAddress(accounts[0]);
-                setWalletType("walletconnect");
-                
-                const wcBrowserProvider = new ethers.BrowserProvider(wcProvider);
-                setProvider(wcBrowserProvider);
-                const wcSigner = await wcBrowserProvider.getSigner();
-                setSigner(wcSigner);
-                
-                // Set up event listeners
-                wcProvider.on("accountsChanged", (accts: string[]) => {
-                  if (accts.length === 0) {
-                    disconnectWallet();
-                  } else {
-                    setWalletAddress(accts[0]);
-                    localStorage.setItem("polygon_wallet_address", accts[0]);
-                  }
-                });
-                wcProvider.on("disconnect", () => {
-                  disconnectWallet();
-                });
-              } else {
-                localStorage.removeItem("polygon_wallet_type");
-                localStorage.removeItem("polygon_wallet_address");
+            const magic = await getMagic();
+            if (magic) {
+              const isLoggedIn = await magic.user.isLoggedIn();
+              console.log("[Init] Magic user logged in:", isLoggedIn);
+              if (isLoggedIn) {
+                const metadata = await magic.user.getInfo();
+                const publicAddress = (metadata as any).wallets?.ethereum?.publicAddress || metadata.publicAddress;
+                if (publicAddress) {
+                  setWalletAddress(publicAddress);
+                  setUserEmail(metadata.email || null);
+                  setWalletType("magic");
+                  const magicProvider = new ethers.BrowserProvider(magic.rpcProvider as any);
+                  setProvider(magicProvider);
+                  const magicSigner = await magicProvider.getSigner();
+                  setSigner(magicSigner);
+                }
               }
-            } else {
-              localStorage.removeItem("polygon_wallet_type");
-              localStorage.removeItem("polygon_wallet_address");
             }
           } catch (error) {
-            console.log("Could not restore WalletConnect session:", error);
+            console.error("[Init] Magic init error:", error);
             localStorage.removeItem("polygon_wallet_type");
             localStorage.removeItem("polygon_wallet_address");
           }
+        } else if ((savedType === "external" || savedType === "phantom") && savedAddress) {
+          try {
+            const ethProvider = savedType === "phantom" 
+              ? (window.phantom?.ethereum || (window.ethereum?.isPhantom ? window.ethereum : null))
+              : getEthereumProvider();
+              
+            if (ethProvider) {
+              const accounts = await ethProvider.request({ method: "eth_accounts" });
+              if (accounts && accounts.length > 0) {
+                setWalletAddress(accounts[0]);
+                setWalletType(savedType);
+                const externalProvider = new ethers.BrowserProvider(ethProvider);
+                setProvider(externalProvider);
+                const externalSigner = await externalProvider.getSigner();
+                setSigner(externalSigner);
+              } else {
+                localStorage.removeItem("polygon_wallet_type");
+                localStorage.removeItem("polygon_wallet_address");
+              }
+            }
+          } catch (error) {
+            console.error("[Init] External wallet init error:", error);
+            localStorage.removeItem("polygon_wallet_type");
+            localStorage.removeItem("polygon_wallet_address");
+          }
+        } else if (savedType === "walletconnect" && savedAddress) {
+          console.log("[Init] Checking wagmi for WalletConnect session");
+          if (wagmiIsConnected && wagmiAddress) {
+            console.log("[Init] Wagmi already connected:", wagmiAddress);
+            setWalletAddress(wagmiAddress);
+            setWalletType("walletconnect");
+          }
         }
       } catch (error) {
-        console.error("Error checking existing session:", error);
+        console.error("[Init] Wallet initialization error:", error);
       } finally {
         setIsLoading(false);
       }
     };
 
-    checkExistingSession();
-  }, []);
+    initWallet();
+  }, [wagmiIsConnected, wagmiAddress]);
 
   useEffect(() => {
-    // Only set up listeners when wallet is actually connected (external or phantom)
     if ((walletType !== "external" && walletType !== "phantom") || !walletAddress) {
       return;
     }
     
-    // Get the appropriate provider based on wallet type
     const ethProvider = walletType === "phantom" 
       ? (window.phantom?.ethereum || (window.ethereum?.isPhantom ? window.ethereum : null))
       : getEthereumProvider();
@@ -570,9 +316,6 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         }
       };
 
-      // Note: We intentionally don't auto-reload on chainChanged to prevent
-      // reload loops. Users should manually refresh if they switch networks.
-
       ethProvider.on("accountsChanged", handleAccountsChanged);
 
       return () => {
@@ -581,279 +324,42 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
   }, [walletType, walletAddress]);
 
-  // Check for WalletConnect session when page becomes visible (critical for mobile)
-  // When user navigates away to MetaMask and returns, we need to check if session was established
-  // This also runs when isConnecting is true because on mobile, the session may have been
-  // established while the user was in MetaMask and the enable() promise is still pending
-  const wcSessionCheckInProgress = useRef(false);
-  
-  useEffect(() => {
-    if (!WALLETCONNECT_PROJECT_ID) return;
-    
-    const checkWalletConnectSession = async (reason: string) => {
-      // Prevent concurrent session checks
-      if (wcSessionCheckInProgress.current) {
-        console.log("[WC Visibility] Session check already in progress, skipping");
-        return;
-      }
-      
-      // Skip if we already have a connected wallet (not just connecting)
-      if (walletAddress && walletType) {
-        console.log("[WC Visibility] Already connected, skipping session check");
-        return;
-      }
-      
-      // Check if there's a pending connection or saved WC session data
-      const connectionPending = localStorage.getItem("wc_connection_pending");
-      const savedWcType = localStorage.getItem("polygon_wallet_type");
-      const hasWcKeys = Array.from({ length: localStorage.length }, (_, i) => localStorage.key(i))
-        .some(key => key?.startsWith("wc@2:"));
-      
-      console.log("[WC Visibility] Check reason:", reason, "- pending:", connectionPending, "- savedType:", savedWcType, "- hasWcKeys:", hasWcKeys);
-      
-      wcSessionCheckInProgress.current = true;
-      console.log("[WC Visibility] Checking for WalletConnect session...");
-      
-      try {
-        // First check if we have an existing provider instance (from connect flow)
-        const existingProvider = getExistingWCProvider();
-        if (existingProvider) {
-          console.log("[WC Visibility] Using existing provider instance");
-          
-          // Poll for session - the relay may need time to sync after returning from wallet app
-          let sessionFound = false;
-          for (let attempt = 0; attempt < 5; attempt++) {
-            if (existingProvider.session) {
-              sessionFound = true;
-              break;
-            }
-            console.log(`[WC Visibility] Session poll attempt ${attempt + 1}/5 - waiting 500ms...`);
-            await new Promise(r => setTimeout(r, 500));
-          }
-          
-          if (sessionFound && existingProvider.session) {
-            const accounts = existingProvider.accounts;
-            console.log("[WC Visibility] Existing provider has session, accounts:", accounts);
-            if (accounts && accounts.length > 0) {
-              console.log("[WC Visibility] Found active session on existing provider, restoring:", accounts[0]);
-              
-              setIsConnecting(false);
-              wcProviderRef.current = existingProvider;
-              setWalletAddress(accounts[0]);
-              setWalletType("walletconnect");
-              setUserEmail(null);
-              localStorage.setItem("polygon_wallet_type", "walletconnect");
-              localStorage.setItem("polygon_wallet_address", accounts[0]);
-              localStorage.removeItem("wc_connection_pending");
-              
-              const wcBrowserProvider = new ethers.BrowserProvider(existingProvider);
-              setProvider(wcBrowserProvider);
-              const wcSigner = await wcBrowserProvider.getSigner();
-              setSigner(wcSigner);
-              
-              existingProvider.on("accountsChanged", (accts: string[]) => {
-                if (accts.length === 0) {
-                  disconnectWallet();
-                } else {
-                  setWalletAddress(accts[0]);
-                  localStorage.setItem("polygon_wallet_address", accts[0]);
-                }
-              });
-              existingProvider.on("disconnect", () => {
-                disconnectWallet();
-              });
-              
-              console.log("[WC Visibility] Session restored from existing provider!");
-              wcSessionCheckInProgress.current = false;
-              return;
-            }
-          }
-          console.log("[WC Visibility] Existing provider has no active session after polling");
-          wcSessionCheckInProgress.current = false;
-          return;
-        }
-        
-        // No existing provider - only create one if we have WC storage keys indicating a session
-        if (!hasWcKeys) {
-          console.log("[WC Visibility] No WC storage keys, skipping provider initialization");
-          wcSessionCheckInProgress.current = false;
-          return;
-        }
-        
-        // Use singleton to prevent multiple Core initializations
-        const wcProvider = await getOrCreateWCProvider(false);
-        
-        console.log("[WC Visibility] Provider initialized, session exists:", !!wcProvider.session);
-        console.log("[WC Visibility] Session details:", wcProvider.session ? JSON.stringify({
-          topic: wcProvider.session.topic,
-          accounts: wcProvider.accounts,
-        }) : "null");
-        
-        if (wcProvider.session) {
-          const accounts = wcProvider.accounts;
-          console.log("[WC Visibility] Session accounts:", accounts);
-          if (accounts && accounts.length > 0) {
-            console.log("[WC Visibility] Found active session, restoring:", accounts[0]);
-            
-            // Stop the connecting state if it was still active
-            setIsConnecting(false);
-            
-            wcProviderRef.current = wcProvider;
-            setWalletAddress(accounts[0]);
-            setWalletType("walletconnect");
-            setUserEmail(null);
-            localStorage.setItem("polygon_wallet_type", "walletconnect");
-            localStorage.setItem("polygon_wallet_address", accounts[0]);
-            localStorage.removeItem("wc_connection_pending");
-            
-            const wcBrowserProvider = new ethers.BrowserProvider(wcProvider);
-            setProvider(wcBrowserProvider);
-            const wcSigner = await wcBrowserProvider.getSigner();
-            setSigner(wcSigner);
-            
-            // Set up event listeners
-            wcProvider.on("accountsChanged", (accts: string[]) => {
-              if (accts.length === 0) {
-                disconnectWallet();
-              } else {
-                setWalletAddress(accts[0]);
-                localStorage.setItem("polygon_wallet_address", accts[0]);
-              }
-            });
-            wcProvider.on("disconnect", () => {
-              disconnectWallet();
-            });
-            
-            console.log("[WC Visibility] Session restored successfully!");
-          }
-        } else {
-          console.log("[WC Visibility] No active session found");
-          // If connection was pending but no session found, clear the pending flag
-          if (connectionPending) {
-            console.log("[WC Visibility] Connection was pending but no session - clearing pending flag");
-            localStorage.removeItem("wc_connection_pending");
-          }
-        }
-      } catch (error: any) {
-        console.log("[WC Visibility] Error checking session:", error?.message || error);
-        // If we get a stale session error, clear the storage
-        if (error.message?.includes("session topic doesn't exist") || 
-            error.message?.includes("No matching key") ||
-            error.message?.includes("Missing or invalid")) {
-          console.log("[WC Visibility] Clearing stale session data...");
-          const keysToRemove: string[] = [];
-          for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
-            if (key && (key.startsWith("wc@2:") || key.startsWith("walletconnect"))) {
-              keysToRemove.push(key);
-            }
-          }
-          keysToRemove.forEach(key => localStorage.removeItem(key));
-          localStorage.removeItem("wc_connection_pending");
-          console.log("[WC Visibility] Cleared", keysToRemove.length, "stale entries");
-        }
-      } finally {
-        wcSessionCheckInProgress.current = false;
-      }
-    };
-    
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        // Check for pending WC connection when returning from another app
-        const connectionPending = localStorage.getItem("wc_connection_pending");
-        if (connectionPending) {
-          console.log("[WC Visibility] Visibility changed, connection was pending - checking immediately");
-          // Multiple checks with increasing delays to handle mobile timing
-          setTimeout(() => checkWalletConnectSession("visibility-immediate"), 100);
-          setTimeout(() => checkWalletConnectSession("visibility-delayed"), 500);
-          setTimeout(() => checkWalletConnectSession("visibility-extra-delayed"), 1500);
-        } else {
-          // Standard visibility check
-          setTimeout(() => checkWalletConnectSession("visibility-standard"), 300);
-        }
-      }
-    };
-    
-    // Also check immediately on mount in case user is returning to a suspended tab
-    // that was restored with session data in localStorage
-    const connectionPendingOnMount = localStorage.getItem("wc_connection_pending");
-    if (connectionPendingOnMount) {
-      console.log("[WC Visibility] Mount detected pending WC connection");
-      setTimeout(() => checkWalletConnectSession("mount-pending"), 100);
-      setTimeout(() => checkWalletConnectSession("mount-pending-delayed"), 800);
-    } else {
-      setTimeout(() => checkWalletConnectSession("mount"), 100);
-    }
-    
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    
-    return () => {
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-    };
-  }, [walletAddress, walletType]);
-
   const connectWithMagic = useCallback(async (email: string): Promise<boolean> => {
-    console.log("[Magic Debug] connectWithMagic called with email:", email);
     setIsConnecting(true);
     try {
-      console.log("[Magic Debug] Getting Magic instance...");
+      console.log("[Magic Debug] Starting connection for email:", email);
+      
       const magic = await getMagic();
       if (!magic) {
-        console.error("[Magic Debug] Magic instance is null - API key missing or creation failed");
-        throw new Error("Magic not initialized - API key missing");
-      }
-      console.log("[Magic Debug] Magic instance obtained successfully");
-
-      console.log("[Magic Debug] Calling magic.auth.loginWithMagicLink...");
-      console.log("[Magic Debug] This should open a modal and send an email to:", email);
-      
-      try {
-        await magic.auth.loginWithMagicLink({ email });
-        console.log("[Magic Debug] loginWithMagicLink completed successfully");
-      } catch (loginError: any) {
-        console.error("[Magic Debug] loginWithMagicLink failed:", loginError);
-        console.error("[Magic Debug] Error name:", loginError?.name);
-        console.error("[Magic Debug] Error message:", loginError?.message);
-        console.error("[Magic Debug] Error code:", loginError?.code);
-        console.error("[Magic Debug] Full error object:", JSON.stringify(loginError, null, 2));
-        throw loginError;
+        throw new Error("Magic SDK not available. Please check your configuration.");
       }
       
-      console.log("[Magic Debug] Getting user info...");
+      await magic.auth.loginWithMagicLink({ email });
+      console.log("[Magic Debug] loginWithMagicLink completed");
+      
       const metadata = await magic.user.getInfo();
-      console.log("[Magic Debug] User metadata:", JSON.stringify(metadata, null, 2));
-      
       const publicAddress = (metadata as any).wallets?.ethereum?.publicAddress || metadata.publicAddress;
-      console.log("[Magic Debug] Extracted public address:", publicAddress);
       
       if (publicAddress) {
-        console.log("[Magic Debug] User authenticated successfully with address:", publicAddress);
+        console.log("[Magic Debug] User authenticated:", publicAddress);
         setWalletAddress(publicAddress);
         setUserEmail(metadata.email || null);
         setWalletType("magic");
         localStorage.setItem("polygon_wallet_type", "magic");
         localStorage.setItem("polygon_wallet_address", publicAddress);
         
-        console.log("[Magic Debug] Creating ethers provider from Magic rpcProvider...");
         const magicProvider = new ethers.BrowserProvider(magic.rpcProvider as any);
         setProvider(magicProvider);
         const magicSigner = await magicProvider.getSigner();
         setSigner(magicSigner);
-        console.log("[Magic Debug] Provider and signer set up successfully");
         
         return true;
       }
-      console.log("[Magic Debug] No public address in metadata");
       return false;
     } catch (error: any) {
       console.error("[Magic Debug] connectWithMagic error:", error);
-      console.error("[Magic Debug] Error type:", typeof error);
-      console.error("[Magic Debug] Error name:", error?.name);
-      console.error("[Magic Debug] Error message:", error?.message);
-      console.error("[Magic Debug] Error stack:", error?.stack);
       return false;
     } finally {
-      console.log("[Magic Debug] connectWithMagic completed, setting isConnecting to false");
       setIsConnecting(false);
     }
   }, []);
@@ -862,23 +368,13 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     setIsConnecting(true);
     try {
       console.log("Attempting to connect external wallet...");
-      console.log("Initial diagnostics:", getProviderDiagnostics());
       
-      // Wait for provider with retry logic (handles late injection)
       const ethProvider = await waitForProvider();
       
       if (!ethProvider) {
-        const diagnostics = getProviderDiagnostics();
-        console.error("No Ethereum provider detected after waiting. Diagnostics:", diagnostics);
-        throw new Error(`No wallet detected. ${diagnostics}. Please make sure your wallet extension is installed, unlocked, and refresh the page.`);
+        throw new Error(`No wallet detected. ${getProviderDiagnostics()}. Please make sure your wallet extension is installed and refresh the page.`);
       }
       
-      console.log("Provider connected successfully");
-      console.log("Provider isPhantom:", ethProvider.isPhantom);
-      console.log("Provider isMetaMask:", ethProvider.isMetaMask);
-
-      // IMPORTANT: Request accounts FIRST to get user authorization
-      // Some wallets (like Phantom) require authorization before any other RPC calls
       console.log("Requesting account authorization...");
       const accounts = await ethProvider.request({ method: "eth_requestAccounts" });
       
@@ -889,7 +385,6 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       const address = accounts[0];
       console.log("Account authorized:", address);
 
-      // Now check and switch chain AFTER getting authorization
       const chainIdHex = await ethProvider.request({ method: "eth_chainId" });
       const currentChainId = parseInt(chainIdHex, 16);
       console.log("Current chain ID:", currentChainId, "Target:", POLYGON_CHAIN_ID);
@@ -920,7 +415,6 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      // Set up wallet state
       setWalletAddress(address);
       setWalletType("external");
       setUserEmail(null);
@@ -936,25 +430,20 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       return true;
     } catch (error: any) {
       console.error("External wallet connection error:", error);
-      // Re-throw so caller can display specific error message
       throw error;
     } finally {
       setIsConnecting(false);
     }
   }, []);
 
-  // Check if Phantom is installed
   const isPhantomInstalled = useCallback((): boolean => {
     return !!(window.phantom?.ethereum || window.ethereum?.isPhantom);
   }, []);
 
-  // Get Phantom's Ethereum provider specifically
   const getPhantomProvider = useCallback((): EthereumProvider | null => {
-    // Phantom's preferred injection point
     if (window.phantom?.ethereum) {
       return window.phantom.ethereum;
     }
-    // Phantom can also inject at window.ethereum with isPhantom flag
     if (window.ethereum?.isPhantom) {
       return window.ethereum;
     }
@@ -965,10 +454,6 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     setIsConnecting(true);
     try {
       console.log("[Phantom] Attempting to connect Phantom wallet...");
-      console.log("[Phantom] window.phantom:", !!window.phantom);
-      console.log("[Phantom] window.phantom.ethereum:", !!window.phantom?.ethereum);
-      console.log("[Phantom] window.ethereum:", !!window.ethereum);
-      console.log("[Phantom] window.ethereum.isPhantom:", !!window.ethereum?.isPhantom);
       
       const phantomProvider = getPhantomProvider();
       
@@ -976,17 +461,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         throw new Error("Phantom wallet not detected. Please install the Phantom extension and refresh the page.");
       }
       
-      console.log("[Phantom] Provider found, requesting accounts...");
-
-      // Request accounts - this triggers Face ID/biometrics
-      let accounts;
-      try {
-        accounts = await phantomProvider.request({ method: "eth_requestAccounts" });
-        console.log("[Phantom] Accounts received:", accounts);
-      } catch (accountError: any) {
-        console.error("[Phantom] Error requesting accounts:", accountError);
-        throw new Error(`Failed to get accounts: ${accountError.message || 'Unknown error'}`);
-      }
+      const accounts = await phantomProvider.request({ method: "eth_requestAccounts" });
       
       if (!accounts || accounts.length === 0) {
         throw new Error("No accounts returned. User may have rejected the connection request.");
@@ -995,19 +470,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       const address = accounts[0];
       console.log("[Phantom] Account authorized:", address);
 
-      // Check current network
-      let chainIdHex;
-      try {
-        chainIdHex = await phantomProvider.request({ method: "eth_chainId" });
-        console.log("[Phantom] Current chain ID hex:", chainIdHex);
-      } catch (chainError: any) {
-        console.error("[Phantom] Error getting chain ID:", chainError);
-        // Continue anyway - some wallets don't support this
-        chainIdHex = "0x89"; // Assume Polygon
-      }
-      
+      const chainIdHex = await phantomProvider.request({ method: "eth_chainId" });
       const currentChainId = parseInt(chainIdHex, 16);
-      console.log("[Phantom] Current chain ID:", currentChainId, "Target:", POLYGON_CHAIN_ID);
 
       if (currentChainId !== POLYGON_CHAIN_ID) {
         console.log("[Phantom] Switching to Polygon network...");
@@ -1016,76 +480,44 @@ export function WalletProvider({ children }: { children: ReactNode }) {
             method: "wallet_switchEthereumChain",
             params: [{ chainId: `0x${POLYGON_CHAIN_ID.toString(16)}` }],
           });
-          console.log("[Phantom] Network switched successfully");
         } catch (switchError: any) {
-          console.error("[Phantom] Network switch error:", switchError);
           if (switchError.code === 4902) {
-            console.log("[Phantom] Adding Polygon network...");
-            try {
-              await phantomProvider.request({
-                method: "wallet_addEthereumChain",
-                params: [{
-                  chainId: `0x${POLYGON_CHAIN_ID.toString(16)}`,
-                  chainName: "Polygon Mainnet",
-                  nativeCurrency: { name: "MATIC", symbol: "MATIC", decimals: 18 },
-                  rpcUrls: [POLYGON_RPC],
-                  blockExplorerUrls: ["https://polygonscan.com/"],
-                }],
-              });
-              console.log("[Phantom] Polygon network added");
-            } catch (addError: any) {
-              console.error("[Phantom] Error adding network:", addError);
-              // Continue anyway - wallet might already have Polygon
-            }
+            await phantomProvider.request({
+              method: "wallet_addEthereumChain",
+              params: [{
+                chainId: `0x${POLYGON_CHAIN_ID.toString(16)}`,
+                chainName: "Polygon Mainnet",
+                nativeCurrency: { name: "POL", symbol: "POL", decimals: 18 },
+                rpcUrls: [POLYGON_RPC],
+                blockExplorerUrls: ["https://polygonscan.com/"],
+              }],
+            });
           } else {
-            // Don't throw - just log and continue, some mobile wallets handle this differently
-            console.warn("[Phantom] Network switch failed but continuing:", switchError.message);
+            throw switchError;
           }
         }
       }
 
-      // Set up wallet state
-      console.log("[Phantom] Setting wallet state...");
       setWalletAddress(address);
       setWalletType("phantom");
       setUserEmail(null);
       localStorage.setItem("polygon_wallet_type", "phantom");
       localStorage.setItem("polygon_wallet_address", address);
       
-      console.log("[Phantom] Creating ethers provider...");
-      const phantomBrowserProvider = new ethers.BrowserProvider(phantomProvider);
-      setProvider(phantomBrowserProvider);
-      
-      console.log("[Phantom] Getting signer...");
-      const phantomSigner = await phantomBrowserProvider.getSigner();
+      const phantomEthersProvider = new ethers.BrowserProvider(phantomProvider);
+      setProvider(phantomEthersProvider);
+      const phantomSigner = await phantomEthersProvider.getSigner();
       setSigner(phantomSigner);
       
       console.log("[Phantom] Wallet connected successfully!");
       return true;
     } catch (error: any) {
       console.error("[Phantom] Connection error:", error);
-      console.error("[Phantom] Error stack:", error.stack);
       throw error;
     } finally {
       setIsConnecting(false);
     }
   }, [getPhantomProvider]);
-
-  const clearWalletConnectStorage = useCallback(() => {
-    console.log("[WC] Clearing stale WalletConnect storage...");
-    const keysToRemove: string[] = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && (key.startsWith("wc@2:") || key.startsWith("walletconnect"))) {
-        keysToRemove.push(key);
-      }
-    }
-    keysToRemove.forEach(key => {
-      console.log("[WC] Removing:", key);
-      localStorage.removeItem(key);
-    });
-    console.log("[WC] Cleared", keysToRemove.length, "WalletConnect storage items");
-  }, []);
 
   const connectWalletConnect = useCallback(async (): Promise<boolean> => {
     if (!WALLETCONNECT_PROJECT_ID) {
@@ -1094,154 +526,52 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     
     setIsConnecting(true);
     
-    // Set a flag to indicate WalletConnect connection is in progress
-    // This helps the visibility handler know to check for sessions
-    localStorage.setItem("wc_connection_pending", "true");
-    
     try {
-      console.log("[WC] Initializing WalletConnect...");
-      console.log("[WC] User agent:", navigator.userAgent);
-      console.log("[WC] Is mobile:", /iPhone|iPad|iPod|Android/i.test(navigator.userAgent));
-      console.log("[WC] Project ID present:", !!WALLETCONNECT_PROJECT_ID);
+      console.log("[Wagmi WC] Starting WalletConnect connection...");
+      console.log("[Wagmi WC] Available connectors:", connectors.map(c => c.id));
       
-      // Clear existing WC provider reference and singleton to ensure fresh connection
-      if (wcProviderRef.current) {
-        console.log("[WC] Clearing existing provider reference");
-        wcProviderRef.current = null;
+      const wcConnector = connectors.find(c => c.id === 'walletConnect');
+      
+      if (!wcConnector) {
+        throw new Error("WalletConnect connector not found. Please refresh the page.");
       }
       
-      // Reset singleton and clear storage for fresh connection with QR modal
-      console.log("[WC] Resetting singleton for fresh connection...");
-      resetWCProviderSingleton();
-      clearWalletConnectStorage();
+      console.log("[Wagmi WC] Found WalletConnect connector, connecting...");
       
-      // Add small delay after clearing storage to ensure clean state
-      await new Promise(r => setTimeout(r, 300));
-      
-      console.log("[WC] Creating new WalletConnect provider with QR modal...");
-      
-      // Get or create provider with QR modal enabled for fresh connection
-      const initTimeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error("WalletConnect initialization timed out. Please try again.")), 30000);
-      });
-      
-      const wcProvider = await Promise.race([
-        getOrCreateWCProvider(true), // showQrModal = true for fresh connection
-        initTimeoutPromise
-      ]);
-      
-      console.log("[WC] Provider created successfully");
-      
-      // Add connection event listeners before enable() for mobile debugging
-      wcProvider.on("connect", (info: any) => {
-        console.log("[WC] Connect event received:", info);
-      });
-      
-      wcProvider.on("session_event", (event: any) => {
-        console.log("[WC] Session event:", event);
-      });
-      
-      console.log("[WC] Provider initialized, enabling...");
-      console.log("[WC] Existing session before enable:", !!wcProvider.session);
-      
-      // Check if there's already a valid session (mobile return case)
-      if (wcProvider.session && wcProvider.accounts && wcProvider.accounts.length > 0) {
-        console.log("[WC] Found existing session, using it directly");
-        const address = wcProvider.accounts[0];
-        
-        // Store provider reference
-        wcProviderRef.current = wcProvider;
-        
-        // Set up wallet state
-        setWalletAddress(address);
-        setWalletType("walletconnect");
-        setUserEmail(null);
-        localStorage.setItem("polygon_wallet_type", "walletconnect");
-        localStorage.setItem("polygon_wallet_address", address);
-        localStorage.removeItem("wc_connection_pending");
-        
-        const wcBrowserProvider = new ethers.BrowserProvider(wcProvider);
-        setProvider(wcBrowserProvider);
-        const wcSigner = await wcBrowserProvider.getSigner();
-        setSigner(wcSigner);
-        
-        // Set up event listeners
-        wcProvider.on("accountsChanged", (accts: string[]) => {
-          if (accts.length === 0) {
-            disconnectWallet();
-          } else {
-            setWalletAddress(accts[0]);
-            localStorage.setItem("polygon_wallet_address", accts[0]);
+      return new Promise((resolve, reject) => {
+        connect(
+          { connector: wcConnector, chainId: POLYGON_CHAIN_ID },
+          {
+            onSuccess: (data) => {
+              console.log("[Wagmi WC] Connection successful:", data);
+              if (data.accounts && data.accounts.length > 0) {
+                const address = data.accounts[0];
+                setWalletAddress(address);
+                setWalletType("walletconnect");
+                setUserEmail(null);
+                localStorage.setItem("polygon_wallet_type", "walletconnect");
+                localStorage.setItem("polygon_wallet_address", address);
+                setIsConnecting(false);
+                resolve(true);
+              } else {
+                setIsConnecting(false);
+                reject(new Error("No accounts returned from WalletConnect"));
+              }
+            },
+            onError: (error) => {
+              console.error("[Wagmi WC] Connection error:", error);
+              setIsConnecting(false);
+              reject(error);
+            },
           }
-        });
-        
-        wcProvider.on("disconnect", () => {
-          disconnectWallet();
-        });
-        
-        console.log("[WC] Restored from existing session!");
-        return true;
-      }
-      
-      // WalletConnect modal handles both desktop (QR) and mobile (wallet selection) automatically
-      await wcProvider.enable();
-      
-      const accounts = wcProvider.accounts;
-      if (!accounts || accounts.length === 0) {
-        throw new Error("No accounts returned from WalletConnect.");
-      }
-      
-      const address = accounts[0];
-      console.log("[WC] Connected:", address);
-      
-      // Store provider reference
-      wcProviderRef.current = wcProvider;
-      
-      // Set up wallet state
-      setWalletAddress(address);
-      setWalletType("walletconnect");
-      setUserEmail(null);
-      localStorage.setItem("polygon_wallet_type", "walletconnect");
-      localStorage.setItem("polygon_wallet_address", address);
-      localStorage.removeItem("wc_connection_pending");
-      
-      const wcBrowserProvider = new ethers.BrowserProvider(wcProvider);
-      setProvider(wcBrowserProvider);
-      const wcSigner = await wcBrowserProvider.getSigner();
-      setSigner(wcSigner);
-      
-      // Set up event listeners
-      wcProvider.on("accountsChanged", (accts: string[]) => {
-        if (accts.length === 0) {
-          disconnectWallet();
-        } else {
-          setWalletAddress(accts[0]);
-          localStorage.setItem("polygon_wallet_address", accts[0]);
-        }
+        );
       });
-      
-      wcProvider.on("disconnect", () => {
-        disconnectWallet();
-      });
-      
-      console.log("[WC] Setup complete!");
-      return true;
     } catch (error: any) {
-      console.error("[WC] Connection error:", error);
-      console.error("[WC] Error name:", error?.name);
-      console.error("[WC] Error message:", error?.message);
-      console.error("[WC] Error stack:", error?.stack);
-      localStorage.removeItem("wc_connection_pending");
-      
-      // Always clear storage on connection failure for clean retry
-      console.log("[WC] Clearing storage after connection failure for clean retry...");
-      clearWalletConnectStorage();
-      
-      throw error;
-    } finally {
+      console.error("[Wagmi WC] Connection error:", error);
       setIsConnecting(false);
+      throw error;
     }
-  }, [clearWalletConnectStorage]);
+  }, [connect, connectors]);
 
   const disconnectWallet = useCallback(async () => {
     try {
@@ -1250,19 +580,14 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         if (magic) {
           await magic.user.logout();
         }
-      } else if (walletType === "walletconnect" && wcProviderRef.current) {
-        try {
-          await wcProviderRef.current.disconnect();
-        } catch (e) {
-          console.log("WalletConnect disconnect error:", e);
-        }
-        wcProviderRef.current = null;
+      } else if (walletType === "walletconnect") {
+        console.log("[Wagmi] Disconnecting WalletConnect...");
+        wagmiDisconnect();
       }
     } catch (error) {
       console.error("Logout error:", error);
     }
     
-    // Invalidate all wallet-related caches
     queryClient.removeQueries({ queryKey: ["polymarket-cash-balance"] });
     queryClient.removeQueries({ queryKey: ["polygon-usdc-balance"] });
     queryClient.removeQueries({ queryKey: ["polymarket-positions"] });
@@ -1272,9 +597,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     setUserEmail(null);
     setProvider(null);
     setSigner(null);
+    setPolymarketCredentials(null);
     localStorage.removeItem("polygon_wallet_type");
     localStorage.removeItem("polygon_wallet_address");
-  }, [walletType]);
+  }, [walletType, wagmiDisconnect]);
 
   const signMessage = useCallback(async (message: string): Promise<string> => {
     if (!signer) {
@@ -1307,7 +633,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       value={{
         walletAddress,
         walletType,
-        isConnecting,
+        isConnecting: isConnecting || wagmiConnecting,
         isLoading,
         userEmail,
         provider,
