@@ -634,7 +634,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const connectPhantomWallet = useCallback(async (): Promise<boolean> => {
     setIsConnecting(true);
     try {
-      console.log("Attempting to connect Phantom wallet...");
+      console.log("[Phantom] Attempting to connect Phantom wallet...");
+      console.log("[Phantom] window.phantom:", !!window.phantom);
+      console.log("[Phantom] window.phantom.ethereum:", !!window.phantom?.ethereum);
+      console.log("[Phantom] window.ethereum:", !!window.ethereum);
+      console.log("[Phantom] window.ethereum.isPhantom:", !!window.ethereum?.isPhantom);
       
       const phantomProvider = getPhantomProvider();
       
@@ -642,65 +646,95 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         throw new Error("Phantom wallet not detected. Please install the Phantom extension and refresh the page.");
       }
       
-      console.log("Phantom provider found, requesting accounts...");
+      console.log("[Phantom] Provider found, requesting accounts...");
 
-      // Request accounts
-      const accounts = await phantomProvider.request({ method: "eth_requestAccounts" });
+      // Request accounts - this triggers Face ID/biometrics
+      let accounts;
+      try {
+        accounts = await phantomProvider.request({ method: "eth_requestAccounts" });
+        console.log("[Phantom] Accounts received:", accounts);
+      } catch (accountError: any) {
+        console.error("[Phantom] Error requesting accounts:", accountError);
+        throw new Error(`Failed to get accounts: ${accountError.message || 'Unknown error'}`);
+      }
       
       if (!accounts || accounts.length === 0) {
         throw new Error("No accounts returned. User may have rejected the connection request.");
       }
       
       const address = accounts[0];
-      console.log("Phantom account authorized:", address);
+      console.log("[Phantom] Account authorized:", address);
 
-      // Check and switch to Polygon network
-      const chainIdHex = await phantomProvider.request({ method: "eth_chainId" });
+      // Check current network
+      let chainIdHex;
+      try {
+        chainIdHex = await phantomProvider.request({ method: "eth_chainId" });
+        console.log("[Phantom] Current chain ID hex:", chainIdHex);
+      } catch (chainError: any) {
+        console.error("[Phantom] Error getting chain ID:", chainError);
+        // Continue anyway - some wallets don't support this
+        chainIdHex = "0x89"; // Assume Polygon
+      }
+      
       const currentChainId = parseInt(chainIdHex, 16);
-      console.log("Current chain ID:", currentChainId, "Target:", POLYGON_CHAIN_ID);
+      console.log("[Phantom] Current chain ID:", currentChainId, "Target:", POLYGON_CHAIN_ID);
 
       if (currentChainId !== POLYGON_CHAIN_ID) {
-        console.log("Switching to Polygon network...");
+        console.log("[Phantom] Switching to Polygon network...");
         try {
           await phantomProvider.request({
             method: "wallet_switchEthereumChain",
             params: [{ chainId: `0x${POLYGON_CHAIN_ID.toString(16)}` }],
           });
+          console.log("[Phantom] Network switched successfully");
         } catch (switchError: any) {
+          console.error("[Phantom] Network switch error:", switchError);
           if (switchError.code === 4902) {
-            console.log("Adding Polygon network...");
-            await phantomProvider.request({
-              method: "wallet_addEthereumChain",
-              params: [{
-                chainId: `0x${POLYGON_CHAIN_ID.toString(16)}`,
-                chainName: "Polygon Mainnet",
-                nativeCurrency: { name: "MATIC", symbol: "MATIC", decimals: 18 },
-                rpcUrls: [POLYGON_RPC],
-                blockExplorerUrls: ["https://polygonscan.com/"],
-              }],
-            });
+            console.log("[Phantom] Adding Polygon network...");
+            try {
+              await phantomProvider.request({
+                method: "wallet_addEthereumChain",
+                params: [{
+                  chainId: `0x${POLYGON_CHAIN_ID.toString(16)}`,
+                  chainName: "Polygon Mainnet",
+                  nativeCurrency: { name: "MATIC", symbol: "MATIC", decimals: 18 },
+                  rpcUrls: [POLYGON_RPC],
+                  blockExplorerUrls: ["https://polygonscan.com/"],
+                }],
+              });
+              console.log("[Phantom] Polygon network added");
+            } catch (addError: any) {
+              console.error("[Phantom] Error adding network:", addError);
+              // Continue anyway - wallet might already have Polygon
+            }
           } else {
-            throw switchError;
+            // Don't throw - just log and continue, some mobile wallets handle this differently
+            console.warn("[Phantom] Network switch failed but continuing:", switchError.message);
           }
         }
       }
 
       // Set up wallet state
+      console.log("[Phantom] Setting wallet state...");
       setWalletAddress(address);
       setWalletType("phantom");
       setUserEmail(null);
       localStorage.setItem("polygon_wallet_type", "phantom");
       localStorage.setItem("polygon_wallet_address", address);
       
+      console.log("[Phantom] Creating ethers provider...");
       const phantomBrowserProvider = new ethers.BrowserProvider(phantomProvider);
       setProvider(phantomBrowserProvider);
+      
+      console.log("[Phantom] Getting signer...");
       const phantomSigner = await phantomBrowserProvider.getSigner();
       setSigner(phantomSigner);
       
-      console.log("Phantom wallet connected successfully!");
+      console.log("[Phantom] Wallet connected successfully!");
       return true;
     } catch (error: any) {
-      console.error("Phantom wallet connection error:", error);
+      console.error("[Phantom] Connection error:", error);
+      console.error("[Phantom] Error stack:", error.stack);
       throw error;
     } finally {
       setIsConnecting(false);
