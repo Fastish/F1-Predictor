@@ -193,6 +193,17 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   }, [connectors]);
 
   useEffect(() => {
+    if (wagmiError) {
+      console.error("[Wagmi] Connection error from wagmi state:", wagmiError);
+      console.error("[Wagmi] Error details:", {
+        message: wagmiError.message,
+        name: wagmiError.name,
+        cause: (wagmiError as any)?.cause
+      });
+    }
+  }, [wagmiError]);
+
+  useEffect(() => {
     if (wagmiIsConnected && wagmiAddress && activeConnector?.id === 'walletConnect' && walletType !== 'walletconnect') {
       console.log("[Wagmi] WalletConnect connected via wagmi:", wagmiAddress);
       setWalletAddress(wagmiAddress);
@@ -528,46 +539,78 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     
     try {
       console.log("[Wagmi WC] Starting WalletConnect connection...");
-      console.log("[Wagmi WC] Available connectors:", connectors.map(c => c.id));
+      console.log("[Wagmi WC] Project ID:", WALLETCONNECT_PROJECT_ID.slice(0, 8) + "...");
+      console.log("[Wagmi WC] Available connectors:", connectors.map(c => ({ id: c.id, name: c.name, ready: c.ready })));
       
       const wcConnector = connectors.find(c => c.id === 'walletConnect');
       
       if (!wcConnector) {
+        console.error("[Wagmi WC] WalletConnect connector not found in connectors list");
         throw new Error("WalletConnect connector not found. Please refresh the page.");
       }
       
-      console.log("[Wagmi WC] Found WalletConnect connector, connecting...");
+      console.log("[Wagmi WC] Found WalletConnect connector:", { 
+        id: wcConnector.id, 
+        name: wcConnector.name,
+        ready: wcConnector.ready
+      });
+      console.log("[Wagmi WC] Calling connect() with chain:", POLYGON_CHAIN_ID);
       
       return new Promise((resolve, reject) => {
-        connect(
-          { connector: wcConnector, chainId: POLYGON_CHAIN_ID },
-          {
-            onSuccess: (data) => {
-              console.log("[Wagmi WC] Connection successful:", data);
-              if (data.accounts && data.accounts.length > 0) {
-                const address = data.accounts[0];
-                setWalletAddress(address);
-                setWalletType("walletconnect");
-                setUserEmail(null);
-                localStorage.setItem("polygon_wallet_type", "walletconnect");
-                localStorage.setItem("polygon_wallet_address", address);
+        const timeout = setTimeout(() => {
+          console.error("[Wagmi WC] Connection timed out after 60 seconds");
+          setIsConnecting(false);
+          reject(new Error("WalletConnect connection timed out. Please try again."));
+        }, 60000);
+        
+        try {
+          connect(
+            { connector: wcConnector, chainId: POLYGON_CHAIN_ID },
+            {
+              onSuccess: (data) => {
+                clearTimeout(timeout);
+                console.log("[Wagmi WC] Connection successful:", data);
+                if (data.accounts && data.accounts.length > 0) {
+                  const address = data.accounts[0];
+                  setWalletAddress(address);
+                  setWalletType("walletconnect");
+                  setUserEmail(null);
+                  localStorage.setItem("polygon_wallet_type", "walletconnect");
+                  localStorage.setItem("polygon_wallet_address", address);
+                  setIsConnecting(false);
+                  resolve(true);
+                } else {
+                  setIsConnecting(false);
+                  reject(new Error("No accounts returned from WalletConnect"));
+                }
+              },
+              onError: (error) => {
+                clearTimeout(timeout);
+                console.error("[Wagmi WC] Connection onError callback:", error);
+                console.error("[Wagmi WC] Error details:", {
+                  message: error?.message,
+                  name: error?.name,
+                  code: (error as any)?.code,
+                  cause: (error as any)?.cause
+                });
                 setIsConnecting(false);
-                resolve(true);
-              } else {
-                setIsConnecting(false);
-                reject(new Error("No accounts returned from WalletConnect"));
+                reject(error);
+              },
+              onSettled: (data, error) => {
+                console.log("[Wagmi WC] Connection settled:", { data, error });
               }
-            },
-            onError: (error) => {
-              console.error("[Wagmi WC] Connection error:", error);
-              setIsConnecting(false);
-              reject(error);
-            },
-          }
-        );
+            }
+          );
+          console.log("[Wagmi WC] connect() called, waiting for modal...");
+        } catch (connectError: any) {
+          clearTimeout(timeout);
+          console.error("[Wagmi WC] Synchronous error calling connect():", connectError);
+          setIsConnecting(false);
+          reject(connectError);
+        }
       });
     } catch (error: any) {
-      console.error("[Wagmi WC] Connection error:", error);
+      console.error("[Wagmi WC] Connection setup error:", error);
       setIsConnecting(false);
       throw error;
     }
