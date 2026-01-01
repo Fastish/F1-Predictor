@@ -500,6 +500,84 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
   }, [walletType, walletAddress]);
 
+  // Check for WalletConnect session when page becomes visible (critical for mobile)
+  // When user navigates away to MetaMask and returns, we need to check if session was established
+  useEffect(() => {
+    if (!WALLETCONNECT_PROJECT_ID) return;
+    
+    const checkWalletConnectSession = async () => {
+      // Only check if we don't already have a connected wallet
+      if (walletAddress || walletType) return;
+      
+      console.log("[WC Visibility] Page became visible, checking for WalletConnect session...");
+      
+      try {
+        const wcProvider = await WCEthereumProvider.init({
+          projectId: WALLETCONNECT_PROJECT_ID,
+          chains: [POLYGON_CHAIN_ID],
+          showQrModal: false,
+          metadata: {
+            name: "F1 Predict",
+            description: "F1 Prediction Market",
+            url: window.location.origin,
+            icons: [`${window.location.origin}/favicon.ico`],
+          },
+        });
+        
+        if (wcProvider.session) {
+          const accounts = wcProvider.accounts;
+          if (accounts && accounts.length > 0) {
+            console.log("[WC Visibility] Found active session, restoring:", accounts[0]);
+            
+            wcProviderRef.current = wcProvider;
+            setWalletAddress(accounts[0]);
+            setWalletType("walletconnect");
+            setUserEmail(null);
+            localStorage.setItem("polygon_wallet_type", "walletconnect");
+            localStorage.setItem("polygon_wallet_address", accounts[0]);
+            
+            const wcBrowserProvider = new ethers.BrowserProvider(wcProvider);
+            setProvider(wcBrowserProvider);
+            const wcSigner = await wcBrowserProvider.getSigner();
+            setSigner(wcSigner);
+            
+            // Set up event listeners
+            wcProvider.on("accountsChanged", (accts: string[]) => {
+              if (accts.length === 0) {
+                disconnectWallet();
+              } else {
+                setWalletAddress(accts[0]);
+                localStorage.setItem("polygon_wallet_address", accts[0]);
+              }
+            });
+            wcProvider.on("disconnect", () => {
+              disconnectWallet();
+            });
+            
+            console.log("[WC Visibility] Session restored successfully!");
+          }
+        } else {
+          console.log("[WC Visibility] No active session found");
+        }
+      } catch (error) {
+        console.log("[WC Visibility] Error checking session:", error);
+      }
+    };
+    
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        // Small delay to ensure everything is properly loaded
+        setTimeout(checkWalletConnectSession, 500);
+      }
+    };
+    
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [walletAddress, walletType]);
+
   const connectWithMagic = useCallback(async (email: string): Promise<boolean> => {
     console.log("[Magic Debug] connectWithMagic called with email:", email);
     setIsConnecting(true);
