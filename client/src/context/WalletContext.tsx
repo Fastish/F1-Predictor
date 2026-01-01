@@ -509,7 +509,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!WALLETCONNECT_PROJECT_ID) return;
     
-    const checkWalletConnectSession = async () => {
+    const checkWalletConnectSession = async (reason: string) => {
       // Prevent concurrent session checks
       if (wcSessionCheckInProgress.current) {
         console.log("[WC Visibility] Session check already in progress, skipping");
@@ -521,6 +521,14 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         console.log("[WC Visibility] Already connected, skipping session check");
         return;
       }
+      
+      // Check if there's a pending connection or saved WC session data
+      const connectionPending = localStorage.getItem("wc_connection_pending");
+      const savedWcType = localStorage.getItem("polygon_wallet_type");
+      const hasWcKeys = Array.from({ length: localStorage.length }, (_, i) => localStorage.key(i))
+        .some(key => key?.startsWith("wc@2:"));
+      
+      console.log("[WC Visibility] Check reason:", reason, "- pending:", connectionPending, "- savedType:", savedWcType, "- hasWcKeys:", hasWcKeys);
       
       wcSessionCheckInProgress.current = true;
       console.log("[WC Visibility] Checking for WalletConnect session...");
@@ -539,6 +547,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         });
         
         console.log("[WC Visibility] Provider initialized, session exists:", !!wcProvider.session);
+        console.log("[WC Visibility] Session details:", wcProvider.session ? JSON.stringify({
+          topic: wcProvider.session.topic,
+          accounts: wcProvider.accounts,
+        }) : "null");
         
         if (wcProvider.session) {
           const accounts = wcProvider.accounts;
@@ -555,6 +567,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
             setUserEmail(null);
             localStorage.setItem("polygon_wallet_type", "walletconnect");
             localStorage.setItem("polygon_wallet_address", accounts[0]);
+            localStorage.removeItem("wc_connection_pending");
             
             const wcBrowserProvider = new ethers.BrowserProvider(wcProvider);
             setProvider(wcBrowserProvider);
@@ -578,6 +591,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
           }
         } else {
           console.log("[WC Visibility] No active session found");
+          // If connection was pending but no session found, clear the pending flag
+          if (connectionPending) {
+            console.log("[WC Visibility] Connection was pending but no session - clearing pending flag");
+            localStorage.removeItem("wc_connection_pending");
+          }
         }
       } catch (error: any) {
         console.log("[WC Visibility] Error checking session:", error?.message || error);
@@ -594,6 +612,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
             }
           }
           keysToRemove.forEach(key => localStorage.removeItem(key));
+          localStorage.removeItem("wc_connection_pending");
           console.log("[WC Visibility] Cleared", keysToRemove.length, "stale entries");
         }
       } finally {
@@ -603,14 +622,31 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
-        // Small delay to ensure WalletConnect SDK has processed the session
-        setTimeout(checkWalletConnectSession, 300);
+        // Check for pending WC connection when returning from another app
+        const connectionPending = localStorage.getItem("wc_connection_pending");
+        if (connectionPending) {
+          console.log("[WC Visibility] Visibility changed, connection was pending - checking immediately");
+          // Multiple checks with increasing delays to handle mobile timing
+          setTimeout(() => checkWalletConnectSession("visibility-immediate"), 100);
+          setTimeout(() => checkWalletConnectSession("visibility-delayed"), 500);
+          setTimeout(() => checkWalletConnectSession("visibility-extra-delayed"), 1500);
+        } else {
+          // Standard visibility check
+          setTimeout(() => checkWalletConnectSession("visibility-standard"), 300);
+        }
       }
     };
     
     // Also check immediately on mount in case user is returning to a suspended tab
     // that was restored with session data in localStorage
-    setTimeout(checkWalletConnectSession, 100);
+    const connectionPendingOnMount = localStorage.getItem("wc_connection_pending");
+    if (connectionPendingOnMount) {
+      console.log("[WC Visibility] Mount detected pending WC connection");
+      setTimeout(() => checkWalletConnectSession("mount-pending"), 100);
+      setTimeout(() => checkWalletConnectSession("mount-pending-delayed"), 800);
+    } else {
+      setTimeout(() => checkWalletConnectSession("mount"), 100);
+    }
     
     document.addEventListener("visibilitychange", handleVisibilityChange);
     
@@ -920,6 +956,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
     
     setIsConnecting(true);
+    
+    // Set a flag to indicate WalletConnect connection is in progress
+    // This helps the visibility handler know to check for sessions
+    localStorage.setItem("wc_connection_pending", "true");
+    
     try {
       console.log("[WC] Initializing WalletConnect...");
       
@@ -941,6 +982,46 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       });
       
       console.log("[WC] Provider initialized, enabling...");
+      console.log("[WC] Existing session before enable:", !!wcProvider.session);
+      
+      // Check if there's already a valid session (mobile return case)
+      if (wcProvider.session && wcProvider.accounts && wcProvider.accounts.length > 0) {
+        console.log("[WC] Found existing session, using it directly");
+        const address = wcProvider.accounts[0];
+        
+        // Store provider reference
+        wcProviderRef.current = wcProvider;
+        
+        // Set up wallet state
+        setWalletAddress(address);
+        setWalletType("walletconnect");
+        setUserEmail(null);
+        localStorage.setItem("polygon_wallet_type", "walletconnect");
+        localStorage.setItem("polygon_wallet_address", address);
+        localStorage.removeItem("wc_connection_pending");
+        
+        const wcBrowserProvider = new ethers.BrowserProvider(wcProvider);
+        setProvider(wcBrowserProvider);
+        const wcSigner = await wcBrowserProvider.getSigner();
+        setSigner(wcSigner);
+        
+        // Set up event listeners
+        wcProvider.on("accountsChanged", (accts: string[]) => {
+          if (accts.length === 0) {
+            disconnectWallet();
+          } else {
+            setWalletAddress(accts[0]);
+            localStorage.setItem("polygon_wallet_address", accts[0]);
+          }
+        });
+        
+        wcProvider.on("disconnect", () => {
+          disconnectWallet();
+        });
+        
+        console.log("[WC] Restored from existing session!");
+        return true;
+      }
       
       // This will show QR code modal on desktop or deep link on mobile
       await wcProvider.enable();
@@ -962,6 +1043,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       setUserEmail(null);
       localStorage.setItem("polygon_wallet_type", "walletconnect");
       localStorage.setItem("polygon_wallet_address", address);
+      localStorage.removeItem("wc_connection_pending");
       
       const wcBrowserProvider = new ethers.BrowserProvider(wcProvider);
       setProvider(wcBrowserProvider);
@@ -986,6 +1068,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       return true;
     } catch (error: any) {
       console.error("[WC] Connection error:", error);
+      localStorage.removeItem("wc_connection_pending");
       // If session topic error, clear storage so next attempt starts fresh
       if (error.message?.includes("session topic doesn't exist")) {
         console.log("[WC] Detected stale session, clearing storage for retry...");
