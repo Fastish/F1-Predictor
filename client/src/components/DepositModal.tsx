@@ -16,7 +16,7 @@ import { SwapModal } from "./SwapModal";
 import { WalletManagementModal } from "./WalletManagementModal";
 import { checkDepositRequirements } from "@/lib/polymarketDeposit";
 import { useTradingWalletBalance } from "@/hooks/useTradingWalletBalance";
-import { withdrawFromSafe } from "@/lib/polymarketGasless";
+import { withdrawFromSafe, deriveSafeAddressFromEoa } from "@/lib/polymarketGasless";
 
 // Helper to detect mobile devices - for UI simplification
 const isMobileDevice = () => {
@@ -88,6 +88,15 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [isWithdrawing, setIsWithdrawing] = useState(false);
 
+  // For WalletConnect/external/phantom users, derive Safe address immediately even if trading session isn't initialized
+  // This allows users to see their deposit address right away
+  const derivedSafeAddress = (walletType === "external" || walletType === "walletconnect" || walletType === "phantom") && walletAddress
+    ? deriveSafeAddressFromEoa(walletAddress)
+    : null;
+  
+  // Use the session's safeAddress if available, otherwise use derived address
+  const displaySafeAddress = safeAddress || derivedSafeAddress;
+
   // Check approval status when wallet is connected
   // For external wallets, check the Safe proxy address since approvals are done there
   useEffect(() => {
@@ -99,7 +108,7 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
       try {
         const isMagic = walletType === "magic";
         // For external wallets, check approvals on the Safe address, not EOA
-        const addressToCheck = ((walletType === "external" || walletType === "walletconnect" || walletType === "phantom") && safeAddress) ? safeAddress : walletAddress;
+        const addressToCheck = ((walletType === "external" || walletType === "walletconnect" || walletType === "phantom") && displaySafeAddress) ? displaySafeAddress : walletAddress;
         const status = await checkDepositRequirements(provider, addressToCheck, isMagic);
         setApprovalStatus({ needsApproval: status.needsApproval, checked: true });
       } catch (error) {
@@ -110,7 +119,7 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
     if (open && walletAddress) {
       checkApproval();
     }
-  }, [open, walletAddress, provider, walletType, safeAddress]);
+  }, [open, walletAddress, provider, walletType, displaySafeAddress]);
 
   // Reset auto-init flag when modal closes or wallet disconnects
   useEffect(() => {
@@ -602,14 +611,14 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
                     </div>
                   )}
 
-                  {safeAddress && (
+                  {displaySafeAddress && (
                     <div className="rounded-md border p-2 space-y-1.5">
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-xs font-medium">Safe Trading Wallet</span>
                         <Button 
                           size="icon" 
                           variant="ghost"
-                          onClick={() => copyToClipboard(safeAddress, "Safe Address")}
+                          onClick={() => copyToClipboard(displaySafeAddress, "Safe Address")}
                           data-testid="button-copy-safe-address"
                           className="h-6 w-6"
                         >
@@ -617,7 +626,7 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
                         </Button>
                       </div>
                       <code className="block text-xs bg-background rounded px-2 py-1 truncate font-mono" data-testid="text-safe-address">
-                        {safeAddress}
+                        {displaySafeAddress}
                       </code>
                       <div className="p-2 rounded-md bg-background border mt-2">
                         <div className="flex items-center justify-between gap-2">
@@ -641,10 +650,10 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
                             size="sm"
                             className="flex-1"
                             onClick={() => {
-                              if (safeAddress) {
+                              if (displaySafeAddress) {
                                 setWalletManagementConfig({
                                   initialTab: "send",
-                                  prefilledAddress: safeAddress,
+                                  prefilledAddress: displaySafeAddress,
                                   title: "Deposit to Safe",
                                   sendLabel: "Deposit"
                                 });
@@ -1014,7 +1023,7 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
           // For external wallets, check the Safe address since approvals are done there
           if (walletAddress && provider) {
             const isMagic = walletType === "magic";
-            const addressToCheck = ((walletType === "external" || walletType === "walletconnect" || walletType === "phantom") && safeAddress) ? safeAddress : walletAddress;
+            const addressToCheck = ((walletType === "external" || walletType === "walletconnect" || walletType === "phantom") && displaySafeAddress) ? displaySafeAddress : walletAddress;
             checkDepositRequirements(provider, addressToCheck, isMagic)
               .then(status => setApprovalStatus({ needsApproval: status.needsApproval, checked: true }))
               .catch(() => {});
