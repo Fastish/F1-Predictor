@@ -280,8 +280,14 @@ export async function getCTFApproval(
   owner: string,
   operator: string
 ): Promise<boolean> {
-  const ctf = new ethers.Contract(POLYMARKET_CONTRACTS.CTF, ERC1155_ABI, provider);
-  return await ctf.isApprovedForAll(owner, operator);
+  try {
+    const ctf = new ethers.Contract(POLYMARKET_CONTRACTS.CTF, ERC1155_ABI, provider);
+    return await ctf.isApprovedForAll(owner, operator);
+  } catch (error) {
+    // This can fail if the Safe wallet is not deployed yet
+    console.warn("[getCTFApproval] Failed (Safe may not be deployed):", error);
+    return false;
+  }
 }
 
 export async function getMagicProxyAddress(
