@@ -204,30 +204,42 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   }, [wagmiError]);
 
   useEffect(() => {
-    if (wagmiIsConnected && wagmiAddress && activeConnector?.id === 'walletConnect' && walletType !== 'walletconnect') {
+    // When WalletConnect is connected, ALWAYS set up as walletconnect regardless of previous state
+    // This is important because a previous "phantom" or "external" session from localStorage
+    // could conflict with a new WalletConnect mobile connection
+    if (wagmiIsConnected && wagmiAddress && activeConnector?.id === 'walletConnect') {
       console.log("[Wagmi] WalletConnect connected via wagmi:", wagmiAddress);
+      console.log("[Wagmi] Previous walletType was:", walletType, "- overriding to walletconnect");
       setWalletAddress(wagmiAddress);
       setWalletType("walletconnect");
       setUserEmail(null);
+      // Clear any conflicting signer/provider - will be recreated by the walletClient effect
+      setSigner(null);
+      setProvider(null);
       localStorage.setItem("polygon_wallet_type", "walletconnect");
       localStorage.setItem("polygon_wallet_address", wagmiAddress);
       setIsConnecting(false);
     }
-  }, [wagmiIsConnected, wagmiAddress, activeConnector, walletType]);
+  }, [wagmiIsConnected, wagmiAddress, activeConnector]);
 
   useEffect(() => {
     if (walletClient && wagmiIsConnected && wagmiAddress && walletType === 'walletconnect') {
-      console.log("[Wagmi] Setting up provider from walletClient");
+      console.log("[Wagmi] Setting up provider from walletClient for WalletConnect");
+      console.log("[Wagmi] walletClient transport type:", typeof walletClient.transport);
       const transport = walletClient.transport;
       if (transport) {
         const ethersProvider = new ethers.BrowserProvider(transport);
         setProvider(ethersProvider);
         ethersProvider.getSigner().then(s => {
+          console.log("[Wagmi] WalletConnect signer created, address:", wagmiAddress);
+          console.log("[Wagmi] Signer has signTypedData:", typeof s.signTypedData === 'function');
           setSigner(s);
-          console.log("[Wagmi] Signer ready");
+          console.log("[Wagmi] Signer ready for WalletConnect");
         }).catch(err => {
           console.error("[Wagmi] Error getting signer:", err);
         });
+      } else {
+        console.error("[Wagmi] No transport available from walletClient!");
       }
     }
   }, [walletClient, wagmiIsConnected, wagmiAddress, walletType]);
