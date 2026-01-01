@@ -333,6 +333,7 @@ export function useTradingSession() {
       setTradingSession(newSession);
       saveSession(walletAddress, newSession);
       setCurrentStep("complete");
+      setCredentialsValidated(true);
       setIsInitializing(false);
       console.log("Trading session initialized with Safe:", safeAddress);
       return newSession;
@@ -343,7 +344,7 @@ export function useTradingSession() {
       setIsInitializing(false);
       throw err;
     }
-  }, [walletAddress, signer, deriveApiCredentials, fetchSafeAddress]);
+  }, [walletAddress, signer, deriveApiCredentials, fetchSafeAddress, validateApiCredentials]);
 
   // End trading session
   const endTradingSession = useCallback(() => {
@@ -361,8 +362,21 @@ export function useTradingSession() {
     clearSession(walletAddress);
     setTradingSession(null);
     setCurrentStep("idle");
+    setCredentialsValidated(false);
     setSessionError("Session expired. Please reinitialize.");
   }, [walletAddress]);
+
+  // Force re-initialization of credentials (called when order fails with auth error)
+  const forceReinitialize = useCallback(async () => {
+    if (!walletAddress) return;
+    console.log("[TradingSession] Force reinitializing session (credentials expired)");
+    clearSession(walletAddress);
+    setTradingSession(null);
+    setCredentialsValidated(false);
+    setSessionError(null);
+    // Re-run initialization which will derive new credentials
+    return initializeTradingSession();
+  }, [walletAddress, initializeTradingSession]);
 
   // Create authenticated ClobClient with builder config for order placement
   const clobClient = useMemo(() => {
