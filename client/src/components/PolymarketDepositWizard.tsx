@@ -256,27 +256,53 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
           return;
         }
         
-        // Approve CTF Exchange
-        console.log("[DepositWizard] Calling approveUSDCForExchange...");
-        const result1 = await approveUSDCForExchange(signer);
-        console.log("[DepositWizard] CTF Exchange approval result:", result1);
-        if (!result1.success) {
-          throw new Error(result1.error || "Failed to approve USDC for CTF Exchange");
+        // Check which approvals are already done to skip them
+        const ctfDone = depositStatus && parseFloat(depositStatus.ctfExchangeAllowance) >= 1;
+        const negRiskDone = depositStatus && parseFloat(depositStatus.negRiskExchangeAllowance) >= 1;
+        const ctfContractDone = depositStatus && parseFloat(depositStatus.ctfContractAllowance) >= 1;
+        
+        let lastTxHash: string | null = null;
+        
+        // Approve CTF Exchange (if not already done)
+        if (!ctfDone) {
+          console.log("[DepositWizard] Calling approveUSDCForExchange...");
+          const result1 = await approveUSDCForExchange(signer);
+          console.log("[DepositWizard] CTF Exchange approval result:", result1);
+          if (!result1.success) {
+            throw new Error(result1.error || "Failed to approve USDC for CTF Exchange");
+          }
+          lastTxHash = result1.txHash || null;
+        } else {
+          console.log("[DepositWizard] CTF Exchange already approved, skipping");
         }
         
-        // Approve NegRisk CTF Exchange
-        const result2 = await approveUSDCForNegRiskExchange(signer);
-        if (!result2.success) {
-          throw new Error(result2.error || "Failed to approve USDC for NegRisk Exchange");
+        // Approve NegRisk CTF Exchange (if not already done)
+        if (!negRiskDone) {
+          console.log("[DepositWizard] Calling approveUSDCForNegRiskExchange...");
+          const result2 = await approveUSDCForNegRiskExchange(signer);
+          console.log("[DepositWizard] NegRisk Exchange approval result:", result2);
+          if (!result2.success) {
+            throw new Error(result2.error || "Failed to approve USDC for NegRisk Exchange");
+          }
+          lastTxHash = result2.txHash || lastTxHash;
+        } else {
+          console.log("[DepositWizard] NegRisk Exchange already approved, skipping");
         }
         
-        // Approve CTF Contract (required for splitting positions)
-        const result3 = await approveUSDCForCTFContract(signer);
-        if (!result3.success) {
-          throw new Error(result3.error || "Failed to approve USDC for CTF Contract");
+        // Approve CTF Contract (if not already done)
+        if (!ctfContractDone) {
+          console.log("[DepositWizard] Calling approveUSDCForCTFContract...");
+          const result3 = await approveUSDCForCTFContract(signer);
+          console.log("[DepositWizard] CTF Contract approval result:", result3);
+          if (!result3.success) {
+            throw new Error(result3.error || "Failed to approve USDC for CTF Contract");
+          }
+          lastTxHash = result3.txHash || lastTxHash;
+        } else {
+          console.log("[DepositWizard] CTF Contract already approved, skipping");
         }
         
-        setTxHash(result3.txHash || result2.txHash || result1.txHash || null);
+        setTxHash(lastTxHash);
       }
       
       // Re-check status to determine next step
@@ -601,6 +627,16 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
         );
 
       case "approve_usdc":
+        // Calculate which specific approvals are still needed
+        const ctfExchangeApproved = depositStatus && parseFloat(depositStatus.ctfExchangeAllowance) >= 1;
+        const negRiskApproved = depositStatus && parseFloat(depositStatus.negRiskExchangeAllowance) >= 1;
+        const ctfContractApproved = depositStatus && parseFloat(depositStatus.ctfContractAllowance) >= 1;
+        const approvalsRemaining = [
+          !ctfExchangeApproved && "CTF Exchange",
+          !negRiskApproved && "NegRisk Exchange", 
+          !ctfContractApproved && "CTF Contract"
+        ].filter(Boolean);
+        
         return (
           <div className="space-y-4">
             <div className="flex items-start gap-3 p-4 bg-muted rounded-lg">
@@ -609,23 +645,48 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
                 <p className="font-medium text-sm">Approve USDC Spending</p>
                 <p className="text-xs text-muted-foreground mt-1">
                   Allow Polymarket&apos;s exchange contracts to access your USDC for trading.
-                  This is a one-time approval.
+                  This is a one-time approval per contract.
                 </p>
               </div>
             </div>
 
             <Card className="p-4">
               <div className="space-y-2 text-xs">
-                <div className="flex justify-between">
+                <div className="flex justify-between items-center">
                   <span className="text-muted-foreground">CTF Exchange</span>
-                  <span className="font-mono">{formatAddress(POLYMARKET_CONTRACTS.CTF_EXCHANGE)}</span>
+                  {ctfExchangeApproved ? (
+                    <Badge variant="default" className="bg-green-600 text-xs"><Check className="h-3 w-3 mr-1" />Done</Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-xs">Pending</Badge>
+                  )}
                 </div>
-                <div className="flex justify-between">
+                <div className="flex justify-between items-center">
                   <span className="text-muted-foreground">NegRisk Exchange</span>
-                  <span className="font-mono">{formatAddress(POLYMARKET_CONTRACTS.NEG_RISK_CTF_EXCHANGE)}</span>
+                  {negRiskApproved ? (
+                    <Badge variant="default" className="bg-green-600 text-xs"><Check className="h-3 w-3 mr-1" />Done</Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-xs">Pending</Badge>
+                  )}
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">CTF Contract</span>
+                  {ctfContractApproved ? (
+                    <Badge variant="default" className="bg-green-600 text-xs"><Check className="h-3 w-3 mr-1" />Done</Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-xs">Pending</Badge>
+                  )}
                 </div>
               </div>
             </Card>
+            
+            {approvalsRemaining.length > 0 && approvalsRemaining.length < 3 && (
+              <div className="flex items-start gap-2 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+                <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5" />
+                <p className="text-xs text-amber-700 dark:text-amber-400">
+                  {approvalsRemaining.length} approval(s) remaining: {approvalsRemaining.join(", ")}
+                </p>
+              </div>
+            )}
 
             {error && (
               <div className="flex items-center gap-2 p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
