@@ -87,7 +87,7 @@ function clearSession(address: string): void {
 }
 
 export function useTradingSession() {
-  const { walletAddress, signer } = useWallet();
+  const { walletAddress, signer, walletType } = useWallet();
   const [tradingSession, setTradingSession] = useState<TradingSession | null>(null);
   const [currentStep, setCurrentStep] = useState<SessionStep>("idle");
   const [sessionError, setSessionError] = useState<string | null>(null);
@@ -164,6 +164,16 @@ export function useTradingSession() {
     }
   }, []);
 
+  // Helper to add timeout to a promise (for mobile wallet scenarios)
+  const withTimeout = useCallback(<T>(promise: Promise<T>, ms: number, errorMessage: string): Promise<T> => {
+    return Promise.race([
+      promise,
+      new Promise<T>((_, reject) => 
+        setTimeout(() => reject(new Error(errorMessage)), ms)
+      )
+    ]);
+  }, []);
+
   // Derive or create user API credentials
   const deriveApiCredentials = useCallback(async (): Promise<UserApiCredentials> => {
     console.log("[TradingSession] deriveApiCredentials called");
@@ -177,10 +187,22 @@ export function useTradingSession() {
 
     try {
       // Try to derive existing credentials first - THIS TRIGGERS SIGNATURE
+      // Add 60-second timeout for mobile wallet scenarios where session might be stale
       console.log("[TradingSession] Calling tempClient.deriveApiKey() - SIGNATURE REQUEST SHOULD APPEAR NOW");
-      const derivedCreds = await tempClient.deriveApiKey().catch((err: any) => {
+      console.log("[TradingSession] Timeout set to 60 seconds - please sign in your wallet app");
+      
+      const derivedCreds = await withTimeout(
+        tempClient.deriveApiKey(),
+        60000,
+        "Signature request timed out. Please disconnect and reconnect your wallet, then try again."
+      ).catch((err: any) => {
         console.log("[TradingSession] deriveApiKey failed:", err?.message || err);
         console.log("[TradingSession] Full error:", JSON.stringify(err, Object.getOwnPropertyNames(err)));
+        
+        // If it's a timeout error, throw it to show user-friendly message
+        if (err?.message?.includes("timed out")) {
+          throw err;
+        }
         return null;
       });
       if (derivedCreds?.key && derivedCreds?.secret && derivedCreds?.passphrase) {
