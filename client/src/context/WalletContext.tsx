@@ -502,14 +502,28 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   // Check for WalletConnect session when page becomes visible (critical for mobile)
   // When user navigates away to MetaMask and returns, we need to check if session was established
+  // This also runs when isConnecting is true because on mobile, the session may have been
+  // established while the user was in MetaMask and the enable() promise is still pending
+  const wcSessionCheckInProgress = useRef(false);
+  
   useEffect(() => {
     if (!WALLETCONNECT_PROJECT_ID) return;
     
     const checkWalletConnectSession = async () => {
-      // Only check if we don't already have a connected wallet
-      if (walletAddress || walletType) return;
+      // Prevent concurrent session checks
+      if (wcSessionCheckInProgress.current) {
+        console.log("[WC Visibility] Session check already in progress, skipping");
+        return;
+      }
       
-      console.log("[WC Visibility] Page became visible, checking for WalletConnect session...");
+      // Skip if we already have a connected wallet (not just connecting)
+      if (walletAddress && walletType) {
+        console.log("[WC Visibility] Already connected, skipping session check");
+        return;
+      }
+      
+      wcSessionCheckInProgress.current = true;
+      console.log("[WC Visibility] Checking for WalletConnect session...");
       
       try {
         const wcProvider = await WCEthereumProvider.init({
@@ -524,10 +538,16 @@ export function WalletProvider({ children }: { children: ReactNode }) {
           },
         });
         
+        console.log("[WC Visibility] Provider initialized, session exists:", !!wcProvider.session);
+        
         if (wcProvider.session) {
           const accounts = wcProvider.accounts;
+          console.log("[WC Visibility] Session accounts:", accounts);
           if (accounts && accounts.length > 0) {
             console.log("[WC Visibility] Found active session, restoring:", accounts[0]);
+            
+            // Stop the connecting state if it was still active
+            setIsConnecting(false);
             
             wcProviderRef.current = wcProvider;
             setWalletAddress(accounts[0]);
@@ -560,9 +580,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
           console.log("[WC Visibility] No active session found");
         }
       } catch (error: any) {
-        console.log("[WC Visibility] Error checking session:", error);
+        console.log("[WC Visibility] Error checking session:", error?.message || error);
         // If we get a stale session error, clear the storage
-        if (error.message?.includes("session topic doesn't exist")) {
+        if (error.message?.includes("session topic doesn't exist") || 
+            error.message?.includes("No matching key") ||
+            error.message?.includes("Missing or invalid")) {
           console.log("[WC Visibility] Clearing stale session data...");
           const keysToRemove: string[] = [];
           for (let i = 0; i < localStorage.length; i++) {
@@ -572,16 +594,23 @@ export function WalletProvider({ children }: { children: ReactNode }) {
             }
           }
           keysToRemove.forEach(key => localStorage.removeItem(key));
+          console.log("[WC Visibility] Cleared", keysToRemove.length, "stale entries");
         }
+      } finally {
+        wcSessionCheckInProgress.current = false;
       }
     };
     
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
-        // Small delay to ensure everything is properly loaded
-        setTimeout(checkWalletConnectSession, 500);
+        // Small delay to ensure WalletConnect SDK has processed the session
+        setTimeout(checkWalletConnectSession, 300);
       }
     };
+    
+    // Also check immediately on mount in case user is returning to a suspended tab
+    // that was restored with session data in localStorage
+    setTimeout(checkWalletConnectSession, 100);
     
     document.addEventListener("visibilitychange", handleVisibilityChange);
     
@@ -894,8 +923,9 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     try {
       console.log("[WC] Initializing WalletConnect...");
       
-      // Clear any stale session data before connecting to prevent "session topic doesn't exist" errors
-      clearWalletConnectStorage();
+      // NOTE: Do NOT clear storage here - on mobile, the session gets established
+      // while user is in MetaMask. Clearing storage would erase that session.
+      // Only clear storage when we detect a stale/invalid session error.
       
       const wcProvider = await WCEthereumProvider.init({
         projectId: WALLETCONNECT_PROJECT_ID,
