@@ -304,33 +304,6 @@ export async function checkDepositRequirements(
 }> {
   const usdcBalance = await getUSDCBalance(provider, walletAddress);
   const nativeUsdcBalance = await getNativeUSDCBalance(provider, walletAddress);
-  const ctfExchangeAllowance = await getUSDCAllowance(
-    provider, 
-    walletAddress, 
-    POLYMARKET_CONTRACTS.CTF_EXCHANGE
-  );
-  const negRiskExchangeAllowance = await getUSDCAllowance(
-    provider, 
-    walletAddress, 
-    POLYMARKET_CONTRACTS.NEG_RISK_CTF_EXCHANGE
-  );
-  // CTF Contract also needs USDC approval for splitting positions
-  const ctfContractAllowance = await getUSDCAllowance(
-    provider,
-    walletAddress,
-    POLYMARKET_CONTRACTS.CTF
-  );
-  
-  const ctfApprovedForExchange = await getCTFApproval(
-    provider,
-    walletAddress,
-    POLYMARKET_CONTRACTS.CTF_EXCHANGE
-  );
-  const ctfApprovedForNegRisk = await getCTFApproval(
-    provider,
-    walletAddress,
-    POLYMARKET_CONTRACTS.NEG_RISK_CTF_EXCHANGE
-  );
   
   let proxyAddress: string | null = null;
   let proxyBalance: string | null = null;
@@ -353,6 +326,49 @@ export async function checkDepositRequirements(
     }
   }
   
+  // Determine which address to check approvals on
+  // For Magic wallets: Check approvals on the PROXY address (where USDC lives and trades from)
+  // For external wallets: Check approvals on the SAFE address (where USDC lives and trades from)
+  // Fallback to EOA if no derived wallet is available
+  let approvalCheckAddress = walletAddress;
+  if (isMagicWallet && proxyAddress) {
+    approvalCheckAddress = proxyAddress;
+    console.log("[checkDepositRequirements] Checking approvals on Magic proxy:", proxyAddress);
+  } else if (!isMagicWallet && actualSafeAddress) {
+    approvalCheckAddress = actualSafeAddress;
+    console.log("[checkDepositRequirements] Checking approvals on Safe:", actualSafeAddress);
+  } else {
+    console.log("[checkDepositRequirements] Checking approvals on EOA:", walletAddress);
+  }
+  
+  const ctfExchangeAllowance = await getUSDCAllowance(
+    provider, 
+    approvalCheckAddress, 
+    POLYMARKET_CONTRACTS.CTF_EXCHANGE
+  );
+  const negRiskExchangeAllowance = await getUSDCAllowance(
+    provider, 
+    approvalCheckAddress, 
+    POLYMARKET_CONTRACTS.NEG_RISK_CTF_EXCHANGE
+  );
+  // CTF Contract also needs USDC approval for splitting positions
+  const ctfContractAllowance = await getUSDCAllowance(
+    provider,
+    approvalCheckAddress,
+    POLYMARKET_CONTRACTS.CTF
+  );
+  
+  const ctfApprovedForExchange = await getCTFApproval(
+    provider,
+    approvalCheckAddress,
+    POLYMARKET_CONTRACTS.CTF_EXCHANGE
+  );
+  const ctfApprovedForNegRisk = await getCTFApproval(
+    provider,
+    approvalCheckAddress,
+    POLYMARKET_CONTRACTS.NEG_RISK_CTF_EXCHANGE
+  );
+  
   // Trading balance is the balance in the trading wallet (proxy for Magic, Safe for external)
   // For Magic wallets: proxyBalance
   // For external wallets: safeBalance
@@ -367,6 +383,17 @@ export async function checkDepositRequirements(
                         parseFloat(negRiskExchangeAllowance) < 1 ||
                         parseFloat(ctfContractAllowance) < 1;
   const needsCTFApproval = !ctfApprovedForExchange || !ctfApprovedForNegRisk;
+  
+  console.log("[checkDepositRequirements] Results:", {
+    approvalCheckAddress,
+    ctfExchangeAllowance,
+    negRiskExchangeAllowance,
+    ctfContractAllowance,
+    ctfApprovedForExchange,
+    ctfApprovedForNegRisk,
+    needsApproval,
+    needsCTFApproval,
+  });
   
   return {
     usdcBalance,
