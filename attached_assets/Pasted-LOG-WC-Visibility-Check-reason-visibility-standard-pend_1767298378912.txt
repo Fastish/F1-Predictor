@@ -1,0 +1,35 @@
+LOG[WC Visibility] Check reason: visibility-standard - pending:  - savedType:  - hasWcKeys: false
+LOG[WC Visibility] Checking for WalletConnect session...
+WARNINGWalletConnect Core is already initialized. This is probably a mistake and can lead to unexpected behavior. Init() was called 2 times.
+LOG[WC Visibility] Provider initialized, session exists: false
+LOG[WC Visibility] Session details: null
+LOG[WC Visibility] No active session found
+LOG[DepositModal] Auto-init check: [object Object]
+LOG[WC] Initializing WalletConnect...
+LOG[WC] User agent: Mozilla/5.0 (iPhone; CPU iPhone OS 26_1_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/143.0.7499.151 Mobile/15E148 Safari/604.1
+LOG[WC] Is mobile: true
+LOG[WC] Project ID present: true
+LOG[WC] Clearing stale WalletConnect storage for fresh connection...
+LOG[WC] Clearing stale WalletConnect storage...
+LOG[WC] Cleared 0 WalletConnect storage items
+LOG[WC] Creating new WalletConnect provider...
+WARNINGWalletConnect Core is already initialized. This is probably a mistake and can lead to unexpected behavior. Init() was called 3 times.
+WARNINGLit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+LOG[WC] Provider created successfully
+LOG[WC] Provider initialized, enabling...
+LOG[WC] Existing session before enable: false
+WARNINGElement w3m-router-container scheduled an update (generally because a property was set) after an update completed, causing a new update to be scheduled. This is inefficient and should be avoided unless the next update can only be scheduled as a side effect of the previous update. See https://lit.dev/msg/change-in-update for more information.
+LOG[DepositModal] Auto-init check: [object Object]
+WARNINGElement w3m-connecting-wc-mobile scheduled an update (generally because a property was set) after an update completed, causing a new update to be scheduled. This is inefficient and should be avoided unless the next update can only be scheduled as a side effect of the previous update. See https://lit.dev/msg/change-in-update for more information.
+LOG[WC Visibility] Visibility changed, connection was pending - checking immediately
+LOG[vite] server connection lost. Polling for restart...
+LOG[WC Visibility] Check reason: visibility-immediate - pending: true - savedType:  - hasWcKeys: false
+LOG[WC Visibility] Checking for WalletConnect session...
+WARNINGWalletConnect Core is already initialized. This is probably a mistake and can lead to unexpected behavior. Init() was called 4 times.
+LOG[WC Visibility] Provider initialized, session exists: false
+LOG[WC Visibility] Session details: null
+LOG[WC Visibility] No active session found
+LOG[WC Visibility] Connection was pending but no session - clearing pending flag
+LOG[WC Visibility] Check reason: visibility-delayed - pending:  - savedType:  - hasWcKeys: false
+LOG[WC Visibility] Checking for WalletConnect session...
+WARNINGWalletConnect Core is already initialized. This is probably a mistake and can lead to unexpected behavior. Init() was called 5 times.

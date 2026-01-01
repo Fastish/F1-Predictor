@@ -7,6 +7,85 @@ import WCEthereumProvider from "@walletconnect/ethereum-provider";
 type WalletType = "magic" | "external" | "walletconnect" | "phantom" | null;
 
 const WALLETCONNECT_PROJECT_ID = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || "";
+const POLYGON_CHAIN_ID_CONST = 137;
+
+// WalletConnect Singleton - prevents multiple Core initializations
+// The key insight: WalletConnect Core can only be initialized ONCE per page load
+// So we use a singleton pattern with careful state management
+let wcProviderInstance: InstanceType<typeof WCEthereumProvider> | null = null;
+let wcProviderInitializing = false;
+let wcProviderInitPromise: Promise<InstanceType<typeof WCEthereumProvider>> | null = null;
+let wcProviderShowQrModal: boolean | null = null;
+
+async function getOrCreateWCProvider(showQrModal: boolean = false): Promise<InstanceType<typeof WCEthereumProvider>> {
+  // Return existing instance if available (even if showQrModal differs - it's set at init time)
+  if (wcProviderInstance) {
+    console.log("[WC Singleton] Returning existing provider instance (showQrModal was:", wcProviderShowQrModal, ")");
+    return wcProviderInstance;
+  }
+  
+  // If already initializing, wait for that to complete
+  if (wcProviderInitializing && wcProviderInitPromise) {
+    console.log("[WC Singleton] Waiting for existing initialization to complete");
+    return wcProviderInitPromise;
+  }
+  
+  console.log("[WC Singleton] Creating new provider instance, showQrModal:", showQrModal);
+  wcProviderInitializing = true;
+  wcProviderShowQrModal = showQrModal;
+  
+  wcProviderInitPromise = WCEthereumProvider.init({
+    projectId: WALLETCONNECT_PROJECT_ID,
+    chains: [POLYGON_CHAIN_ID_CONST],
+    showQrModal,
+    optionalChains: [],
+    methods: ["eth_sendTransaction", "personal_sign"],
+    optionalMethods: ["eth_signTypedData", "eth_signTypedData_v4", "eth_sign"],
+    relayUrl: "wss://relay.walletconnect.com",
+    metadata: {
+      name: "F1 Predict",
+      description: "F1 Prediction Market - Trade on F1 Championship outcomes",
+      url: window.location.origin,
+      icons: [`${window.location.origin}/favicon.ico`],
+    },
+  }).then(provider => {
+    console.log("[WC Singleton] Provider created successfully");
+    wcProviderInstance = provider;
+    wcProviderInitializing = false;
+    return provider;
+  }).catch(error => {
+    console.error("[WC Singleton] Provider creation failed:", error);
+    wcProviderInitializing = false;
+    wcProviderInitPromise = null;
+    wcProviderShowQrModal = null;
+    throw error;
+  });
+  
+  return wcProviderInitPromise;
+}
+
+function resetWCProviderSingleton() {
+  console.log("[WC Singleton] Resetting singleton");
+  if (wcProviderInstance) {
+    try {
+      wcProviderInstance.disconnect();
+    } catch (e) {
+      console.log("[WC Singleton] Disconnect error during reset:", e);
+    }
+  }
+  wcProviderInstance = null;
+  wcProviderInitializing = false;
+  wcProviderInitPromise = null;
+  wcProviderShowQrModal = null;
+}
+
+function hasWCProviderInstance(): boolean {
+  return wcProviderInstance !== null;
+}
+
+function getExistingWCProvider(): InstanceType<typeof WCEthereumProvider> | null {
+  return wcProviderInstance;
+}
 
 export interface PolymarketCredentials {
   apiKey: string;
@@ -536,19 +615,62 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       console.log("[WC Visibility] Checking for WalletConnect session...");
       
       try {
-        const wcProvider = await WCEthereumProvider.init({
-          projectId: WALLETCONNECT_PROJECT_ID,
-          chains: [POLYGON_CHAIN_ID],
-          showQrModal: false,
-          methods: ["eth_sendTransaction", "personal_sign"],
-          optionalMethods: ["eth_signTypedData", "eth_signTypedData_v4", "eth_sign"],
-          metadata: {
-            name: "F1 Predict",
-            description: "F1 Prediction Market",
-            url: window.location.origin,
-            icons: [`${window.location.origin}/favicon.ico`],
-          },
-        });
+        // First check if we have an existing provider instance (from connect flow)
+        const existingProvider = getExistingWCProvider();
+        if (existingProvider) {
+          console.log("[WC Visibility] Using existing provider instance");
+          // Check the existing provider's session
+          if (existingProvider.session) {
+            const accounts = existingProvider.accounts;
+            console.log("[WC Visibility] Existing provider has session, accounts:", accounts);
+            if (accounts && accounts.length > 0) {
+              console.log("[WC Visibility] Found active session on existing provider, restoring:", accounts[0]);
+              
+              setIsConnecting(false);
+              wcProviderRef.current = existingProvider;
+              setWalletAddress(accounts[0]);
+              setWalletType("walletconnect");
+              setUserEmail(null);
+              localStorage.setItem("polygon_wallet_type", "walletconnect");
+              localStorage.setItem("polygon_wallet_address", accounts[0]);
+              localStorage.removeItem("wc_connection_pending");
+              
+              const wcBrowserProvider = new ethers.BrowserProvider(existingProvider);
+              setProvider(wcBrowserProvider);
+              const wcSigner = await wcBrowserProvider.getSigner();
+              setSigner(wcSigner);
+              
+              existingProvider.on("accountsChanged", (accts: string[]) => {
+                if (accts.length === 0) {
+                  disconnectWallet();
+                } else {
+                  setWalletAddress(accts[0]);
+                  localStorage.setItem("polygon_wallet_address", accts[0]);
+                }
+              });
+              existingProvider.on("disconnect", () => {
+                disconnectWallet();
+              });
+              
+              console.log("[WC Visibility] Session restored from existing provider!");
+              wcSessionCheckInProgress.current = false;
+              return;
+            }
+          }
+          console.log("[WC Visibility] Existing provider has no active session");
+          wcSessionCheckInProgress.current = false;
+          return;
+        }
+        
+        // No existing provider - only create one if we have WC storage keys indicating a session
+        if (!hasWcKeys) {
+          console.log("[WC Visibility] No WC storage keys, skipping provider initialization");
+          wcSessionCheckInProgress.current = false;
+          return;
+        }
+        
+        // Use singleton to prevent multiple Core initializations
+        const wcProvider = await getOrCreateWCProvider(false);
         
         console.log("[WC Visibility] Provider initialized, session exists:", !!wcProvider.session);
         console.log("[WC Visibility] Session details:", wcProvider.session ? JSON.stringify({
@@ -971,50 +1093,29 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       console.log("[WC] Is mobile:", /iPhone|iPad|iPod|Android/i.test(navigator.userAgent));
       console.log("[WC] Project ID present:", !!WALLETCONNECT_PROJECT_ID);
       
-      // Clear existing WC provider reference to ensure fresh connection
+      // Clear existing WC provider reference and singleton to ensure fresh connection
       if (wcProviderRef.current) {
         console.log("[WC] Clearing existing provider reference");
-        try {
-          await wcProviderRef.current.disconnect();
-        } catch (e) {
-          console.log("[WC] Error disconnecting old provider:", e);
-        }
         wcProviderRef.current = null;
       }
       
-      // Clear any stale WalletConnect storage for fresh connection
-      console.log("[WC] Clearing stale WalletConnect storage for fresh connection...");
+      // Reset singleton and clear storage for fresh connection with QR modal
+      console.log("[WC] Resetting singleton for fresh connection...");
+      resetWCProviderSingleton();
       clearWalletConnectStorage();
       
       // Add small delay after clearing storage to ensure clean state
-      await new Promise(r => setTimeout(r, 500));
+      await new Promise(r => setTimeout(r, 300));
       
-      console.log("[WC] Creating new WalletConnect provider...");
+      console.log("[WC] Creating new WalletConnect provider with QR modal...");
       
-      // WalletConnect modal handles both desktop (shows QR) and mobile (shows wallet selection)
-      // Add a timeout to prevent hanging if WalletConnect initialization fails
+      // Get or create provider with QR modal enabled for fresh connection
       const initTimeoutPromise = new Promise<never>((_, reject) => {
         setTimeout(() => reject(new Error("WalletConnect initialization timed out. Please try again.")), 30000);
       });
       
       const wcProvider = await Promise.race([
-        WCEthereumProvider.init({
-          projectId: WALLETCONNECT_PROJECT_ID,
-          chains: [POLYGON_CHAIN_ID],
-          showQrModal: true, // Modal handles mobile detection internally
-          optionalChains: [],
-          // Required methods for Polymarket CLOB API credential derivation
-          methods: ["eth_sendTransaction", "personal_sign"],
-          optionalMethods: ["eth_signTypedData", "eth_signTypedData_v4", "eth_sign"],
-          // Explicit relay URL for better mobile connectivity
-          relayUrl: "wss://relay.walletconnect.com",
-          metadata: {
-            name: "F1 Predict",
-            description: "F1 Prediction Market - Trade on F1 Championship outcomes",
-            url: window.location.origin,
-            icons: [`${window.location.origin}/favicon.ico`],
-          },
-        }),
+        getOrCreateWCProvider(true), // showQrModal = true for fresh connection
         initTimeoutPromise
       ]);
       
