@@ -967,6 +967,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     
     try {
       console.log("[WC] Initializing WalletConnect...");
+      console.log("[WC] User agent:", navigator.userAgent);
+      console.log("[WC] Is mobile:", /iPhone|iPad|iPod|Android/i.test(navigator.userAgent));
       
       // NOTE: Do NOT clear storage here - on mobile, the session gets established
       // while user is in MetaMask. Clearing storage would erase that session.
@@ -981,12 +983,23 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         // Required methods for Polymarket CLOB API credential derivation
         methods: ["eth_sendTransaction", "personal_sign"],
         optionalMethods: ["eth_signTypedData", "eth_signTypedData_v4", "eth_sign"],
+        // Explicit relay URL for better mobile connectivity
+        relayUrl: "wss://relay.walletconnect.com",
         metadata: {
           name: "F1 Predict",
           description: "F1 Prediction Market - Trade on F1 Championship outcomes",
           url: window.location.origin,
           icons: [`${window.location.origin}/favicon.ico`],
         },
+      });
+      
+      // Add connection event listeners before enable() for mobile debugging
+      wcProvider.on("connect", (info: any) => {
+        console.log("[WC] Connect event received:", info);
+      });
+      
+      wcProvider.on("session_event", (event: any) => {
+        console.log("[WC] Session event:", event);
       });
       
       console.log("[WC] Provider initialized, enabling...");
