@@ -256,12 +256,15 @@ export function Header() {
                   </div>
                   <div className="flex gap-2">
                     <Button
+                      type="button"
                       size="sm"
                       variant="outline"
                       className="flex-1"
-                      onClick={() => {
-                        setDepositOpen(true);
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
                         setMobileMenuOpen(false);
+                        setTimeout(() => setDepositOpen(true), 100);
                       }}
                       data-testid="button-mobile-deposit"
                     >
@@ -269,12 +272,15 @@ export function Header() {
                       Wallet
                     </Button>
                     <Button
+                      type="button"
                       size="sm"
                       variant="outline"
                       className="flex-1"
-                      onClick={() => {
-                        setSwapOpen(true);
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
                         setMobileMenuOpen(false);
+                        setTimeout(() => setSwapOpen(true), 100);
                       }}
                       data-testid="button-mobile-swap"
                     >
