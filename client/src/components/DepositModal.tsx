@@ -828,12 +828,12 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
                     ) : (
                       <>
                         <Wallet className="h-4 w-4 mr-2" />
-                        WalletConnect (Best for Mobile)
+                        WalletConnect
                       </>
                     )}
                   </Button>
                   <p className="text-xs text-muted-foreground text-center">
-                    Scan QR code or tap to open your wallet app. Works with Phantom, MetaMask, Rainbow, Trust Wallet, and 300+ wallets.
+                    Works with MetaMask, Rainbow, Trust Wallet, and 300+ wallets. Note: Phantom doesn't support WalletConnect for Polygon.
                   </p>
                 </div>
                 <div className="relative">
@@ -854,7 +854,7 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
                     }}
                   >
                     <PhantomIcon className="h-4 w-4 mr-2" />
-                    Open in Phantom
+                    Phantom (Mobile)
                   </Button>
                   <Button
                     variant="outline"
@@ -865,11 +865,11 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
                     }}
                   >
                     <MetaMaskIcon className="h-4 w-4 mr-2" />
-                    Open in MetaMask
+                    MetaMask (Mobile)
                   </Button>
                 </div>
                 <p className="text-xs text-muted-foreground text-center">
-                  Opens this page inside the wallet's browser. Once there, tap "Connect Wallet" again to complete the connection.
+                  Opens this site in the wallet's built-in browser. Once loaded, tap the Phantom or MetaMask button above to connect.
                 </p>
                 <div className="relative">
                   <div className="absolute inset-0 flex items-center">
