@@ -25,7 +25,7 @@ export function useTradingWalletBalance(): TradingWalletInfo {
   const { walletAddress, walletType } = useWallet();
   const { tradingSession } = useTradingSession();
   
-  const isExternalWallet = walletType === "external" || walletType === "walletconnect";
+  const isExternalWallet = walletType === "external" || walletType === "walletconnect" || walletType === "phantom";
   
   const tradingWalletAddress = useMemo(() => {
     if (!walletAddress) return null;

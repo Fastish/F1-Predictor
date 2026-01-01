@@ -48,6 +48,20 @@ interface GaslessResult {
 const POLYMARKET_RELAYER_URL = "https://relayer-v2.polymarket.com";
 const POLYGON_CHAIN_ID = 137;
 
+// Get the active Ethereum provider (supports Phantom, MetaMask, etc.)
+function getActiveEthereumProvider(): any {
+  // Check Phantom's preferred injection point first
+  if ((window as any).phantom?.ethereum) {
+    return (window as any).phantom.ethereum;
+  }
+  // Check window.ethereum with isPhantom flag
+  if ((window as any).ethereum?.isPhantom) {
+    return (window as any).ethereum;
+  }
+  // Fallback to standard window.ethereum
+  return (window as any).ethereum;
+}
+
 export async function checkGaslessAvailable(): Promise<boolean> {
   try {
     // Check if Builder credentials are configured on server
@@ -56,9 +70,9 @@ export async function checkGaslessAvailable(): Promise<boolean> {
     const data = await response.json();
     if (!data.available) return false;
     
-    // Gasless only works with external wallets (window.ethereum)
+    // Gasless only works with external wallets (window.ethereum or window.phantom.ethereum)
     // Magic wallets require a different flow
-    const ethereum = (window as any).ethereum;
+    const ethereum = getActiveEthereumProvider();
     if (!ethereum) return false;
     
     return true;
@@ -68,7 +82,7 @@ export async function checkGaslessAvailable(): Promise<boolean> {
 }
 
 export function isExternalWalletAvailable(): boolean {
-  return !!(window as any).ethereum;
+  return !!getActiveEthereumProvider();
 }
 
 function createBuilderConfig(): BuilderConfig {
@@ -81,7 +95,7 @@ function createBuilderConfig(): BuilderConfig {
 }
 
 async function getEthersV5Signer() {
-  const ethereum = (window as any).ethereum;
+  const ethereum = getActiveEthereumProvider();
   if (!ethereum) return null;
   
   const provider = new Web3Provider(ethereum);

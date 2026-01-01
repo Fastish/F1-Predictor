@@ -33,6 +33,8 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
     connectWithMagic,
     connectExternalWallet,
     connectWalletConnect,
+    connectPhantomWallet,
+    isPhantomInstalled,
     disconnectWallet,
     provider,
   } = useWallet();
@@ -73,7 +75,7 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
       try {
         const isMagic = walletType === "magic";
         // For external wallets, check approvals on the Safe address, not EOA
-        const addressToCheck = ((walletType === "external" || walletType === "walletconnect") && safeAddress) ? safeAddress : walletAddress;
+        const addressToCheck = ((walletType === "external" || walletType === "walletconnect" || walletType === "phantom") && safeAddress) ? safeAddress : walletAddress;
         const status = await checkDepositRequirements(provider, addressToCheck, isMagic);
         setApprovalStatus({ needsApproval: status.needsApproval, checked: true });
       } catch (error) {
@@ -96,7 +98,7 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
   // Auto-initialize trading session for external wallets and WalletConnect when connected
   useEffect(() => {
     const autoInitSession = async () => {
-      if ((walletType === "external" || walletType === "walletconnect") && walletAddress && !isTradingSessionComplete && !isInitializing && !autoInitAttempted && open) {
+      if ((walletType === "external" || walletType === "walletconnect" || walletType === "phantom") && walletAddress && !isTradingSessionComplete && !isInitializing && !autoInitAttempted && open) {
         setAutoInitAttempted(true);
         try {
           await initializeTradingSession();
@@ -346,6 +348,55 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
     }
   };
 
+  const handlePhantomConnect = async () => {
+    try {
+      const success = await connectPhantomWallet();
+      if (success) {
+        if (userId) {
+          try {
+            const res = await fetch(`/api/users/${userId}/link-wallet`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ walletAddress }),
+            });
+            if (!res.ok) {
+              const error = await res.json();
+              if (res.status === 404 && error.error === "User not found") {
+                resetUser();
+                onOpenChange(false);
+                toast({
+                  title: "Session Reset",
+                  description: "Your session was reset. Please try connecting again.",
+                });
+                return;
+              }
+            }
+          } catch (e) {
+            console.error("Failed to link wallet:", e);
+          }
+        }
+        toast({
+          title: "Wallet Connected",
+          description: "Your Phantom wallet has been connected to Polygon.",
+        });
+        refetchBalance();
+      } else {
+        toast({
+          title: "Connection Failed",
+          description: "Phantom wallet connection was cancelled or failed. Please try again.",
+          variant: "destructive",
+        });
+      }
+    } catch (error: any) {
+      console.error("Phantom connection error:", error);
+      toast({
+        title: "Connection Failed",
+        description: error.message || "Phantom wallet not detected. Please install the extension and refresh the page.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
     toast({
@@ -376,7 +427,7 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
                     <SiPolygon className="h-4 w-4 text-purple-500" />
                     <span className="font-medium text-sm">Polygon Wallet</span>
                     <Badge variant="outline" className="text-xs">
-                      {walletType === "magic" ? "Magic" : walletType === "walletconnect" ? "WalletConnect" : "External"}
+                      {walletType === "magic" ? "Magic" : walletType === "walletconnect" ? "WalletConnect" : walletType === "phantom" ? "Phantom" : "External"}
                     </Badge>
                   </div>
                   <Button
@@ -435,7 +486,7 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
                 )}
               </div>
 
-              {(walletType === "external" || walletType === "walletconnect") && (
+              {(walletType === "external" || walletType === "walletconnect" || walletType === "phantom") && (
                 <div className="space-y-2 pt-2 border-t">
                   {isInitializing ? (
                     <div className="flex items-center gap-2 rounded-md bg-blue-500/10 p-2 text-sm">
@@ -772,28 +823,51 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
                     <span className="w-full border-t" />
                   </div>
                   <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-background px-2 text-muted-foreground">or</span>
+                    <span className="bg-background px-2 text-muted-foreground">Desktop Extensions</span>
                   </div>
                 </div>
-                <Button
-                  onClick={handleExternalWalletConnect}
-                  disabled={isConnecting}
-                  className="w-full"
-                  variant="outline"
-                  data-testid="button-connect-external"
-                >
-                  {isConnecting ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Connecting...
-                    </>
-                  ) : (
-                    <>
-                      <Wallet className="h-4 w-4 mr-2" />
-                      Browser Extension
-                    </>
+                <div className="flex gap-2">
+                  {isPhantomInstalled() && (
+                    <Button
+                      onClick={handlePhantomConnect}
+                      disabled={isConnecting}
+                      className="flex-1"
+                      variant="outline"
+                      data-testid="button-connect-phantom"
+                    >
+                      {isConnecting ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Connecting...
+                        </>
+                      ) : (
+                        <>
+                          <Wallet className="h-4 w-4 mr-2" />
+                          Phantom
+                        </>
+                      )}
+                    </Button>
                   )}
-                </Button>
+                  <Button
+                    onClick={handleExternalWalletConnect}
+                    disabled={isConnecting}
+                    className="flex-1"
+                    variant="outline"
+                    data-testid="button-connect-external"
+                  >
+                    {isConnecting ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Connecting...
+                      </>
+                    ) : (
+                      <>
+                        <Wallet className="h-4 w-4 mr-2" />
+                        {isPhantomInstalled() ? "MetaMask / Other" : "Browser Extension"}
+                      </>
+                    )}
+                  </Button>
+                </div>
                 <p className="text-xs text-muted-foreground text-center">
                   For desktop with MetaMask, Phantom, or Rabby installed.
                 </p>
@@ -811,7 +885,7 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
           // For external wallets, check the Safe address since approvals are done there
           if (walletAddress && provider) {
             const isMagic = walletType === "magic";
-            const addressToCheck = ((walletType === "external" || walletType === "walletconnect") && safeAddress) ? safeAddress : walletAddress;
+            const addressToCheck = ((walletType === "external" || walletType === "walletconnect" || walletType === "phantom") && safeAddress) ? safeAddress : walletAddress;
             checkDepositRequirements(provider, addressToCheck, isMagic)
               .then(status => setApprovalStatus({ needsApproval: status.needsApproval, checked: true }))
               .catch(() => {});

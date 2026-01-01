@@ -4,7 +4,7 @@ import { ethers } from "ethers";
 import { queryClient } from "@/lib/queryClient";
 import WCEthereumProvider from "@walletconnect/ethereum-provider";
 
-type WalletType = "magic" | "external" | "walletconnect" | null;
+type WalletType = "magic" | "external" | "walletconnect" | "phantom" | null;
 
 const WALLETCONNECT_PROJECT_ID = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || "";
 
@@ -29,6 +29,8 @@ interface WalletContextType {
   connectWithMagic: (email: string) => Promise<boolean>;
   connectExternalWallet: () => Promise<boolean>;
   connectWalletConnect: () => Promise<boolean>;
+  connectPhantomWallet: () => Promise<boolean>;
+  isPhantomInstalled: () => boolean;
   disconnectWallet: () => Promise<void>;
   signMessage: (message: string) => Promise<string>;
   getUsdcBalance: () => Promise<string>;
@@ -337,6 +339,34 @@ export function WalletProvider({ children }: { children: ReactNode }) {
               localStorage.removeItem("polygon_wallet_address");
             }
           }
+        } else if (savedType === "phantom" && savedAddress) {
+          // Try to restore Phantom wallet session
+          const phantomProvider = window.phantom?.ethereum || (window.ethereum?.isPhantom ? window.ethereum : null);
+          if (phantomProvider) {
+            try {
+              const accounts = await phantomProvider.request({ method: "eth_accounts" });
+              if (accounts && accounts.length > 0 && accounts[0].toLowerCase() === savedAddress.toLowerCase()) {
+                setWalletAddress(accounts[0]);
+                setWalletType("phantom");
+                
+                const phantomBrowserProvider = new ethers.BrowserProvider(phantomProvider);
+                setProvider(phantomBrowserProvider);
+                try {
+                  const phantomSigner = await phantomBrowserProvider.getSigner();
+                  setSigner(phantomSigner);
+                } catch (signerError) {
+                  console.log("Could not get signer, user may need to re-connect:", signerError);
+                }
+              } else {
+                localStorage.removeItem("polygon_wallet_type");
+                localStorage.removeItem("polygon_wallet_address");
+              }
+            } catch (error) {
+              console.log("Could not restore Phantom wallet session:", error);
+              localStorage.removeItem("polygon_wallet_type");
+              localStorage.removeItem("polygon_wallet_address");
+            }
+          }
         } else if (savedType === "walletconnect" && savedAddress && WALLETCONNECT_PROJECT_ID) {
           // Try to restore WalletConnect session
           try {
@@ -401,12 +431,16 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    // Only set up listeners when wallet is actually connected
-    if (walletType !== "external" || !walletAddress) {
+    // Only set up listeners when wallet is actually connected (external or phantom)
+    if ((walletType !== "external" && walletType !== "phantom") || !walletAddress) {
       return;
     }
     
-    const ethProvider = getEthereumProvider();
+    // Get the appropriate provider based on wallet type
+    const ethProvider = walletType === "phantom" 
+      ? (window.phantom?.ethereum || (window.ethereum?.isPhantom ? window.ethereum : null))
+      : getEthereumProvider();
+      
     if (ethProvider) {
       const handleAccountsChanged = (accounts: string[]) => {
         if (accounts.length === 0) {
@@ -579,6 +613,100 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // Check if Phantom is installed
+  const isPhantomInstalled = useCallback((): boolean => {
+    return !!(window.phantom?.ethereum || window.ethereum?.isPhantom);
+  }, []);
+
+  // Get Phantom's Ethereum provider specifically
+  const getPhantomProvider = useCallback((): EthereumProvider | null => {
+    // Phantom's preferred injection point
+    if (window.phantom?.ethereum) {
+      return window.phantom.ethereum;
+    }
+    // Phantom can also inject at window.ethereum with isPhantom flag
+    if (window.ethereum?.isPhantom) {
+      return window.ethereum;
+    }
+    return null;
+  }, []);
+
+  const connectPhantomWallet = useCallback(async (): Promise<boolean> => {
+    setIsConnecting(true);
+    try {
+      console.log("Attempting to connect Phantom wallet...");
+      
+      const phantomProvider = getPhantomProvider();
+      
+      if (!phantomProvider) {
+        throw new Error("Phantom wallet not detected. Please install the Phantom extension and refresh the page.");
+      }
+      
+      console.log("Phantom provider found, requesting accounts...");
+
+      // Request accounts
+      const accounts = await phantomProvider.request({ method: "eth_requestAccounts" });
+      
+      if (!accounts || accounts.length === 0) {
+        throw new Error("No accounts returned. User may have rejected the connection request.");
+      }
+      
+      const address = accounts[0];
+      console.log("Phantom account authorized:", address);
+
+      // Check and switch to Polygon network
+      const chainIdHex = await phantomProvider.request({ method: "eth_chainId" });
+      const currentChainId = parseInt(chainIdHex, 16);
+      console.log("Current chain ID:", currentChainId, "Target:", POLYGON_CHAIN_ID);
+
+      if (currentChainId !== POLYGON_CHAIN_ID) {
+        console.log("Switching to Polygon network...");
+        try {
+          await phantomProvider.request({
+            method: "wallet_switchEthereumChain",
+            params: [{ chainId: `0x${POLYGON_CHAIN_ID.toString(16)}` }],
+          });
+        } catch (switchError: any) {
+          if (switchError.code === 4902) {
+            console.log("Adding Polygon network...");
+            await phantomProvider.request({
+              method: "wallet_addEthereumChain",
+              params: [{
+                chainId: `0x${POLYGON_CHAIN_ID.toString(16)}`,
+                chainName: "Polygon Mainnet",
+                nativeCurrency: { name: "MATIC", symbol: "MATIC", decimals: 18 },
+                rpcUrls: [POLYGON_RPC],
+                blockExplorerUrls: ["https://polygonscan.com/"],
+              }],
+            });
+          } else {
+            throw switchError;
+          }
+        }
+      }
+
+      // Set up wallet state
+      setWalletAddress(address);
+      setWalletType("phantom");
+      setUserEmail(null);
+      localStorage.setItem("polygon_wallet_type", "phantom");
+      localStorage.setItem("polygon_wallet_address", address);
+      
+      const phantomBrowserProvider = new ethers.BrowserProvider(phantomProvider);
+      setProvider(phantomBrowserProvider);
+      const phantomSigner = await phantomBrowserProvider.getSigner();
+      setSigner(phantomSigner);
+      
+      console.log("Phantom wallet connected successfully!");
+      return true;
+    } catch (error: any) {
+      console.error("Phantom wallet connection error:", error);
+      throw error;
+    } finally {
+      setIsConnecting(false);
+    }
+  }, [getPhantomProvider]);
+
   const connectWalletConnect = useCallback(async (): Promise<boolean> => {
     if (!WALLETCONNECT_PROJECT_ID) {
       throw new Error("WalletConnect is not configured. Missing project ID.");
@@ -728,6 +856,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         connectWithMagic,
         connectExternalWallet,
         connectWalletConnect,
+        connectPhantomWallet,
+        isPhantomInstalled,
         disconnectWallet,
         signMessage,
         getUsdcBalance,
