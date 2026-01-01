@@ -308,8 +308,14 @@ export async function approveUSDCForExchange(
   amount?: string
 ): Promise<{ success: boolean; txHash?: string; error?: string }> {
   try {
+    console.log("[approveUSDCForExchange] Starting approval...");
+    
     // Ensure we're on Polygon network before approval (shows MATIC for gas, not ETH)
     await ensurePolygonNetwork(signer);
+    console.log("[approveUSDCForExchange] Network check passed");
+    
+    const signerAddress = await signer.getAddress();
+    console.log("[approveUSDCForExchange] Signer address:", signerAddress);
     
     const usdc = new ethers.Contract(POLYMARKET_CONTRACTS.USDC, ERC20_ABI, signer);
     
@@ -318,13 +324,25 @@ export async function approveUSDCForExchange(
       ? ethers.parseUnits(amount, 6)
       : ethers.MaxUint256;
     
+    console.log("[approveUSDCForExchange] Sending approve tx to CTF Exchange:", POLYMARKET_CONTRACTS.CTF_EXCHANGE);
+    
     // Approve both CTF Exchange and NegRisk CTF Exchange
     const tx = await usdc.approve(POLYMARKET_CONTRACTS.CTF_EXCHANGE, approveAmount);
+    console.log("[approveUSDCForExchange] Tx submitted:", tx.hash);
+    
     const receipt = await tx.wait();
+    console.log("[approveUSDCForExchange] Tx confirmed:", receipt.hash);
     
     return { success: true, txHash: receipt.hash };
-  } catch (error) {
-    console.error("USDC approval failed:", error);
+  } catch (error: any) {
+    console.error("[approveUSDCForExchange] Failed:", error);
+    // Check for user rejection
+    if (error?.code === 4001 || error?.code === "ACTION_REJECTED" || error?.message?.includes("user rejected")) {
+      return { 
+        success: false, 
+        error: "Transaction was rejected by user" 
+      };
+    }
     return { 
       success: false, 
       error: error instanceof Error ? error.message : "Approval failed" 

@@ -221,9 +221,13 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
     setTxHash(null);
     setUsingRelayer(useRelayer);
     
+    console.log("[DepositWizard] handleApproveUSDC called, useRelayer:", useRelayer, "relayerAvailable:", relayerAvailable);
+    console.log("[DepositWizard] signer available:", !!signer, "walletType:", walletType);
+    
     try {
       if (useRelayer && relayerAvailable) {
         // Use gasless relayer for approvals (client-side signing with remote Builder auth)
+        console.log("[DepositWizard] Using gasless relayer for USDC approval");
         const result = await approveUSDCGasless();
         
         if (!result.success) {
@@ -234,11 +238,16 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
       } else {
         // Use direct wallet signing (user pays gas)
         if (!signer) {
-          throw new Error("No signer available");
+          console.error("[DepositWizard] No signer available for USDC approval!");
+          throw new Error("No signer available. Please reconnect your wallet.");
         }
         
+        console.log("[DepositWizard] Using direct signing for USDC approval, signer address:", await signer.getAddress());
+        
         // Approve CTF Exchange
+        console.log("[DepositWizard] Approving USDC for CTF Exchange...");
         const result1 = await approveUSDCForExchange(signer);
+        console.log("[DepositWizard] CTF Exchange approval result:", result1);
         if (!result1.success) {
           throw new Error(result1.error || "Failed to approve USDC for CTF Exchange");
         }
@@ -664,6 +673,38 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
                 )}
               </Button>
             </div>
+            
+            <div className="flex gap-2 pt-2 border-t">
+              <Button 
+                onClick={checkStatus} 
+                disabled={loading}
+                variant="ghost"
+                size="sm"
+                className="flex-1"
+                data-testid="button-recheck-approvals"
+              >
+                <RotateCcw className="h-3 w-3 mr-2" />
+                Re-check Status
+              </Button>
+              <Button 
+                onClick={() => {
+                  console.log("[DepositWizard] User skipping USDC approval step");
+                  if (depositStatus?.needsCTFApproval) {
+                    setStep("approve_ctf");
+                  } else {
+                    setStep("complete");
+                  }
+                }} 
+                disabled={loading}
+                variant="ghost"
+                size="sm"
+                className="flex-1"
+                data-testid="button-skip-usdc-approval"
+              >
+                Skip (Already Approved)
+                <ChevronRight className="h-3 w-3 ml-1" />
+              </Button>
+            </div>
           </div>
         );
 
@@ -737,6 +778,34 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
                     <ChevronRight className="h-4 w-4 ml-2" />
                   </>
                 )}
+              </Button>
+            </div>
+            
+            <div className="flex gap-2 pt-2 border-t">
+              <Button 
+                onClick={checkStatus} 
+                disabled={loading}
+                variant="ghost"
+                size="sm"
+                className="flex-1"
+                data-testid="button-recheck-ctf-approvals"
+              >
+                <RotateCcw className="h-3 w-3 mr-2" />
+                Re-check Status
+              </Button>
+              <Button 
+                onClick={() => {
+                  console.log("[DepositWizard] User skipping CTF approval step");
+                  setStep("complete");
+                }} 
+                disabled={loading}
+                variant="ghost"
+                size="sm"
+                className="flex-1"
+                data-testid="button-skip-ctf-approval"
+              >
+                Skip (Already Approved)
+                <ChevronRight className="h-3 w-3 ml-1" />
               </Button>
             </div>
           </div>
