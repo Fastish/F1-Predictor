@@ -199,8 +199,9 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
   } = useTradingSession();
   
   // Pass API credentials and signer to usePlaceOrder for server-side proxy submission (avoids CORS)
-  // Signer is needed to ensure we're on Polygon network before signing orders
-  const { placeOrder, isPlacing } = usePlaceOrder(clobClient, invalidateSession, tradingSession?.apiCredentials, signer);
+  // For Safe wallets (external, walletconnect, phantom), skip network verification since Safe is always on Polygon
+  const isSafeWallet = walletType === "external" || walletType === "walletconnect" || walletType === "phantom";
+  const { placeOrder, isPlacing } = usePlaceOrder(clobClient, invalidateSession, tradingSession?.apiCredentials, signer, isSafeWallet);
 
   const { data: orderBook, isLoading: orderBookLoading } = useQuery<OrderBook>({
     queryKey: ["/api/polymarket/orderbook", outcome.tokenId],

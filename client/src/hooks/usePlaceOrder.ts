@@ -45,7 +45,8 @@ export function usePlaceOrder(
   clobClient: ClobClient | null,
   onCredentialError?: () => void,
   apiCredentials?: ApiCredentials | null,
-  signer?: ethers.Signer | null
+  signer?: ethers.Signer | null,
+  isSafeWallet?: boolean // Safe wallets trade on Polygon regardless of EOA network
 ) {
   const [isPlacing, setIsPlacing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -63,11 +64,16 @@ export function usePlaceOrder(
         console.log("Creating order with ClobClient:", params);
         await logToServer("ORDER_START", { params });
         
-        // Verify we're on Polygon network before signing
-        // This prevents "Active chainId is 0x1 but received 0x89" errors
-        if (signer) {
+        // For Safe-based wallets (external wallets, WalletConnect), skip network verification
+        // The Gnosis Safe proxy is ALWAYS on Polygon - the EOA just signs locally
+        // The EOA's active network is irrelevant since trades execute through the Safe
+        if (isSafeWallet) {
+          console.log("[usePlaceOrder] Safe wallet detected - skipping EOA network verification");
+          console.log("[usePlaceOrder] Trading via Safe proxy on Polygon (EOA network is irrelevant)");
+        } else if (signer) {
+          // For direct wallets (Magic), verify Polygon network
           try {
-            console.log("[usePlaceOrder] Verifying Polygon network before signing...");
+            console.log("[usePlaceOrder] Direct wallet - verifying Polygon network before signing...");
             await verifyPolygonNetwork(signer);
             console.log("[usePlaceOrder] Network verification passed - on Polygon");
           } catch (networkError: any) {

@@ -255,7 +255,8 @@ export function PortfolioSection() {
   const [sellModalOpen, setSellModalOpen] = useState(false);
   
   const { tradingSession, isTradingSessionComplete, clobClient } = useTradingSession();
-  const { cancelOrder } = usePlaceOrder(clobClient, undefined, tradingSession?.apiCredentials);
+  // Cancel order doesn't need network check since it's an API call, not an on-chain transaction
+  const { cancelOrder } = usePlaceOrder(clobClient, undefined, tradingSession?.apiCredentials, undefined, true);
   const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
   const { data: positionsData, isLoading: isLoadingPositions, refetch: refetchPositions, error: positionsError, isError: isPositionsError } = usePolymarketPositions();
 
