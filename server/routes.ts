@@ -1657,9 +1657,18 @@ export async function registerRoutes(
 
       const data = JSON.parse(responseText);
       res.json(data);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to submit order to Polymarket:", error);
-      res.status(500).json({ error: "Failed to submit order" });
+      // Include more error details for debugging
+      const errorMessage = error.message || "Failed to submit order";
+      const errorDetails = {
+        error: errorMessage,
+        cause: error.cause?.message,
+        code: error.code,
+        type: error.name,
+      };
+      console.error("Order submission error details:", JSON.stringify(errorDetails));
+      res.status(500).json(errorDetails);
     }
   });
 
