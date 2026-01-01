@@ -619,8 +619,19 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         const existingProvider = getExistingWCProvider();
         if (existingProvider) {
           console.log("[WC Visibility] Using existing provider instance");
-          // Check the existing provider's session
-          if (existingProvider.session) {
+          
+          // Poll for session - the relay may need time to sync after returning from wallet app
+          let sessionFound = false;
+          for (let attempt = 0; attempt < 5; attempt++) {
+            if (existingProvider.session) {
+              sessionFound = true;
+              break;
+            }
+            console.log(`[WC Visibility] Session poll attempt ${attempt + 1}/5 - waiting 500ms...`);
+            await new Promise(r => setTimeout(r, 500));
+          }
+          
+          if (sessionFound && existingProvider.session) {
             const accounts = existingProvider.accounts;
             console.log("[WC Visibility] Existing provider has session, accounts:", accounts);
             if (accounts && accounts.length > 0) {
@@ -657,7 +668,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
               return;
             }
           }
-          console.log("[WC Visibility] Existing provider has no active session");
+          console.log("[WC Visibility] Existing provider has no active session after polling");
           wcSessionCheckInProgress.current = false;
           return;
         }
