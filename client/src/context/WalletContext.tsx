@@ -559,8 +559,20 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         } else {
           console.log("[WC Visibility] No active session found");
         }
-      } catch (error) {
+      } catch (error: any) {
         console.log("[WC Visibility] Error checking session:", error);
+        // If we get a stale session error, clear the storage
+        if (error.message?.includes("session topic doesn't exist")) {
+          console.log("[WC Visibility] Clearing stale session data...");
+          const keysToRemove: string[] = [];
+          for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && (key.startsWith("wc@2:") || key.startsWith("walletconnect"))) {
+              keysToRemove.push(key);
+            }
+          }
+          keysToRemove.forEach(key => localStorage.removeItem(key));
+        }
       }
     };
     
@@ -857,6 +869,22 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
   }, [getPhantomProvider]);
 
+  const clearWalletConnectStorage = useCallback(() => {
+    console.log("[WC] Clearing stale WalletConnect storage...");
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && (key.startsWith("wc@2:") || key.startsWith("walletconnect"))) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach(key => {
+      console.log("[WC] Removing:", key);
+      localStorage.removeItem(key);
+    });
+    console.log("[WC] Cleared", keysToRemove.length, "WalletConnect storage items");
+  }, []);
+
   const connectWalletConnect = useCallback(async (): Promise<boolean> => {
     if (!WALLETCONNECT_PROJECT_ID) {
       throw new Error("WalletConnect is not configured. Missing project ID.");
@@ -864,7 +892,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     
     setIsConnecting(true);
     try {
-      console.log("Initializing WalletConnect...");
+      console.log("[WC] Initializing WalletConnect...");
+      
+      // Clear any stale session data before connecting to prevent "session topic doesn't exist" errors
+      clearWalletConnectStorage();
       
       const wcProvider = await WCEthereumProvider.init({
         projectId: WALLETCONNECT_PROJECT_ID,
@@ -879,7 +910,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         },
       });
       
-      console.log("WalletConnect provider initialized, enabling...");
+      console.log("[WC] Provider initialized, enabling...");
       
       // This will show QR code modal on desktop or deep link on mobile
       await wcProvider.enable();
@@ -890,7 +921,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       }
       
       const address = accounts[0];
-      console.log("WalletConnect connected:", address);
+      console.log("[WC] Connected:", address);
       
       // Store provider reference
       wcProviderRef.current = wcProvider;
@@ -921,15 +952,20 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         disconnectWallet();
       });
       
-      console.log("WalletConnect setup complete!");
+      console.log("[WC] Setup complete!");
       return true;
     } catch (error: any) {
-      console.error("WalletConnect connection error:", error);
+      console.error("[WC] Connection error:", error);
+      // If session topic error, clear storage so next attempt starts fresh
+      if (error.message?.includes("session topic doesn't exist")) {
+        console.log("[WC] Detected stale session, clearing storage for retry...");
+        clearWalletConnectStorage();
+      }
       throw error;
     } finally {
       setIsConnecting(false);
     }
-  }, []);
+  }, [clearWalletConnectStorage]);
 
   const disconnectWallet = useCallback(async () => {
     try {
