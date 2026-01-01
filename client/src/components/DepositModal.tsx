@@ -212,8 +212,10 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
 
   const { 
     tradingWalletBalance, 
+    tradingWalletUsdcBalance,
     isLoadingTradingBalance: isLoadingBalance,
     eoaBalance,
+    eoaUsdcBalance,
     isLoadingEoaBalance,
     isExternalWallet,
     refetchTradingBalance: refetchBalance,
@@ -513,18 +515,25 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
                 )}
 
                 {isExternalWallet && (
-                  <div className="p-2 rounded-md bg-background border">
-                    <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <span>In Connected Wallet (EOA)</span>
-                      {isLoadingEoaBalance ? (
-                        <span className="tabular-nums">Loading...</span>
-                      ) : (
-                        <span className="tabular-nums" data-testid="text-eoa-balance">${eoaBalance.toFixed(2)} USDC.e</span>
-                      )}
-                    </div>
-                    {eoaBalance > 0 && (
+                  <div className="p-2 rounded-md bg-background border space-y-1">
+                    <div className="text-xs text-muted-foreground font-medium">In Connected Wallet (EOA)</div>
+                    {isLoadingEoaBalance ? (
+                      <div className="text-xs tabular-nums">Loading...</div>
+                    ) : (
+                      <div className="space-y-0.5">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground">USDC.e</span>
+                          <span className="tabular-nums" data-testid="text-eoa-balance">${eoaBalance.toFixed(2)}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground">USDC</span>
+                          <span className="tabular-nums" data-testid="text-eoa-usdc-balance">${eoaUsdcBalance.toFixed(2)}</span>
+                        </div>
+                      </div>
+                    )}
+                    {(eoaBalance > 0 || eoaUsdcBalance > 0) && (
                       <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                        Deposit this to your Safe wallet to trade
+                        Deposit to your Safe wallet to trade
                       </p>
                     )}
                   </div>
