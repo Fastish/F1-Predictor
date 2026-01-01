@@ -90,7 +90,9 @@ export function usePlaceOrder(
               
               console.log("[usePlaceOrder] Wallet on wrong network, attempting to switch...");
               try {
-                await requestPolygonSwitch();
+                // Pass the provider to requestPolygonSwitch for WalletConnect compatibility
+                const browserProvider = signer.provider as any;
+                await requestPolygonSwitch(browserProvider);
                 console.log("[usePlaceOrder] Network switch requested - user needs to reconnect");
                 setIsPlacing(false);
                 setError("Network switched. Please reconnect to continue.");
@@ -101,6 +103,16 @@ export function usePlaceOrder(
               } catch (switchErr: any) {
                 console.error("[usePlaceOrder] Network switch failed:", switchErr);
                 setIsPlacing(false);
+                
+                // Special handling for WalletConnect - user must switch in their mobile wallet app
+                if (switchErr.message === "SWITCH_IN_WALLET") {
+                  setError("Switch network in your wallet app");
+                  return { 
+                    success: false, 
+                    error: `Your wallet is on ${chainName}. Please open your wallet app, switch to Polygon network, then disconnect and reconnect here.` 
+                  };
+                }
+                
                 setError(`Please switch to Polygon network`);
                 return { 
                   success: false, 

@@ -4,11 +4,13 @@ import { ethers } from "ethers";
 export const POLYGON_CHAIN_ID = 137;
 
 // Multiple Polygon RPC endpoints with fallback support
+// Using more reliable endpoints first
 const POLYGON_RPC_ENDPOINTS = [
+  "https://polygon-mainnet.public.blastapi.io",
+  "https://1rpc.io/matic",
+  "https://polygon.drpc.org",
   "https://polygon.llamarpc.com",
-  "https://polygon-bor-rpc.publicnode.com",
   "https://rpc.ankr.com/polygon",
-  "https://polygon-rpc.com",
 ];
 
 // Track current RPC index for rotation on failures
@@ -106,14 +108,34 @@ export async function verifyPolygonNetwork(signer: ethers.Signer): Promise<numbe
 }
 
 // Request wallet to switch to Polygon network
+// Works with browser extensions AND WalletConnect wallets
 // Returns true if switch was requested (user will need to reconnect wallet after)
-export async function requestPolygonSwitch(): Promise<void> {
-  // Try to find the wallet provider
-  const ethereum = (window as any).ethereum || 
-                   (window as any).phantom?.ethereum;
+export async function requestPolygonSwitch(provider?: ethers.BrowserProvider | null): Promise<void> {
+  // For WalletConnect and other EIP-1193 providers, use the provider directly
+  // For browser extensions, fall back to window.ethereum
+  let ethereum: any = null;
   
-  if (!ethereum) {
-    throw new Error("No wallet provider found");
+  if (provider) {
+    // Try to get underlying provider from ethers BrowserProvider
+    try {
+      // Access the underlying EIP-1193 provider
+      ethereum = (provider as any).provider || provider;
+      console.log("[requestPolygonSwitch] Using passed provider");
+    } catch (e) {
+      console.log("[requestPolygonSwitch] Could not extract underlying provider");
+    }
+  }
+  
+  // Fallback to window.ethereum for browser extensions
+  if (!ethereum || typeof ethereum.request !== 'function') {
+    ethereum = (window as any).ethereum || 
+               (window as any).phantom?.ethereum;
+    console.log("[requestPolygonSwitch] Using window.ethereum fallback");
+  }
+  
+  if (!ethereum || typeof ethereum.request !== 'function') {
+    // For WalletConnect, tell user to switch in their wallet app
+    throw new Error("SWITCH_IN_WALLET");
   }
   
   console.log("[requestPolygonSwitch] Requesting switch to Polygon...");
