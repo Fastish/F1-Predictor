@@ -216,19 +216,21 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
   };
 
   const handleApproveUSDC = async (useRelayer: boolean = false) => {
+    console.log("[DepositWizard] ========== handleApproveUSDC START ==========");
+    console.log("[DepositWizard] useRelayer:", useRelayer, "relayerAvailable:", relayerAvailable);
+    console.log("[DepositWizard] signer:", signer ? "available" : "NOT AVAILABLE", "walletType:", walletType);
+    
     setLoading(true);
     setError(null);
     setTxHash(null);
     setUsingRelayer(useRelayer);
-    
-    console.log("[DepositWizard] handleApproveUSDC called, useRelayer:", useRelayer, "relayerAvailable:", relayerAvailable);
-    console.log("[DepositWizard] signer available:", !!signer, "walletType:", walletType);
     
     try {
       if (useRelayer && relayerAvailable) {
         // Use gasless relayer for approvals (client-side signing with remote Builder auth)
         console.log("[DepositWizard] Using gasless relayer for USDC approval");
         const result = await approveUSDCGasless();
+        console.log("[DepositWizard] Gasless USDC approval result:", result);
         
         if (!result.success) {
           throw new Error(result.error || "Gasless approval failed");
@@ -239,13 +241,23 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
         // Use direct wallet signing (user pays gas)
         if (!signer) {
           console.error("[DepositWizard] No signer available for USDC approval!");
-          throw new Error("No signer available. Please reconnect your wallet.");
+          setError("No signer available. Please reconnect your wallet and try again.");
+          setLoading(false);
+          return;
         }
         
-        console.log("[DepositWizard] Using direct signing for USDC approval, signer address:", await signer.getAddress());
+        try {
+          const signerAddr = await signer.getAddress();
+          console.log("[DepositWizard] Signer address resolved:", signerAddr);
+        } catch (e) {
+          console.error("[DepositWizard] Failed to get signer address:", e);
+          setError("Failed to access wallet. Please reconnect and try again.");
+          setLoading(false);
+          return;
+        }
         
         // Approve CTF Exchange
-        console.log("[DepositWizard] Approving USDC for CTF Exchange...");
+        console.log("[DepositWizard] Calling approveUSDCForExchange...");
         const result1 = await approveUSDCForExchange(signer);
         console.log("[DepositWizard] CTF Exchange approval result:", result1);
         if (!result1.success) {
