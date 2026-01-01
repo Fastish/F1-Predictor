@@ -39,15 +39,6 @@ export function usePolymarketPositions() {
         return { positions: [], totalValue: 0, totalPnl: 0 };
       }
 
-      try {
-        const balanceAllowance = await clobClient.getBalanceAllowance({
-          asset_type: "CONDITIONAL",
-        });
-        console.log("Balance allowance response:", balanceAllowance);
-      } catch (balanceError) {
-        console.warn("Failed to check balance allowance (may need approvals):", balanceError);
-      }
-
       const response = await fetch(`/api/polymarket/positions/${safeAddress}`);
       if (!response.ok) {
         const errorText = await response.text();

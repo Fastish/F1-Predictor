@@ -1,0 +1,43 @@
+LOGDerived Safe address for 0x234Cc20818238c0D54a28b696374A95D3C59302B: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOGDerived Safe address for 0x234Cc20818238c0D54a28b696374A95D3C59302B: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOGTrading via Safe wallet (derived for WalletConnect): 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOG[Polygon RPC] Creating provider with endpoint: https://polygon-rpc.com
+WARNINGWarning: Missing `Description` or `aria-describedby={undefined}` for {DialogContent}.
+LOGCreating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOG[checkDepositRequirements] Checking approvals on Safe: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOG[checkDepositRequirements] Results: [object Object]
+LOGDerived Safe address for 0x234Cc20818238c0D54a28b696374A95D3C59302B: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOG[Wagmi] Disconnecting WalletConnect...
+LOG[DepositModal] Auto-init check: [object Object]
+LOG[Wagmi] WalletConnect connected via wagmi: 0x234Cc20818238c0D54a28b696374A95D3C59302B
+LOGDerived Safe address for 0x234Cc20818238c0D54a28b696374A95D3C59302B: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOG[DepositModal] Auto-init check: [object Object]
+LOG[Wagmi] Setting up provider from walletClient
+LOGDerived Safe address for 0x234Cc20818238c0D54a28b696374A95D3C59302B: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOG[DepositModal] Auto-init check: [object Object]
+LOG[Wagmi] Signer ready
+LOGCreating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOGCreating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOGCreating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOGCreating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOGCreating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOGDerived Safe address for 0x234Cc20818238c0D54a28b696374A95D3C59302B: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOGCreating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOGCreating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOGCreating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOGCreating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOGCreating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOG[DepositModal] Auto-init check: [object Object]
+ERROR[CLOB Client] request error {"status":400,"statusText":"Bad Request","data":{"error":"GetBalanceAndAllowance invalid params: assetId invalid value -1, as this is a erc1155 operation, asset must be a valid tokenId value"},"config":{"transitional":{"silentJSONParsing":true,"forcedJSONParsing":true,"clarifyTimeoutError":false},"adapter":["xhr","http","fetch"],"transformRequest":[null],"transformResponse":[null],"timeout":0,"xsrfCookieName":"XSRF-TOKEN","xsrfHeaderName":"X-XSRF-TOKEN","maxContentLength":-1,"maxBodyLength":-1,"env":{},"headers":{"Accept":"application/json, text/plain, */*","POLY_ADDRESS":"0x234Cc20818238c0D54a28b696374A95D3C59302B","POLY_SIGNATURE":"WUYXYuVKS_mXBbLQBQy2l7kSD_sIuKkEdLxeZxWhCYE=","POLY_TIMESTAMP":"1767302640","POLY_API_KEY":"61894bfc-e22f-98d8-7f11-095d4bfc98cd","POLY_PASSPHRASE":"807e1eae0a8c3ed1434f1b8cf3d15b82c459c9d9904f6e1db18f53385684fa66"},"method":"get","url":"https://clob.polymarket.com/balance-allowance","params":{"asset_type":"CONDITIONAL","signature_type":2},"allowAbsoluteUrls":true}}
+LOGBalance allowance response: [object Object]
+LOGDerived Safe address for 0x234Cc20818238c0D54a28b696374A95D3C59302B: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOG[Init] Saved wallet type: walletconnect address: 0x234Cc20818238c0D54a28b696374A95D3C59302B
+LOG[Init] Checking wagmi for WalletConnect session
+LOGDerived Safe address for 0x234Cc20818238c0D54a28b696374A95D3C59302B: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOGDerived Safe address for 0x234Cc20818238c0D54a28b696374A95D3C59302B: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOG[Wagmi] Disconnecting WalletConnect...
+LOG[DepositModal] Auto-init check: [object Object]
+LOG[DepositModal] Auto-init check: [object Object]
+LOG[DepositModal] Auto-init check: [object Object]
+LOG[DepositModal] Auto-init check: [object Object]
+LOG[vite] server connection lost. Polling for restart...
