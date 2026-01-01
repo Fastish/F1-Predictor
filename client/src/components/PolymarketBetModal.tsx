@@ -24,7 +24,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Loader2, TrendingUp, TrendingDown, AlertCircle, ExternalLink, Wallet, HelpCircle, Calendar } from "lucide-react";
+import { Loader2, TrendingUp, TrendingDown, AlertCircle, ExternalLink, Wallet, HelpCircle, Calendar, Smartphone } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useMarket } from "@/context/MarketContext";
@@ -41,6 +41,15 @@ const USDC_ABI = [
   "function transfer(address to, uint256 amount) returns (bool)",
   "function balanceOf(address owner) view returns (uint256)",
 ];
+
+// Detect if running in Phantom's in-app browser on mobile (EVM chains have signature popup issues)
+function isPhantomInAppBrowser(): boolean {
+  const userAgent = navigator.userAgent.toLowerCase();
+  const isPhantomUA = userAgent.includes("phantom");
+  const hasPhantomEthereum = !!(window as any).phantom?.ethereum;
+  const isMobile = /iphone|ipad|ipod|android/i.test(userAgent);
+  return isMobile && (isPhantomUA || hasPhantomEthereum);
+}
 
 interface PolymarketOutcome {
   id: string;
@@ -97,6 +106,8 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
   const [pendingRetry, setPendingRetry] = useState(false);
   const [approvalStatus, setApprovalStatus] = useState<{ needsApproval: boolean; checked: boolean }>({ needsApproval: false, checked: false });
   const [tradingWallet, setTradingWallet] = useState<{ address: string | null; balance: number; type: "safe" | "proxy" | "eoa" }>({ address: null, balance: 0, type: "eoa" });
+  const [showSignatureWarning, setShowSignatureWarning] = useState(false);
+  const isPhantomMobile = isPhantomInAppBrowser();
   const { toast } = useToast();
   const { userId } = useMarket();
   const { signer, walletAddress, walletType, provider } = useWallet();
@@ -314,12 +325,29 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
     }
 
     setIsPlacingOrderLocal(true);
+    setShowSignatureWarning(false);
+
+    // Set up timeout to show warning for Phantom mobile users
+    let signatureTimeout: ReturnType<typeof setTimeout> | null = null;
+    if (isPhantomMobile) {
+      signatureTimeout = setTimeout(() => {
+        setShowSignatureWarning(true);
+        toast({
+          title: "Signature Request Pending",
+          description: "If you don't see a signature popup, try scrolling down in Phantom or tap the notification area.",
+          variant: "default",
+          duration: 10000,
+        });
+      }, 5000);
+    }
 
     try {
       // Step 1: Place the order on Polymarket
       toast({
         title: "Signing Order",
-        description: "Please sign the order in your wallet...",
+        description: isPhantomMobile 
+          ? "Check Phantom for signature request..."
+          : "Please sign the order in your wallet...",
       });
 
       // Convert GTD expiration to Unix timestamp (seconds) if provided
@@ -336,6 +364,10 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
         orderType,
         expiration: expirationTimestamp,
       });
+
+      // Clear the timeout since signature was received
+      if (signatureTimeout) clearTimeout(signatureTimeout);
+      setShowSignatureWarning(false);
 
       if (result.success) {
         console.log("Order successful, recording with orderId:", result.orderId);
@@ -506,12 +538,28 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
         }
       }
     } catch (error) {
+      // Clear the timeout on error
+      if (signatureTimeout) clearTimeout(signatureTimeout);
+      setShowSignatureWarning(false);
+      
       console.error("Error placing bet:", error);
-      toast({
-        title: "Order Failed",
-        description: error instanceof Error ? error.message : "Failed to place order",
-        variant: "destructive",
-      });
+      const errorMsg = error instanceof Error ? error.message : "Failed to place order";
+      
+      // Provide specific guidance for Phantom mobile signature issues
+      if (isPhantomMobile && (errorMsg.includes("timeout") || errorMsg.includes("rejected") || errorMsg.includes("cancelled"))) {
+        toast({
+          title: "Signature Issue",
+          description: "Phantom may not show signature popups in its in-app browser. Try using WalletConnect with MetaMask mobile for better reliability.",
+          variant: "destructive",
+          duration: 8000,
+        });
+      } else {
+        toast({
+          title: "Order Failed",
+          description: errorMsg,
+          variant: "destructive",
+        });
+      }
     } finally {
       setIsPlacingOrderLocal(false);
     }
@@ -549,6 +597,21 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
     }
 
     setIsPlacingOrderLocal(true);
+    setShowSignatureWarning(false);
+
+    // Set up timeout to show warning for Phantom mobile users
+    let sellSignatureTimeout: ReturnType<typeof setTimeout> | null = null;
+    if (isPhantomMobile) {
+      sellSignatureTimeout = setTimeout(() => {
+        setShowSignatureWarning(true);
+        toast({
+          title: "Signature Request Pending",
+          description: "If you don't see a signature popup, try scrolling down in Phantom or tap the notification area.",
+          variant: "default",
+          duration: 10000,
+        });
+      }, 5000);
+    }
 
     try {
       // For GTC/GTD orders with manual limit price, use that; otherwise get best bid
@@ -588,7 +651,9 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
       // Step 1: Place the sell order
       toast({
         title: "Signing Sell Order",
-        description: `Selling at ${(sellPrice * 100).toFixed(1)}c per share...`,
+        description: isPhantomMobile 
+          ? `Check Phantom for signature - Selling at ${(sellPrice * 100).toFixed(1)}c...`
+          : `Selling at ${(sellPrice * 100).toFixed(1)}c per share...`,
       });
 
       // Convert GTD expiration to Unix timestamp (seconds) if provided
@@ -605,6 +670,10 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
         orderType,
         expiration: expirationTimestamp,
       });
+
+      // Clear the timeout since signature was received
+      if (sellSignatureTimeout) clearTimeout(sellSignatureTimeout);
+      setShowSignatureWarning(false);
 
       if (result.success) {
         await apiRequest("POST", "/api/polymarket/record-order", {
@@ -717,12 +786,28 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
         });
       }
     } catch (error) {
+      // Clear the timeout on error
+      if (sellSignatureTimeout) clearTimeout(sellSignatureTimeout);
+      setShowSignatureWarning(false);
+      
       console.error("Error selling position:", error);
-      toast({
-        title: "Sell Failed",
-        description: error instanceof Error ? error.message : "Failed to sell position",
-        variant: "destructive",
-      });
+      const errorMsg = error instanceof Error ? error.message : "Failed to sell position";
+      
+      // Provide specific guidance for Phantom mobile signature issues
+      if (isPhantomMobile && (errorMsg.includes("timeout") || errorMsg.includes("rejected") || errorMsg.includes("cancelled"))) {
+        toast({
+          title: "Signature Issue",
+          description: "Phantom may not show signature popups in its in-app browser. Try using WalletConnect with MetaMask mobile for better reliability.",
+          variant: "destructive",
+          duration: 8000,
+        });
+      } else {
+        toast({
+          title: "Sell Failed",
+          description: errorMsg,
+          variant: "destructive",
+        });
+      }
     } finally {
       setIsPlacingOrderLocal(false);
     }
@@ -755,6 +840,25 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
 
         <ScrollArea className="flex-1 overflow-y-auto pr-4 -mr-4">
           <div className="space-y-4 pb-4">
+          
+          {isPhantomMobile && (
+            <div className="rounded-md bg-amber-500/10 dark:bg-amber-500/20 border border-amber-500/30 p-3 flex items-start gap-2">
+              <Smartphone className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+              <div className="text-sm text-amber-700 dark:text-amber-300">
+                <span className="font-medium">Phantom Mobile Note:</span> Signature popups may not appear. If the order hangs, try scrolling within Phantom or use WalletConnect with MetaMask mobile for better reliability.
+              </div>
+            </div>
+          )}
+          
+          {showSignatureWarning && (
+            <div className="rounded-md bg-blue-500/10 dark:bg-blue-500/20 border border-blue-500/30 p-3 flex items-start gap-2 animate-pulse">
+              <AlertCircle className="h-4 w-4 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
+              <div className="text-sm text-blue-700 dark:text-blue-300">
+                <span className="font-medium">Waiting for signature...</span> Check Phantom's notification area or try scrolling down in the app.
+              </div>
+            </div>
+          )}
+          
           {isSellMode && position ? (
             <>
               <div className="rounded-md bg-muted/50 p-3 space-y-2">
