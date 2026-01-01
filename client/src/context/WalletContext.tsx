@@ -969,29 +969,56 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       console.log("[WC] Initializing WalletConnect...");
       console.log("[WC] User agent:", navigator.userAgent);
       console.log("[WC] Is mobile:", /iPhone|iPad|iPod|Android/i.test(navigator.userAgent));
+      console.log("[WC] Project ID present:", !!WALLETCONNECT_PROJECT_ID);
       
-      // NOTE: Do NOT clear storage here - on mobile, the session gets established
-      // while user is in MetaMask. Clearing storage would erase that session.
-      // Only clear storage when we detect a stale/invalid session error.
+      // Clear existing WC provider reference to ensure fresh connection
+      if (wcProviderRef.current) {
+        console.log("[WC] Clearing existing provider reference");
+        try {
+          await wcProviderRef.current.disconnect();
+        } catch (e) {
+          console.log("[WC] Error disconnecting old provider:", e);
+        }
+        wcProviderRef.current = null;
+      }
+      
+      // Clear any stale WalletConnect storage for fresh connection
+      console.log("[WC] Clearing stale WalletConnect storage for fresh connection...");
+      clearWalletConnectStorage();
+      
+      // Add small delay after clearing storage to ensure clean state
+      await new Promise(r => setTimeout(r, 500));
+      
+      console.log("[WC] Creating new WalletConnect provider...");
       
       // WalletConnect modal handles both desktop (shows QR) and mobile (shows wallet selection)
-      const wcProvider = await WCEthereumProvider.init({
-        projectId: WALLETCONNECT_PROJECT_ID,
-        chains: [POLYGON_CHAIN_ID],
-        showQrModal: true, // Modal handles mobile detection internally
-        optionalChains: [],
-        // Required methods for Polymarket CLOB API credential derivation
-        methods: ["eth_sendTransaction", "personal_sign"],
-        optionalMethods: ["eth_signTypedData", "eth_signTypedData_v4", "eth_sign"],
-        // Explicit relay URL for better mobile connectivity
-        relayUrl: "wss://relay.walletconnect.com",
-        metadata: {
-          name: "F1 Predict",
-          description: "F1 Prediction Market - Trade on F1 Championship outcomes",
-          url: window.location.origin,
-          icons: [`${window.location.origin}/favicon.ico`],
-        },
+      // Add a timeout to prevent hanging if WalletConnect initialization fails
+      const initTimeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error("WalletConnect initialization timed out. Please try again.")), 30000);
       });
+      
+      const wcProvider = await Promise.race([
+        WCEthereumProvider.init({
+          projectId: WALLETCONNECT_PROJECT_ID,
+          chains: [POLYGON_CHAIN_ID],
+          showQrModal: true, // Modal handles mobile detection internally
+          optionalChains: [],
+          // Required methods for Polymarket CLOB API credential derivation
+          methods: ["eth_sendTransaction", "personal_sign"],
+          optionalMethods: ["eth_signTypedData", "eth_signTypedData_v4", "eth_sign"],
+          // Explicit relay URL for better mobile connectivity
+          relayUrl: "wss://relay.walletconnect.com",
+          metadata: {
+            name: "F1 Predict",
+            description: "F1 Prediction Market - Trade on F1 Championship outcomes",
+            url: window.location.origin,
+            icons: [`${window.location.origin}/favicon.ico`],
+          },
+        }),
+        initTimeoutPromise
+      ]);
+      
+      console.log("[WC] Provider created successfully");
       
       // Add connection event listeners before enable() for mobile debugging
       wcProvider.on("connect", (info: any) => {
@@ -1089,12 +1116,15 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       return true;
     } catch (error: any) {
       console.error("[WC] Connection error:", error);
+      console.error("[WC] Error name:", error?.name);
+      console.error("[WC] Error message:", error?.message);
+      console.error("[WC] Error stack:", error?.stack);
       localStorage.removeItem("wc_connection_pending");
-      // If session topic error, clear storage so next attempt starts fresh
-      if (error.message?.includes("session topic doesn't exist")) {
-        console.log("[WC] Detected stale session, clearing storage for retry...");
-        clearWalletConnectStorage();
-      }
+      
+      // Always clear storage on connection failure for clean retry
+      console.log("[WC] Clearing storage after connection failure for clean retry...");
+      clearWalletConnectStorage();
+      
       throw error;
     } finally {
       setIsConnecting(false);
