@@ -241,7 +241,67 @@ export function Header() {
               </Button>
             </SheetTrigger>
             <SheetContent side="right" className="w-64">
-              <nav className="mt-8 flex flex-col gap-2">
+              {/* Mobile wallet balance section */}
+              {walletAddress && (
+                <div className="mt-6 mb-4 p-3 rounded-md bg-muted space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Cash Balance</span>
+                    {isLoadingCash ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <span className="font-semibold tabular-nums" data-testid="text-mobile-cash-balance">
+                        ${(cashBalance || 0).toFixed(2)}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="flex-1"
+                      onClick={() => {
+                        setDepositOpen(true);
+                        setMobileMenuOpen(false);
+                      }}
+                      data-testid="button-mobile-deposit"
+                    >
+                      <Wallet className="h-3.5 w-3.5 mr-1" />
+                      Wallet
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="flex-1"
+                      onClick={() => {
+                        setSwapOpen(true);
+                        setMobileMenuOpen(false);
+                      }}
+                      data-testid="button-mobile-swap"
+                    >
+                      <RefreshCw className="h-3.5 w-3.5 mr-1" />
+                      Swap
+                    </Button>
+                  </div>
+                </div>
+              )}
+              
+              {!walletAddress && (
+                <div className="mt-6 mb-4">
+                  <Button
+                    className="w-full"
+                    onClick={() => {
+                      setDepositOpen(true);
+                      setMobileMenuOpen(false);
+                    }}
+                    data-testid="button-mobile-connect"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Connect Wallet
+                  </Button>
+                </div>
+              )}
+              
+              <nav className="flex flex-col gap-2">
                 <Link href="/constructors">
                   <Button
                     variant={location === "/constructors" ? "secondary" : "ghost"}
