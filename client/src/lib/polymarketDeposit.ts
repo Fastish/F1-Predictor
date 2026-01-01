@@ -85,9 +85,33 @@ export async function verifyPolygonNetwork(signer: ethers.Signer): Promise<numbe
   }
   
   try {
-    // Get current network from the signer's provider
-    const network = await provider.getNetwork();
-    const currentChainId = Number(network.chainId);
+    // For WalletConnect and dynamic providers, query eth_chainId directly
+    // instead of using cached network from ethers.js
+    let currentChainId: number;
+    
+    try {
+      // Try to get fresh chain ID from underlying EIP-1193 provider (works for WalletConnect)
+      // Access the underlying provider that ethers wraps
+      const underlyingProvider = (provider as any).provider || (provider as any)._provider;
+      
+      if (underlyingProvider && typeof underlyingProvider.request === 'function') {
+        console.log("[verifyPolygonNetwork] Found underlying provider, querying eth_chainId...");
+        const chainIdHex = await underlyingProvider.request({ method: "eth_chainId" });
+        currentChainId = parseInt(chainIdHex, 16);
+        console.log(`[verifyPolygonNetwork] Direct eth_chainId query: ${currentChainId}`);
+      } else {
+        // Fallback to ethers network detection
+        console.log("[verifyPolygonNetwork] No underlying provider, using getNetwork");
+        const network = await provider.getNetwork();
+        currentChainId = Number(network.chainId);
+        console.log(`[verifyPolygonNetwork] Ethers getNetwork: ${currentChainId}`);
+      }
+    } catch (directError) {
+      // Fallback to ethers network detection
+      console.log("[verifyPolygonNetwork] Direct query failed, using getNetwork:", directError);
+      const network = await provider.getNetwork();
+      currentChainId = Number(network.chainId);
+    }
     
     console.log(`[verifyPolygonNetwork] Current chain ID: ${currentChainId}, required: ${POLYGON_CHAIN_ID}`);
     

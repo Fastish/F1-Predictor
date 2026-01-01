@@ -1,0 +1,45 @@
+LOG[WC Visibility] Already connected, skipping session check
+LOGDerived Safe address for 0x234cc20818238c0d54a28b696374a95d3c59302b: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOGDerived Safe address for 0x234cc20818238c0d54a28b696374a95d3c59302b: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOGTrading via Safe wallet (derived for WalletConnect): 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOG[Polygon RPC] Creating provider with endpoint: https://polygon-mainnet.public.blastapi.io
+WARNINGWarning: Missing `Description` or `aria-describedby={undefined}` for {DialogContent}.
+LOGCreating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+ERRORFailed to check approval/balance status: TypeError: Load failed
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGCreating order with ClobClient: [object Object]
+LOGDerived Safe address for 0x234cc20818238c0d54a28b696374a95d3c59302b: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOG[usePlaceOrder] Verifying Polygon network before signing...
+LOG[verifyPolygonNetwork] Current chain ID: 1, required: 137
+ERROR[usePlaceOrder] Network verification failed: Error: WRONG_NETWORK:1
+LOG[usePlaceOrder] Wallet on wrong network, attempting to switch...
+LOG[requestPolygonSwitch] Using passed provider
+LOG[requestPolygonSwitch] Using window.ethereum fallback
+ERROR[usePlaceOrder] Network switch failed: Error: SWITCH_IN_WALLET
+ERROROrder failed with result: {
+  "success": false,
+  "error": "Your wallet is on Ethereum. Please open your wallet app, switch to Polygon network, then disconnect and reconnect here."
+}
+LOGError analysis: [object Object]
+LOGDerived Safe address for 0x234cc20818238c0d54a28b696374a95d3c59302b: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGDerived Safe address for 0x234cc20818238c0d54a28b696374a95d3c59302b: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOGDerived Safe address for 0x234cc20818238c0d54a28b696374a95d3c59302b: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGDerived Safe address for 0x234cc20818238c0d54a28b696374a95d3c59302b: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
