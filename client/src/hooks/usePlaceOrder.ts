@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { ClobClient, Side, OrderType } from "@polymarket/clob-client";
-import { ensurePolygonNetwork } from "@/lib/polymarketDeposit";
+import { verifyPolygonNetwork } from "@/lib/polymarketDeposit";
 import { ethers } from "ethers";
 
 // Helper to log debug info to server for visibility
@@ -63,17 +63,40 @@ export function usePlaceOrder(
         console.log("Creating order with ClobClient:", params);
         await logToServer("ORDER_START", { params });
         
-        // Ensure we're on Polygon network before signing
+        // Verify we're on Polygon network before signing
         // This prevents "Active chainId is 0x1 but received 0x89" errors
         if (signer) {
           try {
-            console.log("[usePlaceOrder] Ensuring Polygon network before signing...");
-            await ensurePolygonNetwork(signer);
-            console.log("[usePlaceOrder] Network check passed");
+            console.log("[usePlaceOrder] Verifying Polygon network before signing...");
+            await verifyPolygonNetwork(signer);
+            console.log("[usePlaceOrder] Network verification passed - on Polygon");
           } catch (networkError: any) {
-            console.error("[usePlaceOrder] Network switch failed:", networkError);
+            console.error("[usePlaceOrder] Network verification failed:", networkError);
+            
+            // Check if this is a "network changed" error (signer was created on wrong network)
+            if (networkError.message === "NETWORK_CHANGED") {
+              setIsPlacing(false);
+              setError("Your wallet network changed. Please reconnect your wallet.");
+              return { 
+                success: false, 
+                error: "Your wallet switched networks. Please disconnect and reconnect your wallet on Polygon to continue trading." 
+              };
+            }
+            
+            // Check if wallet is on wrong network
+            if (networkError.message?.startsWith("WRONG_NETWORK:")) {
+              const currentChain = networkError.message.split(":")[1];
+              const chainName = currentChain === "1" ? "Ethereum" : `chain ${currentChain}`;
+              setIsPlacing(false);
+              setError(`Please switch to Polygon network`);
+              return { 
+                success: false, 
+                error: `Your wallet is on ${chainName}. Please switch to Polygon network in your wallet, then disconnect and reconnect to refresh the trading session.` 
+              };
+            }
+            
             setIsPlacing(false);
-            setError("Please switch your wallet to Polygon network");
+            setError("Network error - please ensure you're on Polygon");
             return { success: false, error: "Please switch your wallet to Polygon network to sign this order" };
           }
         }

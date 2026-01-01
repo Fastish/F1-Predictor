@@ -73,48 +73,63 @@ async function withRpcRetry<T>(operation: () => Promise<T>, maxRetries = 3): Pro
   throw lastError;
 }
 
-// Switch wallet to Polygon network before transactions
-// This is required for WalletConnect to show correct network and gas token (MATIC)
-export async function ensurePolygonNetwork(signer: ethers.Signer): Promise<void> {
+// Check if wallet is on Polygon network - throws error if not
+// Does NOT attempt to switch networks (which would invalidate the signer)
+// Returns the current chain ID for diagnostics
+export async function verifyPolygonNetwork(signer: ethers.Signer): Promise<number> {
   const provider = signer.provider;
   if (!provider) {
     throw new Error("No provider available");
   }
   
-  // Get current network
-  const network = await provider.getNetwork();
-  const currentChainId = Number(network.chainId);
-  
-  console.log(`[ensurePolygonNetwork] Current chain ID: ${currentChainId}, required: ${POLYGON_CHAIN_ID}`);
-  
-  if (currentChainId !== POLYGON_CHAIN_ID) {
-    console.log("[ensurePolygonNetwork] Switching to Polygon network...");
+  try {
+    // Get current network from the signer's provider
+    const network = await provider.getNetwork();
+    const currentChainId = Number(network.chainId);
     
-    // Request network switch via provider
-    // This works for both injected wallets and WalletConnect
-    try {
-      // First try to switch to the network
-      await (provider as any).send("wallet_switchEthereumChain", [
-        { chainId: "0x89" } // 137 in hex
-      ]);
-      console.log("[ensurePolygonNetwork] Switch request sent");
-      
-      // Wait a brief moment for the network switch to propagate
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Verify the switch actually happened
-      const newNetwork = await provider.getNetwork();
-      const newChainId = Number(newNetwork.chainId);
-      if (newChainId !== POLYGON_CHAIN_ID) {
-        console.error(`[ensurePolygonNetwork] Network switch verification failed: still on ${newChainId}`);
-        throw new Error(`Please manually switch your wallet to Polygon network (currently on chain ${newChainId})`);
-      }
-      console.log("[ensurePolygonNetwork] Successfully verified switch to Polygon");
-    } catch (switchError: any) {
-      // If the network doesn't exist in the wallet, add it
-      if (switchError.code === 4902) {
-        console.log("[ensurePolygonNetwork] Polygon not found, adding network...");
-        await (provider as any).send("wallet_addEthereumChain", [{
+    console.log(`[verifyPolygonNetwork] Current chain ID: ${currentChainId}, required: ${POLYGON_CHAIN_ID}`);
+    
+    if (currentChainId !== POLYGON_CHAIN_ID) {
+      throw new Error(`WRONG_NETWORK:${currentChainId}`);
+    }
+    
+    return currentChainId;
+  } catch (error: any) {
+    // Handle ethers.js "network changed" error - this means wallet switched networks
+    // and we need to recreate the signer
+    if (error.code === "NETWORK_ERROR" || error.message?.includes("network changed")) {
+      console.log("[verifyPolygonNetwork] Network changed, signer needs to be recreated");
+      throw new Error("NETWORK_CHANGED");
+    }
+    throw error;
+  }
+}
+
+// Request wallet to switch to Polygon network
+// Returns true if switch was requested (user will need to reconnect wallet after)
+export async function requestPolygonSwitch(): Promise<void> {
+  // Try to find the wallet provider
+  const ethereum = (window as any).ethereum || 
+                   (window as any).phantom?.ethereum;
+  
+  if (!ethereum) {
+    throw new Error("No wallet provider found");
+  }
+  
+  console.log("[requestPolygonSwitch] Requesting switch to Polygon...");
+  
+  try {
+    await ethereum.request({
+      method: "wallet_switchEthereumChain",
+      params: [{ chainId: "0x89" }] // 137 in hex
+    });
+    console.log("[requestPolygonSwitch] Switch request sent");
+  } catch (switchError: any) {
+    if (switchError.code === 4902) {
+      console.log("[requestPolygonSwitch] Polygon not found, adding network...");
+      await ethereum.request({
+        method: "wallet_addEthereumChain",
+        params: [{
           chainId: "0x89",
           chainName: "Polygon Mainnet",
           nativeCurrency: {
@@ -124,22 +139,23 @@ export async function ensurePolygonNetwork(signer: ethers.Signer): Promise<void>
           },
           rpcUrls: ["https://polygon-rpc.com"],
           blockExplorerUrls: ["https://polygonscan.com"]
-        }]);
-        
-        // Wait and verify after adding
-        await new Promise(resolve => setTimeout(resolve, 500));
-        const addedNetwork = await provider.getNetwork();
-        if (Number(addedNetwork.chainId) !== POLYGON_CHAIN_ID) {
-          throw new Error("Please manually switch your wallet to Polygon network after adding it");
-        }
-      } else if (switchError.message?.includes("manually switch")) {
-        // Re-throw our verification error
-        throw switchError;
-      } else {
-        console.error("[ensurePolygonNetwork] Failed to switch network:", switchError);
-        throw new Error("Please switch your wallet to Polygon network to continue");
-      }
+        }]
+      });
+    } else {
+      throw switchError;
     }
+  }
+}
+
+// Legacy function for backwards compatibility
+export async function ensurePolygonNetwork(signer: ethers.Signer): Promise<void> {
+  try {
+    await verifyPolygonNetwork(signer);
+  } catch (error: any) {
+    if (error.message?.startsWith("WRONG_NETWORK:") || error.message === "NETWORK_CHANGED") {
+      throw new Error("Please switch your wallet to Polygon network and try again");
+    }
+    throw error;
   }
 }
 
