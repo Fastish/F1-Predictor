@@ -846,38 +846,30 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
                 </div>
                 <div className="flex gap-2">
                   <Button
-                    asChild
                     variant="outline"
                     className="flex-1"
                     data-testid="button-open-phantom-app"
+                    onClick={() => {
+                      window.location.href = `https://phantom.app/ul/browse/${encodeURIComponent(window.location.href)}?ref=${encodeURIComponent(window.location.origin)}`;
+                    }}
                   >
-                    <a 
-                      href={`https://phantom.app/ul/browse/${encodeURIComponent(window.location.href)}?ref=${encodeURIComponent(window.location.origin)}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      <PhantomIcon className="h-4 w-4 mr-2" />
-                      Phantom
-                    </a>
+                    <PhantomIcon className="h-4 w-4 mr-2" />
+                    Open Phantom
                   </Button>
                   <Button
-                    asChild
                     variant="outline"
                     className="flex-1"
                     data-testid="button-open-metamask-app"
+                    onClick={() => {
+                      window.location.href = `https://metamask.app.link/dapp/${window.location.host}${window.location.pathname}`;
+                    }}
                   >
-                    <a 
-                      href={`https://metamask.app.link/dapp/${window.location.host}${window.location.pathname}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      <MetaMaskIcon className="h-4 w-4 mr-2" />
-                      MetaMask
-                    </a>
+                    <MetaMaskIcon className="h-4 w-4 mr-2" />
+                    Open MetaMask
                   </Button>
                 </div>
                 <p className="text-xs text-muted-foreground text-center">
-                  Opens the wallet app on your device. Use these links on mobile.
+                  Opens the wallet app on your device. After opening, connect using the browser extension button above.
                 </p>
                 <div className="relative">
                   <div className="absolute inset-0 flex items-center">
