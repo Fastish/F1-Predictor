@@ -123,8 +123,27 @@ export function useTradingSession() {
   }, [signer]);
 
   // Create temporary ClobClient for credential derivation
-  const createTempClobClient = useCallback(() => {
+  // IMPORTANT: For Safe wallets (signatureType=2), we must pass the Safe address as funder
+  // to derive credentials that work with the Safe wallet configuration
+  const createTempClobClient = useCallback((safeAddress?: string) => {
     if (!wrappedSigner) return null;
+    
+    // If safeAddress is provided, create ClobClient with Safe wallet configuration
+    // This is critical for WalletConnect and external wallets that use Safe proxies
+    if (safeAddress) {
+      console.log(`[TradingSession] Creating temp ClobClient with signatureType=${SIGNATURE_TYPE_BROWSER_WALLET}, funder=${safeAddress}`);
+      return new ClobClient(
+        CLOB_API_URL,
+        POLYGON_CHAIN_ID,
+        wrappedSigner,
+        undefined, // No credentials yet
+        SIGNATURE_TYPE_BROWSER_WALLET, // signatureType = 2 for Safe wallets
+        safeAddress // funder = Safe address
+      );
+    }
+    
+    // Fallback for Magic wallets (which don't use Safe)
+    console.log("[TradingSession] Creating temp ClobClient with default config (no Safe)");
     return new ClobClient(CLOB_API_URL, POLYGON_CHAIN_ID, wrappedSigner);
   }, [wrappedSigner]);
 
@@ -175,9 +194,11 @@ export function useTradingSession() {
   }, []);
 
   // Derive or create user API credentials
-  const deriveApiCredentials = useCallback(async (): Promise<UserApiCredentials> => {
-    console.log("[TradingSession] deriveApiCredentials called");
-    const tempClient = createTempClobClient();
+  // IMPORTANT: For Safe wallets, we must pass the Safe address to derive credentials
+  // that will work when trading with signatureType=2
+  const deriveApiCredentials = useCallback(async (safeAddress?: string): Promise<UserApiCredentials> => {
+    console.log("[TradingSession] deriveApiCredentials called", { safeAddress });
+    const tempClient = createTempClobClient(safeAddress);
     if (!tempClient) {
       console.error("[TradingSession] No signer available for ClobClient");
       throw new Error("No signer available");
@@ -313,14 +334,10 @@ export function useTradingSession() {
         }
       }
 
-      // Derive user API credentials - THIS WILL TRIGGER A SIGNATURE REQUEST
-      console.log("[TradingSession] Deriving API credentials (will request signature from wallet)...");
-      setCurrentStep("credentials");
-      const apiCreds = await deriveApiCredentials();
-      console.log("[TradingSession] Got API credentials:", apiCreds ? "success" : "failed");
-
-      // Fetch the user's Safe proxy address from Polymarket RelayClient
-      console.log("Fetching Safe address from Polymarket...");
+      // STEP 1: Fetch the user's Safe proxy address FIRST
+      // We need this BEFORE deriving credentials because Safe wallets require
+      // signatureType=2 and funder=safeAddress when deriving API credentials
+      console.log("[TradingSession] Fetching Safe address from Polymarket...");
       let safeAddress: string | null = null;
       let proxyDeployed = false;
       
@@ -328,11 +345,23 @@ export function useTradingSession() {
         const safeResult = await fetchSafeAddress();
         safeAddress = safeResult.safeAddress;
         proxyDeployed = safeResult.proxyDeployed;
-        console.log("Safe address result:", { safeAddress, proxyDeployed });
+        console.log("[TradingSession] Safe address result:", { safeAddress, proxyDeployed });
       } catch (safeError) {
-        console.error("Failed to fetch Safe address:", safeError);
-        // Continue anyway - we'll try to proceed without the Safe check
+        console.error("[TradingSession] Failed to fetch Safe address:", safeError);
+        // For WalletConnect users, try direct derivation
+        if (walletAddress && walletType === 'walletconnect') {
+          safeAddress = deriveSafeAddressFromEoa(walletAddress);
+          console.log("[TradingSession] Derived Safe address directly:", safeAddress);
+        }
       }
+
+      // STEP 2: Derive user API credentials - THIS WILL TRIGGER A SIGNATURE REQUEST
+      // IMPORTANT: Pass safeAddress so credentials are derived with signatureType=2
+      console.log("[TradingSession] Deriving API credentials (will request signature from wallet)...");
+      console.log("[TradingSession] Using Safe address for credential derivation:", safeAddress);
+      setCurrentStep("credentials");
+      const apiCreds = await deriveApiCredentials(safeAddress || undefined);
+      console.log("[TradingSession] Got API credentials:", apiCreds ? "success" : "failed");
 
       if (!safeAddress) {
         // Can't derive Safe address - user needs to set up on polymarket.com
@@ -385,7 +414,7 @@ export function useTradingSession() {
       setIsInitializing(false);
       throw err;
     }
-  }, [walletAddress, signer, deriveApiCredentials, fetchSafeAddress, validateApiCredentials]);
+  }, [walletAddress, walletType, signer, deriveApiCredentials, fetchSafeAddress, validateApiCredentials]);
 
   // End trading session
   const endTradingSession = useCallback(() => {

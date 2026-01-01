@@ -1,0 +1,167 @@
+DEBUG[vite] connecting...
+LOG[DepositModal] Auto-init check: [object Object]
+LOG[DepositModal] Auto-init check: [object Object]
+LOG[Init] Saved wallet type:  address: 
+WARNINGLit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+LOG[DepositModal] Auto-init check: [object Object]
+LOG[Wagmi WC] Starting WalletConnect connection...
+LOG[Wagmi WC] Project ID: 169d35a3...
+LOG[Wagmi WC] Available connectors: [object Object],[object Object]
+LOG[Wagmi WC] Found WalletConnect connector: [object Object]
+LOG[Wagmi WC] Calling connect() with chain: 137
+LOG[Wagmi WC] connect() called, waiting for modal...
+LOG[DepositModal] Auto-init check: [object Object]
+ERROR[object Object] TypeError: undefined is not an object (evaluating 'this.getProvider(p5).setDefaultChain')
+ERROR[object Object] No matching key. session: 1aba19cdebdd09ff440924044e9d5e32da28f6a59744566ba280ccb5b7e71116
+ERROR[object Object] Error: No matching key. session: 1aba19cdebdd09ff440924044e9d5e32da28f6a59744566ba280ccb5b7e71116
+LOG[Wagmi] WalletConnect connected via wagmi: 0x234Cc20818238c0D54a28b696374A95D3C59302B
+LOG[Init] Saved wallet type: walletconnect address: 0x234Cc20818238c0D54a28b696374A95D3C59302B
+LOG[Init] Checking wagmi for WalletConnect session
+LOG[Init] Wagmi already connected: 0x234Cc20818238c0D54a28b696374A95D3C59302B
+LOG[Wagmi WC] Connection successful: [object Object]
+LOG[Wagmi WC] Connection settled: [object Object]
+LOGDerived Safe address for 0x234Cc20818238c0D54a28b696374A95D3C59302B: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOGDerived Safe address for 0x234Cc20818238c0D54a28b696374A95D3C59302B: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOG[DepositModal] Auto-init check: [object Object]
+LOG[DepositModal] Auto-init check: [object Object]
+LOG[Wagmi] Setting up provider from walletClient
+LOGDerived Safe address for 0x234Cc20818238c0D54a28b696374A95D3C59302B: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOGDerived Safe address for 0x234Cc20818238c0D54a28b696374A95D3C59302B: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOG[Wagmi] Signer ready
+LOGDerived Safe address for 0x234Cc20818238c0D54a28b696374A95D3C59302B: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOGDerived Safe address for 0x234Cc20818238c0D54a28b696374A95D3C59302B: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOG[DepositModal] Auto-init check: [object Object]
+LOG[DepositModal] Auto-init check: [object Object]
+LOGDerived Safe address for 0x234Cc20818238c0D54a28b696374A95D3C59302B: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOGDerived Safe address for 0x234Cc20818238c0D54a28b696374A95D3C59302B: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOGDerived Safe address for 0x234Cc20818238c0D54a28b696374A95D3C59302B: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOGDerived Safe address for 0x234Cc20818238c0D54a28b696374A95D3C59302B: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOGDerived Safe address for 0x234Cc20818238c0D54a28b696374A95D3C59302B: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOGDerived Safe address for 0x234Cc20818238c0D54a28b696374A95D3C59302B: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOGDerived Safe address for 0x234Cc20818238c0D54a28b696374A95D3C59302B: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+ERROR`DialogContent` requires a `DialogTitle` for the component to be accessible for screen reader users.
+
+If you want to hide the `DialogTitle`, you can wrap it with our VisuallyHidden component.
+
+For more information, see https://radix-ui.com/primitives/docs/components/dialog
+WARNINGWarning: Missing `Description` or `aria-describedby={undefined}` for {DialogContent}.
+LOGDerived Safe address for 0x234Cc20818238c0D54a28b696374A95D3C59302B: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOG[DepositModal] Auto-init check: [object Object]
+LOGDerived Safe address for 0x234Cc20818238c0D54a28b696374A95D3C59302B: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOGDerived Safe address for 0x234Cc20818238c0D54a28b696374A95D3C59302B: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOGDerived Safe address for 0x234Cc20818238c0D54a28b696374A95D3C59302B: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOG[Polygon RPC] Creating provider with endpoint: https://polygon-mainnet.public.blastapi.io
+LOG[DepositModal] Auto-init check: [object Object]
+LOG[DepositModal] Starting auto-init trading session...
+LOG[TradingSession] initializeTradingSession called [object Object]
+LOG[TradingSession] Existing session: none
+LOG[TradingSession] Deriving API credentials (will request signature from wallet)...
+LOG[TradingSession] deriveApiCredentials called
+LOG[TradingSession] Created temporary ClobClient for credential derivation
+LOG[TradingSession] This will trigger a signature request from your wallet!
+LOG[TradingSession] Calling tempClient.deriveApiKey() - SIGNATURE REQUEST SHOULD APPEAR NOW
+LOG[TradingSession] Timeout set to 60 seconds - please sign in your wallet app
+LOGDerived Safe address for 0x234Cc20818238c0D54a28b696374A95D3C59302B: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOG[DepositModal] Auto-init check: [object Object]
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+ERRORFailed to check approval status: TypeError: Load failed
+LOGDerived Safe address for 0x234Cc20818238c0D54a28b696374A95D3C59302B: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOG[TradingSession] Successfully derived API Credentials!
+LOG[TradingSession] API key prefix: 61894bfc-e22f-9...
+LOG[TradingSession] Validating freshly derived credentials...
+LOG[TradingSession] Validating cached API credentials via server...
+LOG[TradingSession] API key prefix: 61894bfc-e...
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOG[TradingSession] Credential validation result: [object Object]
+LOG[TradingSession] Credentials invalid: Unexpected response: 405
+ERROR[TradingSession] CRITICAL: Freshly derived credentials are INVALID!
+LOG[TradingSession] This wallet may not have completed setup on polymarket.com
+LOG[TradingSession] Got API credentials: success
+LOGFetching Safe address from Polymarket...
+LOGDeriving Safe address directly for WalletConnect user: 0x234Cc20818238c0D54a28b696374A95D3C59302B
+LOGDerived Safe address for 0x234Cc20818238c0D54a28b696374A95D3C59302B: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOGSafe address result (direct derivation): 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOGSafe address result: [object Object]
+WARNINGSafe address derived but proxy not yet deployed on-chain
+LOGTrading session initialized with Safe: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOG[DepositModal] Auto-init completed successfully
+LOGCreating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOGDerived Safe address for 0x234Cc20818238c0D54a28b696374A95D3C59302B: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOG[DepositModal] Auto-init check: [object Object]
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGDerived Safe address for 0x234Cc20818238c0D54a28b696374A95D3C59302B: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOG[DepositModal] Auto-init check: [object Object]
+LOGDerived Safe address for 0x234Cc20818238c0D54a28b696374A95D3C59302B: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOG[DepositModal] Auto-init check: [object Object]
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGDerived Safe address for 0x234Cc20818238c0D54a28b696374A95D3C59302B: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOGDerived Safe address for 0x234Cc20818238c0D54a28b696374A95D3C59302B: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOGTrading via Safe wallet (derived for WalletConnect): 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+WARNINGWarning: Missing `Description` or `aria-describedby={undefined}` for {DialogContent}.
+LOGCreating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+ERRORFailed to check approval/balance status: TypeError: Load failed
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGCreating order with ClobClient: [object Object]
+LOGDerived Safe address for 0x234Cc20818238c0D54a28b696374A95D3C59302B: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOG[usePlaceOrder] Safe wallet detected - skipping EOA network verification
+LOG[usePlaceOrder] Trading via Safe proxy on Polygon (EOA network is irrelevant)
+LOGGTC order: Price: 0.1, Size: 10
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGSigned order created: [object Object]
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+ERRORFailed to place order: Error: {"error":"Unauthorized/Invalid api key"}
+LOG[TradingSession] Force reinitializing session (credentials expired)
+LOG[TradingSession] initializeTradingSession called [object Object]
+LOG[TradingSession] Existing session: none
+LOG[TradingSession] Deriving API credentials (will request signature from wallet)...
+LOG[TradingSession] deriveApiCredentials called
+LOG[TradingSession] Created temporary ClobClient for credential derivation
+LOG[TradingSession] This will trigger a signature request from your wallet!
+LOG[TradingSession] Calling tempClient.deriveApiKey() - SIGNATURE REQUEST SHOULD APPEAR NOW
+LOG[TradingSession] Timeout set to 60 seconds - please sign in your wallet app
+ERROROrder failed with result: {
+  "success": false,
+  "error": "{\"error\":\"Unauthorized/Invalid api key\"}\n"
+}
+LOGError analysis: [object Object]
+LOGDerived Safe address for 0x234Cc20818238c0D54a28b696374A95D3C59302B: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOGDerived Safe address for 0x234Cc20818238c0D54a28b696374A95D3C59302B: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)
+LOGDerived Safe address for 0x234Cc20818238c0D54a28b696374A95D3C59302B: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+LOGJsonRpcProvider failed to detect network and cannot start up; retry in 1s (perhaps the URL is wrong or the node is not started)

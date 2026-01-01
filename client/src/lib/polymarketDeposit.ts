@@ -4,13 +4,13 @@ import { ethers } from "ethers";
 export const POLYGON_CHAIN_ID = 137;
 
 // Multiple Polygon RPC endpoints with fallback support
-// Using more reliable endpoints first
+// Using most reliable endpoints first (polygon-rpc.com is official)
 const POLYGON_RPC_ENDPOINTS = [
-  "https://polygon-mainnet.public.blastapi.io",
+  "https://polygon-rpc.com",
+  "https://rpc.ankr.com/polygon",
+  "https://polygon.llamarpc.com",
   "https://1rpc.io/matic",
   "https://polygon.drpc.org",
-  "https://polygon.llamarpc.com",
-  "https://rpc.ankr.com/polygon",
 ];
 
 // Track current RPC index for rotation on failures
