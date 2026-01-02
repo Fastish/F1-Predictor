@@ -20,7 +20,9 @@ let cachedClobClient: ClobClient | null = null;
 let cachedClobClientIdentity: string | null = null;
 
 // Clear the module-level ClobClient cache (called on disconnect/session end)
-function clearClobClientCache() {
+// EXPORTED so WalletContext can clear the cache when wallet identity changes
+export function clearClobClientCache() {
+  console.log("[TradingSession] Clearing ClobClient cache (invalidating stale signer)");
   cachedClobClient = null;
   cachedClobClientIdentity = null;
 }

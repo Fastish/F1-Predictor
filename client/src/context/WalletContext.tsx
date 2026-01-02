@@ -5,6 +5,7 @@ import { queryClient } from "@/lib/queryClient";
 import { useConnect, useDisconnect, useAccount, useWalletClient, Connector } from "wagmi";
 import { walletConnect, injected } from "@wagmi/connectors";
 import { setExternalProviderForGasless, resetGaslessState } from "@/lib/polymarketGasless";
+import { clearClobClientCache } from "@/hooks/useTradingSession";
 
 type WalletType = "magic" | "external" | "walletconnect" | "phantom" | null;
 
@@ -257,6 +258,9 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       // Reset gasless state when wallet identity changes (different wallet)
       // This clears cached deployment status to prevent using stale Safe addresses
       resetGaslessState();
+      // CRITICAL: Clear the ClobClient cache to invalidate any stale signers
+      // The cached ClobClient has an internal signer that becomes stale on reconnect
+      clearClobClientCache();
       // Re-set the external provider after reset
       if (transport) {
         setExternalProviderForGasless(transport);
@@ -693,6 +697,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     // Reset gasless state to clear external provider and cached deployment status
     // This ensures a fresh start when reconnecting
     resetGaslessState();
+    // Clear the ClobClient cache to invalidate any stale signers
+    clearClobClientCache();
     
     queryClient.removeQueries({ queryKey: ["polymarket-cash-balance"] });
     queryClient.removeQueries({ queryKey: ["polygon-usdc-balance"] });
