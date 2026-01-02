@@ -411,6 +411,37 @@ export async function approveUSDCForCTFContract(
   }
 }
 
+// Approve USDC for NegRisk Adapter (required for negRisk markets)
+export async function approveUSDCForNegRiskAdapter(
+  signer: ethers.Signer,
+  amount?: string
+): Promise<{ success: boolean; txHash?: string; error?: string }> {
+  try {
+    // Ensure we're on Polygon network before approval
+    await ensurePolygonNetwork(signer);
+    
+    console.log("[approveUSDCForNegRiskAdapter] Starting approval to NegRisk Adapter:", POLYMARKET_CONTRACTS.NEG_RISK_ADAPTER);
+    const usdc = new ethers.Contract(POLYMARKET_CONTRACTS.USDC, ERC20_ABI, signer);
+    
+    const approveAmount = amount 
+      ? ethers.parseUnits(amount, 6)
+      : ethers.MaxUint256;
+    
+    const tx = await usdc.approve(POLYMARKET_CONTRACTS.NEG_RISK_ADAPTER, approveAmount);
+    console.log("[approveUSDCForNegRiskAdapter] Tx submitted:", tx.hash);
+    const receipt = await tx.wait();
+    console.log("[approveUSDCForNegRiskAdapter] Tx confirmed:", receipt.hash);
+    
+    return { success: true, txHash: receipt.hash };
+  } catch (error) {
+    console.error("[approveUSDCForNegRiskAdapter] Failed:", error);
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : "Approval failed" 
+    };
+  }
+}
+
 export async function approveCTFForExchange(
   signer: ethers.Signer
 ): Promise<{ success: boolean; txHash?: string; error?: string }> {
@@ -615,6 +646,12 @@ export async function checkDepositRequirements(
     approvalCheckAddress,
     POLYMARKET_CONTRACTS.CTF
   );
+  // NegRisk Adapter also needs USDC approval for negRisk markets
+  const negRiskAdapterAllowance = await getUSDCAllowance(
+    provider,
+    approvalCheckAddress,
+    POLYMARKET_CONTRACTS.NEG_RISK_ADAPTER
+  );
   
   const ctfApprovedForExchange = await getCTFApproval(
     provider,
@@ -636,10 +673,11 @@ export async function checkDepositRequirements(
     : (safeBalance || usdcBalance);
   
   // Check if allowance is effectively zero (needs approval)
-  // Include CTF contract allowance as it's required for splitting positions
+  // Include CTF contract allowance (for splitting), NegRisk Adapter (for negRisk markets)
   const needsApproval = parseFloat(ctfExchangeAllowance) < 1 || 
                         parseFloat(negRiskExchangeAllowance) < 1 ||
-                        parseFloat(ctfContractAllowance) < 1;
+                        parseFloat(ctfContractAllowance) < 1 ||
+                        parseFloat(negRiskAdapterAllowance) < 1;
   const needsCTFApproval = !ctfApprovedForExchange || !ctfApprovedForNegRisk;
   
   console.log("[checkDepositRequirements] Results:", {
@@ -647,6 +685,7 @@ export async function checkDepositRequirements(
     ctfExchangeAllowance,
     negRiskExchangeAllowance,
     ctfContractAllowance,
+    negRiskAdapterAllowance,
     ctfApprovedForExchange,
     ctfApprovedForNegRisk,
     needsApproval,
@@ -659,6 +698,7 @@ export async function checkDepositRequirements(
       ctfExchangeAllowance,
       negRiskExchangeAllowance,
       ctfContractAllowance,
+      negRiskAdapterAllowance,
       ctfApprovedForExchange,
       ctfApprovedForNegRisk,
       proxyAddress,

@@ -46,6 +46,7 @@ interface DepositStatus {
   ctfExchangeAllowance: string;
   negRiskExchangeAllowance: string;
   ctfContractAllowance: string;
+  negRiskAdapterAllowance?: string;
   ctfApprovedForExchange: boolean;
   ctfApprovedForNegRisk: boolean;
   proxyAddress: string | null;
@@ -641,10 +642,12 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
         const ctfExchangeApproved = depositStatus && parseFloat(depositStatus.ctfExchangeAllowance) >= 1;
         const negRiskApproved = depositStatus && parseFloat(depositStatus.negRiskExchangeAllowance) >= 1;
         const ctfContractApproved = depositStatus && parseFloat(depositStatus.ctfContractAllowance) >= 1;
+        const negRiskAdapterApproved = depositStatus && depositStatus.negRiskAdapterAllowance && parseFloat(depositStatus.negRiskAdapterAllowance) >= 1;
         const approvalsRemaining = [
           !ctfExchangeApproved && "CTF Exchange",
           !negRiskApproved && "NegRisk Exchange", 
-          !ctfContractApproved && "CTF Contract"
+          !ctfContractApproved && "CTF Contract",
+          !negRiskAdapterApproved && "NegRisk Adapter"
         ].filter(Boolean);
         
         return (
@@ -686,10 +689,18 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
                     <Badge variant="outline" className="text-xs">Pending</Badge>
                   )}
                 </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">NegRisk Adapter</span>
+                  {negRiskAdapterApproved ? (
+                    <Badge variant="default" className="bg-green-600 text-xs"><Check className="h-3 w-3 mr-1" />Done</Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-xs">Pending</Badge>
+                  )}
+                </div>
               </div>
             </Card>
             
-            {approvalsRemaining.length > 0 && approvalsRemaining.length < 3 && (
+            {approvalsRemaining.length > 0 && approvalsRemaining.length < 4 && (
               <div className="flex items-start gap-2 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
                 <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5" />
                 <p className="text-xs text-amber-700 dark:text-amber-400">

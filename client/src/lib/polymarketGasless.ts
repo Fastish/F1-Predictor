@@ -10,6 +10,7 @@ export const POLYMARKET_CONTRACTS = {
   CTF: "0x4d97dcd97ec945f40cf65f87097ace5ea0476045" as const,
   CTF_EXCHANGE: "0x4bFb41d5B3570DeFd03C39a9A4D8dE6Bd8B8982E" as const,
   NEG_RISK_CTF_EXCHANGE: "0xC5d563A36AE78145C45a50134d48A1215220f80a" as const,
+  NEG_RISK_ADAPTER: "0xd91E80cF2E7be2e162c6513ceD06f1dD0dA35296" as const,
 };
 
 const ERC20_ABI = [
@@ -433,8 +434,19 @@ export async function approveUSDCGasless(): Promise<GaslessResult> {
       }),
       value: "0",
     },
+    // NegRisk Adapter needs approval for negRisk markets (F1 championships)
+    {
+      to: POLYMARKET_CONTRACTS.USDC,
+      data: encodeFunctionData({
+        abi: ERC20_ABI,
+        functionName: "approve",
+        args: [POLYMARKET_CONTRACTS.NEG_RISK_ADAPTER, maxUint256],
+      }),
+      value: "0",
+    },
   ];
   
+  console.log("[approveUSDCGasless] Approving USDC to 4 contracts: CTF Exchange, NegRisk Exchange, CTF, NegRisk Adapter");
   return executeGaslessTransactions(transactions);
 }
 
