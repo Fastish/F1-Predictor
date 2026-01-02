@@ -1742,9 +1742,10 @@ export async function registerRoutes(
       console.log("[submit-order] Timestamp:", timestamp);
 
       const proxyAgent = getOxylabsProxyAgent();
-      // POLY_ADDRESS is required for L2 authentication - use the signer address from the order
-      const polyAddress = signedOrder.signer || signedOrder.maker;
-      console.log("[submit-order] POLY_ADDRESS:", polyAddress);
+      // POLY_ADDRESS is required for L2 authentication - use the maker address (Safe wallet for external wallets)
+      // The API key is registered to the maker/funder address, not the signer
+      const polyAddress = signedOrder.maker;
+      console.log("[submit-order] POLY_ADDRESS (maker):", polyAddress);
       
       const submitHeaders = {
         ...getBrowserHeaders(),
