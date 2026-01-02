@@ -1670,19 +1670,47 @@ export async function registerRoutes(
       }
 
       // Only log non-sensitive order info (tokenId not credentials)
+      const sideString = signedOrder.side === 0 ? "BUY" : "SELL";
       console.log("Proxying order submission:", { 
         tokenId: signedOrder.tokenId,
-        side: signedOrder.side === 0 ? "BUY" : "SELL",
+        side: sideString,
         makerAmount: signedOrder.makerAmount,
         takerAmount: signedOrder.takerAmount,
         maker: signedOrder.maker
       });
 
+      // Get orderType from request (default to GTC)
+      const orderType = req.body.orderType || "GTC";
+      
+      // Transform order to Polymarket API format (see SDK's orderToJson)
+      // The API expects a wrapped format with order, owner, orderType fields
+      const apiOrderPayload = {
+        order: {
+          salt: parseInt(signedOrder.salt, 10),  // Must be integer
+          maker: signedOrder.maker,
+          signer: signedOrder.signer,
+          taker: signedOrder.taker,
+          tokenId: signedOrder.tokenId,
+          makerAmount: signedOrder.makerAmount,
+          takerAmount: signedOrder.takerAmount,
+          side: sideString,  // Must be "BUY" or "SELL" string
+          expiration: signedOrder.expiration,
+          nonce: signedOrder.nonce,
+          feeRateBps: signedOrder.feeRateBps,
+          signatureType: signedOrder.signatureType,
+          signature: signedOrder.signature,
+        },
+        owner: signedOrder.signer,  // Owner is the signer address
+        orderType: orderType,
+      };
+      
+      console.log("[submit-order] Formatted payload:", JSON.stringify(apiOrderPayload).substring(0, 200) + "...");
+
       // Create HMAC signature for the Polymarket API request
       const timestamp = Math.floor(Date.now() / 1000).toString();
       const method = "POST";
       const path = "/order";
-      const body = JSON.stringify(signedOrder);
+      const body = JSON.stringify(apiOrderPayload);
       const message = timestamp + method + path + body;
       
       // Decode secret (base64url or hex)
@@ -1727,8 +1755,8 @@ export async function registerRoutes(
         "POLY_TIMESTAMP": timestamp,
         "POLY_SIGNATURE": hmacSignature,
       };
-      // Send signedOrder unchanged to Polymarket (includes signature)
-      const submitBody = JSON.stringify(signedOrder);
+      // Send properly formatted order payload to Polymarket
+      const submitBody = body;  // Already JSON.stringify(apiOrderPayload)
       
       if (proxyAgent) {
         console.log("Using Oxylabs proxy (undici) for submit-order");
