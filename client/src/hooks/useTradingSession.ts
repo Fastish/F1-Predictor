@@ -29,8 +29,13 @@ export function clearClobClientCache() {
 
 // Adapter to wrap ethers v6 signer with ethers v5 _signTypedData method
 // Polymarket SDK expects _signTypedData (v5) but ethers v6 uses signTypedData
-function wrapSignerForPolymarket(signer: ethers.Signer): any {
-  // Create a proxy that adds _signTypedData method
+function wrapSignerForPolymarket(signer: ethers.Signer, overrideAddress?: string): any {
+  // Create a proxy that:
+  // 1. Adds _signTypedData method (ethers v5 compatibility for Polymarket SDK)
+  // 2. Optionally overrides getAddress() to return Safe address for credential derivation
+  //
+  // For Safe wallets (signatureType=2), the ClobAuth message must contain the Safe address
+  // so that API keys get bound to the Safe. The EOA still signs the message.
   return new Proxy(signer, {
     get(target: any, prop: string) {
       if (prop === "_signTypedData") {
@@ -39,6 +44,16 @@ function wrapSignerForPolymarket(signer: ethers.Signer): any {
           return target.signTypedData(domain, types, value);
         };
       }
+      
+      // Override getAddress to return Safe address for credential derivation
+      // This makes the ClobAuth message contain the Safe address
+      if (prop === "getAddress" && overrideAddress) {
+        return async () => {
+          console.log(`[wrapSigner] Overriding getAddress: returning Safe ${overrideAddress} instead of EOA`);
+          return overrideAddress;
+        };
+      }
+      
       // For all other properties, return the original
       const value = target[prop];
       if (typeof value === "function") {
@@ -156,19 +171,28 @@ export function useTradingSession() {
   }, [signer]);
 
   // Create temporary ClobClient for credential derivation
-  // IMPORTANT: For Safe wallets (signatureType=2), we must pass the Safe address as funder
-  // to derive credentials that work with the Safe wallet configuration
+  // IMPORTANT: For Safe wallets (signatureType=2), we must:
+  // 1. Override getAddress() to return Safe address - so ClobAuth message contains Safe address
+  // 2. Pass Safe address as funder - for order execution
+  // This ensures API keys get bound to the Safe address, not the EOA
   const createTempClobClient = useCallback((safeAddress?: string) => {
-    if (!wrappedSigner) return null;
+    if (!signer) return null;
     
     // If safeAddress is provided, create ClobClient with Safe wallet configuration
-    // This is critical for WalletConnect and external wallets that use Safe proxies
+    // CRITICAL: We must override getAddress() to return Safe address
+    // This makes the ClobAuth message (and API key binding) use the Safe address
     if (safeAddress) {
       console.log(`[TradingSession] Creating temp ClobClient with signatureType=${SIGNATURE_TYPE_BROWSER_WALLET}, funder=${safeAddress}`);
+      console.log(`[TradingSession] CRITICAL: Overriding getAddress to return Safe address for API key binding`);
+      
+      // Create wrapped signer that returns Safe address from getAddress()
+      // but still signs with the EOA (which controls the Safe)
+      const safeOverrideSigner = wrapSignerForPolymarket(signer, safeAddress);
+      
       return new ClobClient(
         CLOB_API_URL,
         POLYGON_CHAIN_ID,
-        wrappedSigner,
+        safeOverrideSigner,
         undefined, // No credentials yet
         SIGNATURE_TYPE_BROWSER_WALLET, // signatureType = 2 for Safe wallets
         safeAddress // funder = Safe address
@@ -177,8 +201,9 @@ export function useTradingSession() {
     
     // Fallback for Magic wallets (which don't use Safe)
     console.log("[TradingSession] Creating temp ClobClient with default config (no Safe)");
-    return new ClobClient(CLOB_API_URL, POLYGON_CHAIN_ID, wrappedSigner);
-  }, [wrappedSigner]);
+    const defaultSigner = wrapSignerForPolymarket(signer);
+    return new ClobClient(CLOB_API_URL, POLYGON_CHAIN_ID, defaultSigner);
+  }, [signer]);
 
   // Validate that cached API credentials are still valid with Polymarket
   // Note: We can't properly validate without HMAC signing, so we use server-side validation

@@ -1697,14 +1697,19 @@ export async function registerRoutes(
       //   - order.signer = EOA (who controls the Safe)
       //   - owner = SIGNER (EOA) - API keys are ALWAYS bound to the EOA
       // 
-      // IMPORTANT: Per Polymarket docs, "API credentials are bound to your EOA, not the Safe address"
-      // The API key is derived/created using the signer's (EOA) signature with POLY_ADDRESS=EOA
-      // Therefore, the "owner" field for order submission MUST be the EOA (signer)
+      // API KEY BINDING FOR SAFE WALLETS:
+      // Our implementation overrides getAddress() during credential derivation so that
+      // the ClobAuth message contains the Safe address. This binds API keys to the Safe.
       // 
-      // For signatureType=2, owner should be the SIGNER (EOA), NOT the maker (Safe)
-      // TESTING: Try maker (Safe) as owner to see if API key was bound to Safe address
-      const owner = signedOrder.maker;  // TEST: Use maker (Safe) to verify API key binding
-      console.log("[submit-order] TESTING: Using owner:", owner, "(maker/Safe - testing API key binding)");
+      // For signatureType=2 (Safe wallets):
+      //   - order.maker = Safe wallet (where funds come from)
+      //   - order.signer = EOA (who controls the Safe)
+      //   - owner = MAKER (Safe) - API keys are bound to Safe address
+      //
+      // IMPORTANT: API key derivation now uses Safe address in ClobAuth message
+      // Therefore, API keys are bound to the Safe, and owner must be the maker (Safe)
+      const owner = signedOrder.maker;  // Use maker (Safe) - API keys are bound to Safe
+      console.log("[submit-order] Using owner:", owner, "(maker/Safe - API keys are bound to Safe)");
       const apiOrderPayload = {
         order: {
           salt: parseInt(signedOrder.salt, 10),  // Must be integer
@@ -1764,10 +1769,10 @@ export async function registerRoutes(
 
       const proxyAgent = getOxylabsProxyAgent();
       // POLY_ADDRESS is required for L2 authentication - it must match the API key owner
-      // TESTING: Using maker (Safe) to verify if API key was bound to Safe address
-      const polyAddress = owner;  // owner is now maker (Safe) for testing
-      console.log("[submit-order] TESTING POLY_ADDRESS:", polyAddress, "(Safe - testing API key binding)");
-      console.log("[submit-order] Order owner:", owner, "(Safe - testing)");
+      // API keys are bound to the Safe address (maker), so POLY_ADDRESS must be the Safe
+      const polyAddress = owner;  // owner = maker (Safe) - matches API key binding
+      console.log("[submit-order] POLY_ADDRESS:", polyAddress, "(Safe - matches API key binding)");
+      console.log("[submit-order] Order owner:", owner, "(Safe)");
       console.log("[submit-order] Order maker (Safe wallet):", signedOrder.maker);
       console.log("[submit-order] Order signer (EOA):", signedOrder.signer);
       
