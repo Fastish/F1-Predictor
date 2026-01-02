@@ -1,0 +1,60 @@
+DepositModal.tsx:169 [DepositModal] Auto-init check: Object
+DepositModal.tsx:169 [DepositModal] Auto-init check: Object
+DepositModal.tsx:169 [DepositModal] Auto-init check: Object
+DepositModal.tsx:169 [DepositModal] Auto-init check: Object
+DepositModal.tsx:169 [DepositModal] Auto-init check: Object
+DepositModal.tsx:169 [DepositModal] Auto-init check: Object
+DepositModal.tsx:169 [DepositModal] Auto-init check: Object
+DepositModal.tsx:169 [DepositModal] Auto-init check: Object
+DepositModal.tsx:169 [DepositModal] Auto-init check: Object
+DepositModal.tsx:169 [DepositModal] Auto-init check: Object
+DepositModal.tsx:169 [DepositModal] Auto-init check: Object
+DepositModal.tsx:169 [DepositModal] Auto-init check: Object
+DepositModal.tsx:169 [DepositModal] Auto-init check: Object
+DepositModal.tsx:169 [DepositModal] Auto-init check: Object
+DepositModal.tsx:169 [DepositModal] Auto-init check: Object
+WalletContext.tsx:626 [Wagmi WC] connect() called, waiting for modal...
+DepositModal.tsx:169 [DepositModal] Auto-init check: Object
+DepositModal.tsx:169 [DepositModal] Auto-init check: Object
+DepositModal.tsx:114 [DepositModal] Checking approvals: Object
+DepositModal.tsx:169 [DepositModal] Auto-init check: Object
+DepositModal.tsx:174 [DepositModal] Starting auto-init trading session...
+DepositModal.tsx:169 [DepositModal] Auto-init check: Object
+DepositModal.tsx:169 [DepositModal] Auto-init check: Object
+DepositModal.tsx:130 [DepositModal] Approval check result: Object
+DepositModal.tsx:178 [DepositModal] Auto-init session failed: Error: Signature request timed out. Please disconnect and reconnect your wallet, then try again.
+    at useTradingSession.ts:191:33
+autoInitSession @ DepositModal.tsx:178
+DepositModal.tsx:169 [DepositModal] Auto-init check: {walletType: 'walletconnect', walletAddress: true, signerAvailable: true, isTradingSessionComplete: false, isInitializing: false, …}
+DepositModal.tsx:644 [DepositModal] Retry Setup clicked
+DepositModal.tsx:169 [DepositModal] Auto-init check: {walletType: 'walletconnect', walletAddress: true, signerAvailable: true, isTradingSessionComplete: false, isInitializing: true, …}
+useTradingSession.ts:237 [TradingSession] CRITICAL: Freshly derived credentials are INVALID!
+(anonymous) @ useTradingSession.ts:237
+await in (anonymous)
+(anonymous) @ useTradingSession.ts:363
+await in (anonymous)
+onClick @ DepositModal.tsx:645
+callCallback2 @ chunk-Z2GUPSCO.js?v=ff435fab:3674
+invokeGuardedCallbackDev @ chunk-Z2GUPSCO.js?v=ff435fab:3699
+invokeGuardedCallback @ chunk-Z2GUPSCO.js?v=ff435fab:3733
+invokeGuardedCallbackAndCatchFirstError @ chunk-Z2GUPSCO.js?v=ff435fab:3736
+executeDispatch @ chunk-Z2GUPSCO.js?v=ff435fab:7014
+processDispatchQueueItemsInOrder @ chunk-Z2GUPSCO.js?v=ff435fab:7034
+processDispatchQueue @ chunk-Z2GUPSCO.js?v=ff435fab:7043
+dispatchEventsForPlugins @ chunk-Z2GUPSCO.js?v=ff435fab:7051
+(anonymous) @ chunk-Z2GUPSCO.js?v=ff435fab:7174
+batchedUpdates$1 @ chunk-Z2GUPSCO.js?v=ff435fab:18913
+batchedUpdates @ chunk-Z2GUPSCO.js?v=ff435fab:3579
+dispatchEventForPluginEventSystem @ chunk-Z2GUPSCO.js?v=ff435fab:7173
+dispatchEventWithEnableCapturePhaseSelectiveHydrationWithoutDiscreteEventReplay @ chunk-Z2GUPSCO.js?v=ff435fab:5478
+dispatchEvent @ chunk-Z2GUPSCO.js?v=ff435fab:5472
+dispatchDiscreteEvent @ chunk-Z2GUPSCO.js?v=ff435fab:5449
+DepositModal.tsx:114 [DepositModal] Checking approvals: {walletType: 'walletconnect', walletAddress: '0x234Cc20818238c0D54a28b696374A95D3C59302B', isExternalType: true, displaySafeAddress: '0xC39f10f80EF3Aa5B235460F3A6bEc802C6F77E44', safeAddrToCheck: '0xC39f10f80EF3Aa5B235460F3A6bEc802C6F77E44'}
+DepositModal.tsx:169 [DepositModal] Auto-init check: {walletType: 'walletconnect', walletAddress: true, signerAvailable: true, isTradingSessionComplete: true, isInitializing: false, …}
+DepositModal.tsx:196 [DepositModal] Session complete but approval needed - auto-opening deposit wizard
+DepositModal.tsx:130 [DepositModal] Approval check result: {needsApproval: false, needsCTFApproval: false, ctfExchangeAllowance: '115792089237316195423570985008687907853269984665640564039457584007913129.639935', negRiskExchangeAllowance: '115792089237316195423570985008687907853269984665640564039457584007913129.639935', safeAddress: '0xC39f10f80EF3Aa5B235460F3A6bEc802C6F77E44', …}
+DepositModal.tsx:169 [DepositModal] Auto-init check: {walletType: 'walletconnect', walletAddress: true, signerAvailable: true, isTradingSessionComplete: true, isInitializing: false, …}
+DepositModal.tsx:169 [DepositModal] Auto-init check: {walletType: 'walletconnect', walletAddress: true, signerAvailable: true, isTradingSessionComplete: true, isInitializing: false, …}
+DepositModal.tsx:169 [DepositModal] Auto-init check: {walletType: 'walletconnect', walletAddress: true, signerAvailable: true, isTradingSessionComplete: false, isInitializing: false, …}
+DepositModal.tsx:169 [DepositModal] Auto-init check: {walletType: 'walletconnect', walletAddress: true, signerAvailable: true, isTradingSessionComplete: true, isInitializing: false, …}
+PolymarketBetModal.tsx:143 Trading via Safe wallet (derived for WalletConnect): 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f

@@ -139,8 +139,9 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
           // For WalletConnect, use local derivation to avoid triggering MetaMask deep links
           // For external/phantom wallets with window.ethereum, try getSafeAddress() first for deployment detection
           if (walletType === "walletconnect") {
+            console.log("[BetModal] Deriving Safe from EOA:", walletAddress);
             safeAddr = deriveSafeAddressFromEoa(walletAddress);
-            console.log("Trading via Safe wallet (derived for WalletConnect):", safeAddr);
+            console.log("[BetModal] Trading via Safe wallet (derived for WalletConnect):", safeAddr);
           } else {
             try {
               const safeInfo = await getSafeAddress();

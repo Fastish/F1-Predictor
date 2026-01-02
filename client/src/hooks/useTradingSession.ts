@@ -104,6 +104,24 @@ export function useTradingSession() {
       return;
     }
     const stored = loadSession(walletAddress);
+    
+    // VALIDATION: Check if stored Safe address matches the derived one
+    // This catches corrupted sessions where the wrong Safe address was stored
+    // (e.g., if window.ethereum returned a different wallet's address)
+    if (stored?.safeAddress) {
+      const expectedSafeAddress = deriveSafeAddressFromEoa(walletAddress);
+      if (stored.safeAddress.toLowerCase() !== expectedSafeAddress.toLowerCase()) {
+        console.warn("[TradingSession] Session Safe address mismatch! Clearing corrupted session.");
+        console.warn("[TradingSession] Stored:", stored.safeAddress);
+        console.warn("[TradingSession] Expected:", expectedSafeAddress);
+        clearSession(walletAddress);
+        setTradingSession(null);
+        setCurrentStep("idle");
+        setCredentialsValidated(false);
+        return;
+      }
+    }
+    
     setTradingSession(stored);
     setCredentialsValidated(false); // Need to validate on each session load
     // Mark as complete if we have credentials AND a Safe address
@@ -260,37 +278,52 @@ export function useTradingSession() {
   // Fetch user's Safe/proxy address using the RelayClient or direct derivation
   const fetchSafeAddress = useCallback(async (): Promise<{ safeAddress: string | null; proxyDeployed: boolean }> => {
     try {
-      // If external wallet is available (window.ethereum), use RelayClient for deployment check
+      // IMPORTANT: For WalletConnect users, we must ALWAYS use direct derivation from walletAddress
+      // because window.ethereum might belong to a different wallet (e.g., Phantom) that's also installed.
+      // The RelayClient uses window.ethereum.getAddress() which would return the wrong EOA address.
+      if (walletType === 'walletconnect') {
+        if (walletAddress) {
+          console.log("[fetchSafeAddress] WalletConnect detected - using direct derivation from EOA:", walletAddress);
+          const safeAddress = deriveSafeAddressFromEoa(walletAddress);
+          console.log("[fetchSafeAddress] Safe address result (direct derivation):", safeAddress);
+          return {
+            safeAddress,
+            proxyDeployed: false, // Can't verify deployment without RelayClient for WalletConnect
+          };
+        }
+        console.log("[fetchSafeAddress] WalletConnect but no walletAddress available");
+        return { safeAddress: null, proxyDeployed: false };
+      }
+      
+      // For external/phantom wallets that use window.ethereum directly, use RelayClient
       if (isExternalWalletAvailable()) {
+        console.log("[fetchSafeAddress] Using RelayClient for external wallet type:", walletType);
         const result = await fetchSafeAddressFromRelayer();
-        console.log("Safe address result (from RelayClient):", result);
+        console.log("[fetchSafeAddress] Safe address result (from RelayClient):", result);
         return {
           safeAddress: result.safeAddress,
           proxyDeployed: result.proxyDeployed,
         };
       }
       
-      // For WalletConnect users (no window.ethereum), derive Safe address directly from EOA
-      // This works because Safe address is deterministic based on EOA address
+      // Fallback: derive directly from walletAddress if available
       if (walletAddress) {
-        console.log("Deriving Safe address directly for WalletConnect user:", walletAddress);
+        console.log("[fetchSafeAddress] Fallback - deriving Safe address directly from EOA:", walletAddress);
         const safeAddress = deriveSafeAddressFromEoa(walletAddress);
-        console.log("Safe address result (direct derivation):", safeAddress);
-        // We can't check deployment status without RelayClient, assume not deployed
-        // Trading will still work as long as user has set up on polymarket.com
+        console.log("[fetchSafeAddress] Safe address result (direct derivation):", safeAddress);
         return {
           safeAddress,
-          proxyDeployed: false, // Can't verify without RelayClient
+          proxyDeployed: false,
         };
       }
       
-      console.log("No wallet address available for Safe address derivation");
+      console.log("[fetchSafeAddress] No wallet address available for Safe address derivation");
       return { safeAddress: null, proxyDeployed: false };
     } catch (err) {
-      console.error("Failed to fetch Safe address:", err);
+      console.error("[fetchSafeAddress] Failed to fetch Safe address:", err);
       return { safeAddress: null, proxyDeployed: false };
     }
-  }, [walletAddress]);
+  }, [walletAddress, walletType]);
 
   // Initialize trading session
   const initializeTradingSession = useCallback(async () => {

@@ -91,12 +91,17 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
 
   // For WalletConnect/external/phantom users, derive Safe address immediately even if trading session isn't initialized
   // This allows users to see their deposit address right away
+  // IMPORTANT: Always derive fresh from walletAddress to avoid stale/wrong session data
   const derivedSafeAddress = (walletType === "external" || walletType === "walletconnect" || walletType === "phantom") && walletAddress
     ? deriveSafeAddressFromEoa(walletAddress)
     : null;
   
-  // Use the session's safeAddress if available, otherwise use derived address
-  const displaySafeAddress = safeAddress || derivedSafeAddress;
+  // For external wallet types, ALWAYS prefer the freshly derived address over session's safeAddress
+  // This prevents stale session data (from a different wallet type) from being used
+  // The session's safeAddress might be wrong if window.ethereum was used to derive it when connected via WalletConnect
+  const displaySafeAddress = (walletType === "external" || walletType === "walletconnect" || walletType === "phantom")
+    ? (derivedSafeAddress || safeAddress)  // Prefer derived, fallback to session
+    : (safeAddress || derivedSafeAddress); // For magic/other, use session first
 
   // Check approval status when wallet is connected
   // For external wallets, check the Safe proxy address since approvals are done there
