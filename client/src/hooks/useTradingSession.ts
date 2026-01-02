@@ -349,22 +349,32 @@ export function useTradingSession() {
       } : "none");
       
       if (existingSession?.hasApiCredentials && existingSession?.apiCredentials && existingSession?.safeAddress) {
-        // Validate that cached credentials are still valid before using them
-        console.log("[TradingSession] Checking if cached credentials are still valid...");
-        const isValid = await validateApiCredentials(existingSession.apiCredentials);
-        
-        if (isValid) {
-          console.log("[TradingSession] Using existing complete session (credentials valid)");
-          setTradingSession(existingSession);
-          setCurrentStep("complete");
-          setCredentialsValidated(true);
-          setIsInitializing(false);
-          return existingSession;
-        } else {
-          // Cached credentials expired - need to re-derive
-          console.log("[TradingSession] Cached credentials expired, clearing session and re-deriving...");
+        // CRITICAL: If the cached session has proxyDeployed: false, the credentials were derived
+        // BEFORE the Safe was deployed. Per Polymarket docs, these credentials are invalid.
+        // We must clear and re-derive credentials after deploying the Safe.
+        if (!existingSession.proxyDeployed) {
+          console.log("[TradingSession] Cached session has proxyDeployed=false - credentials were derived before Safe deployment");
+          console.log("[TradingSession] Per Polymarket docs, must re-derive credentials after deploying Safe");
           clearSession(walletAddress);
-          // Continue to derive new credentials below
+          // Continue to deploy Safe and derive new credentials below
+        } else {
+          // Validate that cached credentials are still valid before using them
+          console.log("[TradingSession] Checking if cached credentials are still valid...");
+          const isValid = await validateApiCredentials(existingSession.apiCredentials);
+          
+          if (isValid) {
+            console.log("[TradingSession] Using existing complete session (credentials valid)");
+            setTradingSession(existingSession);
+            setCurrentStep("complete");
+            setCredentialsValidated(true);
+            setIsInitializing(false);
+            return existingSession;
+          } else {
+            // Cached credentials expired - need to re-derive
+            console.log("[TradingSession] Cached credentials expired, clearing session and re-deriving...");
+            clearSession(walletAddress);
+            // Continue to derive new credentials below
+          }
         }
       }
 
