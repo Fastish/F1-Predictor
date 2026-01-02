@@ -1702,8 +1702,9 @@ export async function registerRoutes(
       // Therefore, the "owner" field for order submission MUST be the EOA (signer)
       // 
       // For signatureType=2, owner should be the SIGNER (EOA), NOT the maker (Safe)
-      const owner = signedOrder.signer || signedOrder.maker;  // Prefer signer (EOA) for API key ownership
-      console.log("[submit-order] Using owner:", owner, "(signer/EOA - API keys are bound to EOA)");
+      // TESTING: Try maker (Safe) as owner to see if API key was bound to Safe address
+      const owner = signedOrder.maker;  // TEST: Use maker (Safe) to verify API key binding
+      console.log("[submit-order] TESTING: Using owner:", owner, "(maker/Safe - testing API key binding)");
       const apiOrderPayload = {
         order: {
           salt: parseInt(signedOrder.salt, 10),  // Must be integer
@@ -1763,11 +1764,10 @@ export async function registerRoutes(
 
       const proxyAgent = getOxylabsProxyAgent();
       // POLY_ADDRESS is required for L2 authentication - it must match the API key owner
-      // For signatureType=2 (Safe wallets), the API key is bound to the EOA (signer), NOT the Safe
-      // POLY_ADDRESS should be the EOA (signer) to match the API key binding
-      const polyAddress = owner;  // owner is now EOA (signer) - matches API key binding
-      console.log("[submit-order] POLY_ADDRESS:", polyAddress, "(EOA - matches API key binding)");
-      console.log("[submit-order] Order owner:", owner, "(EOA)");
+      // TESTING: Using maker (Safe) to verify if API key was bound to Safe address
+      const polyAddress = owner;  // owner is now maker (Safe) for testing
+      console.log("[submit-order] TESTING POLY_ADDRESS:", polyAddress, "(Safe - testing API key binding)");
+      console.log("[submit-order] Order owner:", owner, "(Safe - testing)");
       console.log("[submit-order] Order maker (Safe wallet):", signedOrder.maker);
       console.log("[submit-order] Order signer (EOA):", signedOrder.signer);
       
