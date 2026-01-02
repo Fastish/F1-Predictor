@@ -57,12 +57,25 @@ export function usePlaceOrder(
         return { success: false, error: "Trading session not initialized" };
       }
 
+      // CRITICAL: Validate API credentials BEFORE signing the order
+      // This prevents the confusing flow of: sign order → fail → request new credentials → fail
+      if (!apiCredentials?.key || !apiCredentials?.secret || !apiCredentials?.passphrase) {
+        console.error("[usePlaceOrder] Missing API credentials - session incomplete");
+        // Trigger reinitialize but abort current order to avoid double signature
+        onCredentialError?.();
+        return { 
+          success: false, 
+          error: "Trading session expired. Please wait a moment and try again." 
+        };
+      }
+
       setIsPlacing(true);
       setError(null);
 
       try {
         console.log("Creating order with ClobClient:", params);
-        await logToServer("ORDER_START", { params });
+        console.log("[usePlaceOrder] Using API key:", apiCredentials.key.substring(0, 10) + "...");
+        await logToServer("ORDER_START", { params, apiKeyPrefix: apiCredentials.key.substring(0, 10) });
         
         // For Safe-based wallets (external wallets, WalletConnect), skip network verification
         // The Gnosis Safe proxy is ALWAYS on Polygon - the EOA just signs locally
@@ -313,7 +326,7 @@ export function usePlaceOrder(
         return { success: false, error: errorMessage };
       }
     },
-    [clobClient, onCredentialError, apiCredentials, signer]
+    [clobClient, onCredentialError, apiCredentials, signer, isSafeWallet]
   );
 
   const cancelOrder = useCallback(
