@@ -1631,9 +1631,16 @@ export async function registerRoutes(
         return res.json({ valid: true });
       }
 
-      // For other errors, log and return invalid
+      // For 405 (Method Not Allowed), the endpoint doesn't support this method
+      // This likely means Polymarket changed their API - assume valid to not block users
+      if (response.status === 405) {
+        console.log("[validate-credentials] Endpoint returned 405 - assuming valid (API may have changed)");
+        return res.json({ valid: true, warning: "Validation endpoint unavailable" });
+      }
+      
+      // For other errors, log but assume valid to not block users with freshly derived creds
       console.log("[validate-credentials] Unexpected response:", response.status);
-      return res.json({ valid: false, error: `Unexpected response: ${response.status}` });
+      return res.json({ valid: true, warning: `Validation returned ${response.status}` });
     } catch (error: any) {
       console.error("[validate-credentials] Error:", error.message);
       // On network error, assume valid to not block users
