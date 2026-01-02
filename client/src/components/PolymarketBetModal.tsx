@@ -33,7 +33,7 @@ import { useTradingSession } from "@/hooks/useTradingSession";
 import { usePlaceOrder, type PolymarketOrderType } from "@/hooks/usePlaceOrder";
 import { PolymarketDepositWizard } from "./PolymarketDepositWizard";
 import { checkDepositRequirements } from "@/lib/polymarketDeposit";
-import { getSafeAddress, deriveSafeAddressFromEoa } from "@/lib/polymarketGasless";
+import { getSafeAddress, deriveSafeAddressFromEoa, deploySafeIfNeeded } from "@/lib/polymarketGasless";
 import { ethers } from "ethers";
 
 const USDC_CONTRACT = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174";
@@ -359,6 +359,39 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
     }
 
     try {
+      // Step 0: Deploy Safe if needed for external/WalletConnect wallets
+      if (isSafeWallet && tradingSession && !tradingSession.proxyDeployed) {
+        console.log("[BetModal] Safe proxy not yet deployed, deploying now...");
+        toast({
+          title: "Setting Up Trading Wallet",
+          description: "Deploying your trading wallet on Polymarket (one-time setup)...",
+        });
+        
+        try {
+          const deployResult = await deploySafeIfNeeded();
+          console.log("[BetModal] Safe deployment result:", deployResult);
+          
+          if (!deployResult.proxyDeployed) {
+            toast({
+              title: "Wallet Setup Required",
+              description: "Please try placing your bet again in a few seconds while the wallet deploys.",
+              variant: "default",
+            });
+            setIsPlacingOrderLocal(false);
+            return;
+          }
+        } catch (deployError: any) {
+          console.error("[BetModal] Safe deployment failed:", deployError);
+          toast({
+            title: "Wallet Setup Failed",
+            description: deployError.message || "Failed to set up trading wallet. Please try again.",
+            variant: "destructive",
+          });
+          setIsPlacingOrderLocal(false);
+          return;
+        }
+      }
+
       // Step 1: Place the order on Polymarket
       toast({
         title: "Signing Order",
