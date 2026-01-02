@@ -1669,12 +1669,13 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Missing required fields: signedOrder or API credentials" });
       }
 
-      // Only log non-sensitive order info (tokenID not credentials)
+      // Only log non-sensitive order info (tokenId not credentials)
       console.log("Proxying order submission:", { 
-        tokenID: signedOrder.tokenID,
+        tokenId: signedOrder.tokenId,
         side: signedOrder.side === 0 ? "BUY" : "SELL",
-        price: signedOrder.price,
-        size: signedOrder.size
+        makerAmount: signedOrder.makerAmount,
+        takerAmount: signedOrder.takerAmount,
+        maker: signedOrder.maker
       });
 
       // Create HMAC signature for the Polymarket API request
@@ -1702,11 +1703,13 @@ export async function registerRoutes(
       const crypto = await import("crypto");
       const hmac = crypto.createHmac("sha256", secretBytes);
       hmac.update(message);
-      const hmacSignature = hmac.digest("base64");
+      const hmacBase64 = hmac.digest("base64");
+      // Convert to URL-safe base64 (Polymarket SDK format): '+' -> '-', '/' -> '_'
+      const hmacSignature = hmacBase64.replace(/\+/g, '-').replace(/\//g, '_');
       
       // Debug: Log HMAC inputs (not the actual secret)
       console.log("[submit-order] HMAC message preview:", message.substring(0, 50) + "...");
-      console.log("[submit-order] HMAC signature:", hmacSignature.substring(0, 20) + "...");
+      console.log("[submit-order] HMAC signature (url-safe base64):", hmacSignature.substring(0, 20) + "...");
       console.log("[submit-order] API key:", apiKey.substring(0, 15) + "...");
       console.log("[submit-order] Timestamp:", timestamp);
 
