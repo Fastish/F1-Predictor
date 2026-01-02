@@ -1,0 +1,80 @@
+useTradingSession.ts:248 [TradingSession] Successfully derived API Credentials!
+useTradingSession.ts:249 [TradingSession] API key prefix: 61894bfc-e22f-9...
+useTradingSession.ts:252 [TradingSession] Validating freshly derived credentials...
+useTradingSession.ts:172 [TradingSession] Validating cached API credentials via server...
+useTradingSession.ts:173 [TradingSession] API key prefix: 61894bfc-e...
+useTradingSession.ts:187 [TradingSession] Credential validation result: {valid: true, warning: 'Validation endpoint unavailable'}
+useTradingSession.ts:190 [TradingSession] Credentials are valid
+useTradingSession.ts:259 [TradingSession] Freshly derived credentials validated successfully!
+useTradingSession.ts:397 [TradingSession] Got API credentials: success
+useTradingSession.ts:420 Safe address derived but proxy not yet deployed on-chain
+(anonymous) @ useTradingSession.ts:420
+await in (anonymous)
+(anonymous) @ useTradingSession.ts:481
+(anonymous) @ usePlaceOrder.ts:310
+await in (anonymous)
+handlePlaceBet @ PolymarketBetModal.tsx:408
+await in handlePlaceBet
+callCallback2 @ chunk-Z2GUPSCO.js?v=ff435fab:3674
+invokeGuardedCallbackDev @ chunk-Z2GUPSCO.js?v=ff435fab:3699
+invokeGuardedCallback @ chunk-Z2GUPSCO.js?v=ff435fab:3733
+invokeGuardedCallbackAndCatchFirstError @ chunk-Z2GUPSCO.js?v=ff435fab:3736
+executeDispatch @ chunk-Z2GUPSCO.js?v=ff435fab:7014
+processDispatchQueueItemsInOrder @ chunk-Z2GUPSCO.js?v=ff435fab:7034
+processDispatchQueue @ chunk-Z2GUPSCO.js?v=ff435fab:7043
+dispatchEventsForPlugins @ chunk-Z2GUPSCO.js?v=ff435fab:7051
+(anonymous) @ chunk-Z2GUPSCO.js?v=ff435fab:7174
+batchedUpdates$1 @ chunk-Z2GUPSCO.js?v=ff435fab:18913
+batchedUpdates @ chunk-Z2GUPSCO.js?v=ff435fab:3579
+dispatchEventForPluginEventSystem @ chunk-Z2GUPSCO.js?v=ff435fab:7173
+dispatchEventWithEnableCapturePhaseSelectiveHydrationWithoutDiscreteEventReplay @ chunk-Z2GUPSCO.js?v=ff435fab:5478
+dispatchEvent @ chunk-Z2GUPSCO.js?v=ff435fab:5472
+dispatchDiscreteEvent @ chunk-Z2GUPSCO.js?v=ff435fab:5449
+useTradingSession.ts:441 Trading session initialized with Safe: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+usePlaceOrder.ts:72 [usePlaceOrder] Trading via Safe proxy on Polygon (EOA network is irrelevant)
+useTradingSession.ts:475 [TradingSession] Force reinitializing session (credentials expired)
+useTradingSession.ts:330 [TradingSession] initializeTradingSession called {walletAddress: '0x234Cc20818238c0D54a28b696374A95D3C59302B', hasSigner: true}
+useTradingSession.ts:344 [TradingSession] Existing session: none
+useTradingSession.ts:373 [TradingSession] Fetching Safe address from Polymarket...
+useTradingSession.ts:381 [TradingSession] Safe address result: {safeAddress: '0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f', proxyDeployed: false}
+useTradingSession.ts:393 [TradingSession] Deriving API credentials (will request signature from wallet)...
+useTradingSession.ts:394 [TradingSession] Using Safe address for credential derivation: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+useTradingSession.ts:218 [TradingSession] deriveApiCredentials called {safeAddress: '0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f'}
+useTradingSession.ts:152 [TradingSession] Creating temp ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+useTradingSession.ts:224 [TradingSession] Created temporary ClobClient for credential derivation
+useTradingSession.ts:225 [TradingSession] This will trigger a signature request from your wallet!
+useTradingSession.ts:230 [TradingSession] Calling tempClient.deriveApiKey() - SIGNATURE REQUEST SHOULD APPEAR NOW
+useTradingSession.ts:231 [TradingSession] Timeout set to 60 seconds - please sign in your wallet app
+useTradingSession.ts:248 [TradingSession] Successfully derived API Credentials!
+useTradingSession.ts:249 [TradingSession] API key prefix: 61894bfc-e22f-9...
+useTradingSession.ts:252 [TradingSession] Validating freshly derived credentials...
+useTradingSession.ts:172 [TradingSession] Validating cached API credentials via server...
+useTradingSession.ts:173 [TradingSession] API key prefix: 61894bfc-e...
+useTradingSession.ts:187 [TradingSession] Credential validation result: {valid: true, warning: 'Validation endpoint unavailable'}
+useTradingSession.ts:190 [TradingSession] Credentials are valid
+useTradingSession.ts:259 [TradingSession] Freshly derived credentials validated successfully!
+useTradingSession.ts:397 [TradingSession] Got API credentials: success
+useTradingSession.ts:420 Safe address derived but proxy not yet deployed on-chain
+(anonymous) @ useTradingSession.ts:420
+await in (anonymous)
+(anonymous) @ useTradingSession.ts:481
+(anonymous) @ usePlaceOrder.ts:310
+await in (anonymous)
+handlePlaceBet @ PolymarketBetModal.tsx:408
+await in handlePlaceBet
+callCallback2 @ chunk-Z2GUPSCO.js?v=ff435fab:3674
+invokeGuardedCallbackDev @ chunk-Z2GUPSCO.js?v=ff435fab:3699
+invokeGuardedCallback @ chunk-Z2GUPSCO.js?v=ff435fab:3733
+invokeGuardedCallbackAndCatchFirstError @ chunk-Z2GUPSCO.js?v=ff435fab:3736
+executeDispatch @ chunk-Z2GUPSCO.js?v=ff435fab:7014
+processDispatchQueueItemsInOrder @ chunk-Z2GUPSCO.js?v=ff435fab:7034
+processDispatchQueue @ chunk-Z2GUPSCO.js?v=ff435fab:7043
+dispatchEventsForPlugins @ chunk-Z2GUPSCO.js?v=ff435fab:7051
+(anonymous) @ chunk-Z2GUPSCO.js?v=ff435fab:7174
+batchedUpdates$1 @ chunk-Z2GUPSCO.js?v=ff435fab:18913
+batchedUpdates @ chunk-Z2GUPSCO.js?v=ff435fab:3579
+dispatchEventForPluginEventSystem @ chunk-Z2GUPSCO.js?v=ff435fab:7173
+dispatchEventWithEnableCapturePhaseSelectiveHydrationWithoutDiscreteEventReplay @ chunk-Z2GUPSCO.js?v=ff435fab:5478
+dispatchEvent @ chunk-Z2GUPSCO.js?v=ff435fab:5472
+dispatchDiscreteEvent @ chunk-Z2GUPSCO.js?v=ff435fab:5449
+useTradingSession.ts:441 Trading session initialized with Safe: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f

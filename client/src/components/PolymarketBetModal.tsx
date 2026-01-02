@@ -380,6 +380,26 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
             setIsPlacingOrderLocal(false);
             return;
           }
+          
+          // Safe was just deployed - need to reinitialize credentials with the now-deployed Safe
+          // Polymarket may reject credentials derived for an undeployed Safe
+          console.log("[BetModal] Safe deployed successfully, reinitializing credentials...");
+          toast({
+            title: "Activating Trading Session",
+            description: "Refreshing credentials for your new trading wallet...",
+          });
+          
+          await forceReinitialize();
+          
+          // After reinitializing, we need to wait for the new clobClient
+          // Since state updates are async, ask user to retry
+          toast({
+            title: "Trading Wallet Ready",
+            description: "Your wallet is set up! Please click Place Bet again to complete your order.",
+            variant: "default",
+          });
+          setIsPlacingOrderLocal(false);
+          return;
         } catch (deployError: any) {
           console.error("[BetModal] Safe deployment failed:", deployError);
           toast({
