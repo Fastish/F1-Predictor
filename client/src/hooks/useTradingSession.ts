@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo, useRef } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { ClobClient } from "@polymarket/clob-client";
 import { BuilderConfig } from "@polymarket/builder-signing-sdk";
 import { useWallet } from "@/context/WalletContext";
@@ -12,6 +12,18 @@ const SESSION_STORAGE_KEY = "polymarket_trading_session";
 // Polymarket requires signatureType=2 (browser wallet proxy) for external wallets
 // signatureType=0 (EOA) is no longer supported for trading
 const SIGNATURE_TYPE_BROWSER_WALLET = 2;
+
+// MODULE-LEVEL ClobClient cache - shared across ALL components using useTradingSession
+// This prevents the issue where each component (header, bet modal) gets its own ClobClient
+// and the bet modal would submit orders with missing credentials
+let cachedClobClient: ClobClient | null = null;
+let cachedClobClientIdentity: string | null = null;
+
+// Clear the module-level ClobClient cache (called on disconnect/session end)
+function clearClobClientCache() {
+  cachedClobClient = null;
+  cachedClobClientIdentity = null;
+}
 
 // Adapter to wrap ethers v6 signer with ethers v5 _signTypedData method
 // Polymarket SDK expects _signTypedData (v5) but ethers v6 uses signTypedData
@@ -479,6 +491,7 @@ export function useTradingSession() {
   const endTradingSession = useCallback(() => {
     if (!walletAddress) return;
     clearSession(walletAddress);
+    clearClobClientCache(); // Clear module-level ClobClient cache
     setTradingSession(null);
     setCurrentStep("idle");
     setSessionError(null);
@@ -489,6 +502,7 @@ export function useTradingSession() {
     if (!walletAddress) return;
     console.log("Invalidating session due to credential error");
     clearSession(walletAddress);
+    clearClobClientCache(); // Clear module-level ClobClient cache
     setTradingSession(null);
     setCurrentStep("idle");
     setCredentialsValidated(false);
@@ -500,6 +514,7 @@ export function useTradingSession() {
     if (!walletAddress) return;
     console.log("[TradingSession] Force reinitializing session (credentials expired)");
     clearSession(walletAddress);
+    clearClobClientCache(); // Clear module-level ClobClient cache
     setTradingSession(null);
     setCredentialsValidated(false);
     setSessionError(null);
@@ -507,18 +522,14 @@ export function useTradingSession() {
     return initializeTradingSession();
   }, [walletAddress, initializeTradingSession]);
 
-  // Track previous ClobClient identity to prevent unnecessary recreation
-  // Using a ref to store the identity string of the last created ClobClient
-  const lastClobClientIdentityRef = useRef<string | null>(null);
-  const clobClientRef = useRef<ClobClient | null>(null);
-  
   // Create authenticated ClobClient with builder config for order placement
-  // Use a stable identity check to prevent recreation on every render
+  // Uses MODULE-LEVEL cache (cachedClobClient, cachedClobClientIdentity) to ensure
+  // all components share the same ClobClient instance with valid credentials
   const clobClient = useMemo(() => {
     if (!wrappedSigner || !walletAddress || !tradingSession?.apiCredentials) {
-      clobClientRef.current = null;
-      lastClobClientIdentityRef.current = null;
-      return null;
+      // Don't clear the cache here - other components might still need it
+      // Only clear when wallet disconnects (handled elsewhere)
+      return cachedClobClient; // Return cached client if available, null otherwise
     }
 
     // Require Safe address for trading (signatureType=2)
@@ -526,9 +537,7 @@ export function useTradingSession() {
     // If proxy isn't deployed, Polymarket server will reject the order
     if (!tradingSession.safeAddress) {
       console.warn("ClobClient not created: No Safe address available. User needs to set up proxy on polymarket.com");
-      clobClientRef.current = null;
-      lastClobClientIdentityRef.current = null;
-      return null;
+      return cachedClobClient; // Return cached client if available
     }
 
     // Create a stable identity string based on actual credential VALUES, not object references
@@ -537,9 +546,10 @@ export function useTradingSession() {
     const apiKeyPrefix = tradingSession.apiCredentials.key?.substring(0, 20) || '';
     const clobIdentity = `${walletAddress}-${tradingSession.safeAddress}-${apiKeyPrefix}`;
     
-    // If identity hasn't changed, return the cached ClobClient
-    if (lastClobClientIdentityRef.current === clobIdentity && clobClientRef.current) {
-      return clobClientRef.current;
+    // If identity hasn't changed, return the MODULE-LEVEL cached ClobClient
+    // This ensures ALL components using this hook share the same client
+    if (cachedClobClientIdentity === clobIdentity && cachedClobClient) {
+      return cachedClobClient;
     }
 
     // Get remote signing URL (with full origin for client-side)
@@ -569,9 +579,9 @@ export function useTradingSession() {
       builderConfig
     );
     
-    // Cache the new client and identity
-    clobClientRef.current = newClient;
-    lastClobClientIdentityRef.current = clobIdentity;
+    // Update MODULE-LEVEL cache so all components share this client
+    cachedClobClient = newClient;
+    cachedClobClientIdentity = clobIdentity;
     
     return newClient;
   }, [wrappedSigner, walletAddress, tradingSession?.apiCredentials, tradingSession?.safeAddress]);
