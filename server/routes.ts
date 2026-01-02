@@ -1692,24 +1692,20 @@ export async function registerRoutes(
       
       // Transform order to Polymarket API format (see SDK's orderToJson)
       // The API expects a wrapped format with order, owner, orderType fields
+      // 
       // For Safe wallets (signatureType=2):
-      //   - order.maker = Safe wallet (where funds come from)
-      //   - order.signer = EOA (who controls the Safe)
+      //   - order.maker = Safe wallet (where funds are held and trades execute from)
+      //   - order.signer = EOA (who controls the Safe and signs orders)
       //   - owner = SIGNER (EOA) - API keys are ALWAYS bound to the EOA
       // 
-      // API KEY BINDING FOR SAFE WALLETS:
-      // Our implementation overrides getAddress() during credential derivation so that
-      // the ClobAuth message contains the Safe address. This binds API keys to the Safe.
-      // 
-      // For signatureType=2 (Safe wallets):
-      //   - order.maker = Safe wallet (where funds come from)
-      //   - order.signer = EOA (who controls the Safe)
-      //   - owner = MAKER (Safe) - API keys are bound to Safe address
-      //
-      // IMPORTANT: API key derivation now uses Safe address in ClobAuth message
-      // Therefore, API keys are bound to the Safe, and owner must be the maker (Safe)
-      const owner = signedOrder.maker;  // Use maker (Safe) - API keys are bound to Safe
-      console.log("[submit-order] Using owner:", owner, "(maker/Safe - API keys are bound to Safe)");
+      // API KEY BINDING EXPLAINED:
+      // - L1 authentication (deriveApiKey/createApiKey) uses POLY_ADDRESS which must match signer
+      // - ecrecover verifies the signature came from POLY_ADDRESS
+      // - Therefore API keys are bound to EOA (the actual signer), NOT the Safe
+      // - Order submission must use owner=EOA to match API key binding
+      // - maker=Safe is where funds are, but owner=EOA is for API key authentication
+      const owner = signedOrder.signer;  // Use signer (EOA) - API keys are bound to EOA
+      console.log("[submit-order] Using owner:", owner, "(signer/EOA - API keys are bound to EOA)");
       const apiOrderPayload = {
         order: {
           salt: parseInt(signedOrder.salt, 10),  // Must be integer
@@ -1769,10 +1765,10 @@ export async function registerRoutes(
 
       const proxyAgent = getOxylabsProxyAgent();
       // POLY_ADDRESS is required for L2 authentication - it must match the API key owner
-      // API keys are bound to the Safe address (maker), so POLY_ADDRESS must be the Safe
-      const polyAddress = owner;  // owner = maker (Safe) - matches API key binding
-      console.log("[submit-order] POLY_ADDRESS:", polyAddress, "(Safe - matches API key binding)");
-      console.log("[submit-order] Order owner:", owner, "(Safe)");
+      // API keys are bound to EOA (via L1 auth ecrecover), so POLY_ADDRESS must be EOA
+      const polyAddress = owner;  // owner = signer (EOA) - matches API key binding
+      console.log("[submit-order] POLY_ADDRESS:", polyAddress, "(EOA - matches API key binding)");
+      console.log("[submit-order] Order owner:", owner, "(EOA - for API key auth)");
       console.log("[submit-order] Order maker (Safe wallet):", signedOrder.maker);
       console.log("[submit-order] Order signer (EOA):", signedOrder.signer);
       

@@ -16,8 +16,10 @@ const SIGNATURE_TYPE_BROWSER_WALLET = 2;
 // Version for credential derivation format
 // Increment this when making breaking changes to how credentials are derived
 // v1: Initial implementation (EOA address in ClobAuth)
-// v2: Safe address override in ClobAuth for Safe wallets (API keys bound to Safe)
-const CREDENTIAL_VERSION = 2;
+// v2: Safe address override in ClobAuth for Safe wallets (didn't work - L1 auth fails)
+// v3: EOA address in ClobAuth (correct - L1 auth needs ecrecover to match POLY_ADDRESS)
+//     Order submission uses owner=EOA (API key binding), maker=Safe (funds)
+const CREDENTIAL_VERSION = 3;
 
 // MODULE-LEVEL ClobClient cache - shared across ALL components using useTradingSession
 // This prevents the issue where each component (header, bet modal) gets its own ClobClient
@@ -190,31 +192,30 @@ export function useTradingSession() {
   }, [signer]);
 
   // Create temporary ClobClient for credential derivation
-  // IMPORTANT: For Safe wallets (signatureType=2), we must:
-  // 1. Override getAddress() to return Safe address - so ClobAuth message contains Safe address
-  // 2. Pass Safe address as funder - for order execution
-  // This ensures API keys get bound to the Safe address, not the EOA
+  // For Safe wallets (signatureType=2):
+  // - API keys are bound to EOA (the actual signer) because L1 auth uses ecrecover
+  // - Safe address is passed as funder for order execution
+  // - Order submission uses: maker=Safe (funds), owner=EOA (API key binding)
   const createTempClobClient = useCallback((safeAddress?: string) => {
     if (!signer) return null;
     
-    // If safeAddress is provided, create ClobClient with Safe wallet configuration
-    // CRITICAL: We must override getAddress() to return Safe address
-    // This makes the ClobAuth message (and API key binding) use the Safe address
+    // For Safe wallets, we create ClobClient with Safe wallet configuration
+    // BUT we do NOT override getAddress - L1 auth needs real EOA address for signature verification
     if (safeAddress) {
       console.log(`[TradingSession] Creating temp ClobClient with signatureType=${SIGNATURE_TYPE_BROWSER_WALLET}, funder=${safeAddress}`);
-      console.log(`[TradingSession] CRITICAL: Overriding getAddress to return Safe address for API key binding`);
+      console.log(`[TradingSession] API keys will be bound to EOA (for L1 auth verification)`);
+      console.log(`[TradingSession] Order submission will use: maker=Safe, owner=EOA`);
       
-      // Create wrapped signer that returns Safe address from getAddress()
-      // but still signs with the EOA (which controls the Safe)
-      const safeOverrideSigner = wrapSignerForPolymarket(signer, safeAddress);
+      // Wrap signer WITHOUT address override - L1 auth verifies signature against POLY_ADDRESS
+      const wrappedSigner = wrapSignerForPolymarket(signer);
       
       return new ClobClient(
         CLOB_API_URL,
         POLYGON_CHAIN_ID,
-        safeOverrideSigner,
+        wrappedSigner,
         undefined, // No credentials yet
         SIGNATURE_TYPE_BROWSER_WALLET, // signatureType = 2 for Safe wallets
-        safeAddress // funder = Safe address
+        safeAddress // funder = Safe address (where funds are held)
       );
     }
     
