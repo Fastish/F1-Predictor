@@ -1750,10 +1750,11 @@ export async function registerRoutes(
       const proxyAgent = getOxylabsProxyAgent();
       // POLY_ADDRESS is required for L2 authentication - use the signer address (EOA)
       // The API key was created with the signer's address as POLY_ADDRESS
-      // But the order 'owner' field should be the maker (Safe wallet)
+      // For Safe wallets, both POLY_ADDRESS and owner must match the API key owner (signer/EOA)
       const polyAddress = signedOrder.signer || signedOrder.maker;
       console.log("[submit-order] POLY_ADDRESS (signer):", polyAddress);
-      console.log("[submit-order] Order owner (maker):", signedOrder.maker);
+      console.log("[submit-order] Order owner (signer, API key owner):", owner);
+      console.log("[submit-order] Order maker (Safe wallet):", signedOrder.maker);
       
       const submitHeaders = {
         ...getBrowserHeaders(),
