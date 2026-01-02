@@ -262,8 +262,13 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       // The cached ClobClient has an internal signer that becomes stale on reconnect
       clearClobClientCache();
       // Re-set the external provider after reset
+      // CRITICAL: This must happen to restore the provider that was cleared by resetGaslessState()
+      console.log("[Wagmi] About to re-set external provider after reset, transport:", !!transport);
       if (transport) {
         setExternalProviderForGasless(transport);
+        console.log("[Wagmi] Re-set external provider after reset (SUCCESS)");
+      } else {
+        console.error("[Wagmi] CRITICAL: transport is falsy after reset, cannot restore external provider!");
       }
       
       lastWalletIdentityRef.current = walletIdentity;
