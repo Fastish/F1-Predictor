@@ -182,6 +182,7 @@ export function useTradingSession() {
 
   // Validate that cached API credentials are still valid with Polymarket
   // Note: We can't properly validate without HMAC signing, so we use server-side validation
+  // Returns: true = definitely valid, false = definitely invalid or inconclusive (should try createApiKey)
   const validateApiCredentials = useCallback(async (credentials: UserApiCredentials): Promise<boolean> => {
     try {
       console.log("[TradingSession] Validating cached API credentials via server...");
@@ -204,15 +205,20 @@ export function useTradingSession() {
       if (result.valid) {
         console.log("[TradingSession] Credentials are valid");
         return true;
+      } else if (result.inconclusive) {
+        // Validation endpoint is unavailable (405) - treat as invalid to trigger createApiKey
+        console.log("[TradingSession] Credentials validation inconclusive:", result.warning);
+        console.log("[TradingSession] Will try createApiKey() to register credentials");
+        return false;
       } else {
         console.log("[TradingSession] Credentials invalid:", result.error);
         return false;
       }
     } catch (err) {
       console.error("[TradingSession] Error validating credentials:", err);
-      // On network error, assume credentials might be valid and let the order fail naturally
-      // This prevents blocking users when validation endpoint is unavailable
-      return true;
+      // On network error, treat as inconclusive - should try createApiKey
+      console.log("[TradingSession] Network error - will try createApiKey() as fallback");
+      return false;
     }
   }, []);
 
@@ -268,8 +274,21 @@ export function useTradingSession() {
         const isValid = await validateApiCredentials(derivedCreds);
         if (!isValid) {
           console.error("[TradingSession] CRITICAL: Freshly derived credentials are INVALID!");
-          console.log("[TradingSession] This wallet may not have completed setup on polymarket.com");
-          // Don't throw - let the order fail naturally with a better error message
+          console.log("[TradingSession] Falling back to createApiKey() to register new credentials...");
+          
+          // deriveApiKey() returns credentials but they might not be registered
+          // createApiKey() will register new credentials with Polymarket
+          try {
+            const newCreds = await tempClient.createApiKey();
+            console.log("[TradingSession] Successfully created new User API Credentials via createApiKey!");
+            console.log("[TradingSession] New API key prefix:", newCreds.key.substring(0, 15) + "...");
+            return newCreds;
+          } catch (createErr: any) {
+            console.error("[TradingSession] createApiKey also failed:", createErr?.message || createErr);
+            // Return derived creds anyway, maybe they'll work
+            console.log("[TradingSession] Falling back to derived credentials despite validation failure");
+            return derivedCreds;
+          }
         } else {
           console.log("[TradingSession] Freshly derived credentials validated successfully!");
         }

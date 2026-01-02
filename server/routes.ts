@@ -1632,15 +1632,15 @@ export async function registerRoutes(
       }
 
       // For 405 (Method Not Allowed), the endpoint doesn't support this method
-      // This likely means Polymarket changed their API - assume valid to not block users
+      // Return inconclusive so client can try createApiKey() to register credentials
       if (response.status === 405) {
-        console.log("[validate-credentials] Endpoint returned 405 - assuming valid (API may have changed)");
-        return res.json({ valid: true, warning: "Validation endpoint unavailable" });
+        console.log("[validate-credentials] Endpoint returned 405 - validation inconclusive");
+        return res.json({ valid: false, inconclusive: true, warning: "Validation endpoint unavailable (405)" });
       }
       
-      // For other errors, log but assume valid to not block users with freshly derived creds
+      // For other errors, mark as inconclusive so client can try createApiKey()
       console.log("[validate-credentials] Unexpected response:", response.status);
-      return res.json({ valid: true, warning: `Validation returned ${response.status}` });
+      return res.json({ valid: false, inconclusive: true, warning: `Validation returned ${response.status}` });
     } catch (error: any) {
       console.error("[validate-credentials] Error:", error.message);
       // On network error, assume valid to not block users
