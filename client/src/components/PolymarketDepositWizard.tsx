@@ -127,14 +127,19 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
         ctfContractAllowance: rawStatus.ctfContractAllowance,
       }, null, 2));
       
+      let safeAddr: string | null = null;
+      let safeBalance: string | null = null;
+      
       if (walletType === "external" || walletType === "walletconnect" || walletType === "phantom") {
         // Derive Safe address deterministically from EOA (no signer needed)
-        const safeAddress = deriveSafeAddressFromEOA(walletAddress);
-        if (safeAddress) {
-          console.log(`[DepositWizard] Checking Safe address: ${safeAddress}`);
+        safeAddr = deriveSafeAddressFromEOA(walletAddress);
+        if (safeAddr) {
+          console.log(`[DepositWizard] Checking Safe address: ${safeAddr}`);
           try {
-            const safeStatus = await checkDepositRequirements(provider, safeAddress, false);
+            // Fetch Safe status including balance and approvals
+            const safeStatus = await checkDepositRequirements(provider, safeAddr, false);
             console.log(`[DepositWizard] Safe status:`, JSON.stringify({
+              usdcBalance: safeStatus.usdcBalance,
               needsApproval: safeStatus.needsApproval,
               needsCTFApproval: safeStatus.needsCTFApproval,
               ctfExchangeAllowance: safeStatus.ctfExchangeAllowance,
@@ -143,6 +148,12 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
               ctfApprovedForExchange: safeStatus.ctfApprovedForExchange,
               ctfApprovedForNegRisk: safeStatus.ctfApprovedForNegRisk,
             }, null, 2));
+            
+            // Use the Safe's balance from checkDepositRequirements
+            // This is the Trading Balance - the balance in the Safe wallet
+            safeBalance = safeStatus.usdcBalance;
+            console.log(`[DepositWizard] Safe balance (Trading Balance): ${safeBalance} USDC.e`);
+            console.log(`[DepositWizard] EOA balance (In Wallet): ${rawStatus.usdcBalance} USDC.e`);
             
             // If Safe has approvals but EOA doesn't, use Safe's approval status
             // This handles the case where user previously did gasless approvals
@@ -171,7 +182,7 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
               needsCTFApproval: rawStatus.needsCTFApproval,
             });
           } catch (e) {
-            console.warn("[DepositWizard] Failed to check Safe address for approvals:", e);
+            console.warn("[DepositWizard] Failed to check Safe address:", e);
           }
         } else {
           console.warn("[DepositWizard] Could not derive Safe address from EOA");
@@ -188,24 +199,6 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
       // Only show swap warning when USDC.e is effectively zero but user has native USDC
       const needsSwap = parseFloat(rawStatus.nativeUsdcBalance) >= 1 && 
         parseFloat(rawStatus.usdcBalance) < 0.01;
-      
-      let safeAddr: string | null = null;
-      let safeBalance: string | null = null;
-      
-      if (walletType === "external" || walletType === "walletconnect" || walletType === "phantom") {
-        safeAddr = deriveSafeAddressFromEOA(walletAddress);
-        if (safeAddr) {
-          try {
-            const USDC_E = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174";
-            const contract = new ethers.Contract(USDC_E, ["function balanceOf(address) view returns (uint256)"], provider);
-            const balance = await contract.balanceOf(safeAddr);
-            safeBalance = ethers.formatUnits(balance, 6);
-            console.log(`[DepositWizard] Safe balance: ${safeBalance} USDC.e`);
-          } catch (e) {
-            console.warn("[DepositWizard] Failed to fetch Safe balance:", e);
-          }
-        }
-      }
       
       const status: DepositStatus = {
         ...rawStatus,
