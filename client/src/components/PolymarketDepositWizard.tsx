@@ -24,7 +24,6 @@ import {
   approveCTFGasless,
   isExternalWalletAvailable,
   setExternalProviderForGasless,
-  clearExternalProviderForGasless,
 } from "@/lib/polymarketGasless";
 import { deriveSafe } from "@polymarket/builder-relayer-client/dist/builder/derive";
 import { getContractConfig } from "@polymarket/builder-relayer-client/dist/config";
@@ -77,9 +76,10 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
       checkStatus();
       
       // For WalletConnect users, set the external provider so gasless can use it
+      // Note: WalletContext also sets this, but we reinforce it here for reliability
       const isWalletConnect = walletType === "walletconnect";
       if (isWalletConnect && walletClient?.transport) {
-        console.log("[DepositWizard] Setting external provider for gasless (WalletConnect)");
+        console.log("[DepositWizard] Reinforcing external provider for gasless (WalletConnect)");
         setExternalProviderForGasless(walletClient.transport);
       }
       
@@ -87,12 +87,9 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
       checkGaslessAvailable(isWalletConnect && !!walletClient?.transport).then(setRelayerAvailable);
     }
     
-    // Cleanup on unmount
-    return () => {
-      if (walletType === "walletconnect") {
-        clearExternalProviderForGasless();
-      }
-    };
+    // NOTE: We intentionally do NOT clear the external provider on unmount!
+    // The provider lifecycle is managed by WalletContext (set on connect, cleared on disconnect).
+    // Clearing it here would break order placement after the wizard closes.
   }, [open, walletAddress, walletType, walletClient]);
 
   // Helper to derive Safe address deterministically (no signer needed)
