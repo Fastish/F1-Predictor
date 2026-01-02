@@ -1714,9 +1714,14 @@ export async function registerRoutes(
       console.log("[submit-order] Timestamp:", timestamp);
 
       const proxyAgent = getOxylabsProxyAgent();
+      // POLY_ADDRESS is required for L2 authentication - use the signer address from the order
+      const polyAddress = signedOrder.signer || signedOrder.maker;
+      console.log("[submit-order] POLY_ADDRESS:", polyAddress);
+      
       const submitHeaders = {
         ...getBrowserHeaders(),
         "Content-Type": "application/json",
+        "POLY_ADDRESS": polyAddress,
         "POLY_API_KEY": apiKey,
         "POLY_PASSPHRASE": passphrase,
         "POLY_TIMESTAMP": timestamp,
