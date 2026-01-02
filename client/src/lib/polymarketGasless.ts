@@ -138,6 +138,29 @@ async function getExternalV5Signer() {
   }
 }
 
+// Get the best available signer - prioritizes external provider (WalletConnect) over window.ethereum
+// This is critical to avoid using the wrong wallet when multiple wallets are installed
+async function getBestAvailableSigner() {
+  // Priority 1: External EIP-1193 provider (WalletConnect)
+  // This must be checked first because window.ethereum might be a different wallet (e.g., Phantom)
+  if (externalEIP1193Provider) {
+    const externalSigner = await getExternalV5Signer();
+    if (externalSigner) {
+      console.log("[Gasless] Using external provider signer (WalletConnect)");
+      return externalSigner;
+    }
+  }
+  
+  // Priority 2: window.ethereum (MetaMask, Phantom, etc.)
+  const windowSigner = await getEthersV5Signer();
+  if (windowSigner) {
+    console.log("[Gasless] Using window.ethereum signer");
+    return windowSigner;
+  }
+  
+  return null;
+}
+
 async function createRelayClient(providedSigner?: any): Promise<RelayClient> {
   // Priority: provided signer > external WalletConnect signer > window.ethereum signer
   let signer = providedSigner;
@@ -185,10 +208,11 @@ export function deriveSafeAddressFromEoa(eoaAddress: string): string {
   return safeAddress;
 }
 
-// Get Safe address with deployment check - requires window.ethereum (for RelayClient)
+// Get Safe address with deployment check - requires a connected wallet
 export async function getSafeAddress(): Promise<SafeAddressResult> {
   try {
-    const signer = await getEthersV5Signer();
+    // Use getBestAvailableSigner to prioritize WalletConnect over window.ethereum
+    const signer = await getBestAvailableSigner();
     if (!signer) {
       throw new Error("No wallet connected");
     }
@@ -231,7 +255,8 @@ export async function getSafeAddress(): Promise<SafeAddressResult> {
 
 export async function deploySafeIfNeeded(): Promise<SafeAddressResult> {
   try {
-    const signer = await getEthersV5Signer();
+    // Use getBestAvailableSigner to prioritize WalletConnect over window.ethereum
+    const signer = await getBestAvailableSigner();
     if (!signer) {
       throw new Error("No wallet connected");
     }
@@ -288,7 +313,9 @@ export async function executeGaslessTransactions(
   transactions: Transaction[]
 ): Promise<GaslessResult> {
   try {
-    const signer = await getEthersV5Signer();
+    // IMPORTANT: Use getBestAvailableSigner() to prioritize WalletConnect provider over window.ethereum
+    // This prevents using the wrong wallet (e.g., Phantom) when WalletConnect is active
+    const signer = await getBestAvailableSigner();
     if (!signer) {
       throw new Error("No wallet connected");
     }
