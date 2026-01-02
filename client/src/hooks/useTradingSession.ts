@@ -507,9 +507,17 @@ export function useTradingSession() {
     return initializeTradingSession();
   }, [walletAddress, initializeTradingSession]);
 
+  // Track previous ClobClient identity to prevent unnecessary recreation
+  // Using a ref to store the identity string of the last created ClobClient
+  const lastClobClientIdentityRef = useRef<string | null>(null);
+  const clobClientRef = useRef<ClobClient | null>(null);
+  
   // Create authenticated ClobClient with builder config for order placement
+  // Use a stable identity check to prevent recreation on every render
   const clobClient = useMemo(() => {
     if (!wrappedSigner || !walletAddress || !tradingSession?.apiCredentials) {
+      clobClientRef.current = null;
+      lastClobClientIdentityRef.current = null;
       return null;
     }
 
@@ -518,7 +526,20 @@ export function useTradingSession() {
     // If proxy isn't deployed, Polymarket server will reject the order
     if (!tradingSession.safeAddress) {
       console.warn("ClobClient not created: No Safe address available. User needs to set up proxy on polymarket.com");
+      clobClientRef.current = null;
+      lastClobClientIdentityRef.current = null;
       return null;
+    }
+
+    // Create a stable identity string based on actual credential VALUES, not object references
+    // This prevents recreating ClobClient when the tradingSession object reference changes
+    // but the actual credential values remain the same
+    const apiKeyPrefix = tradingSession.apiCredentials.key?.substring(0, 20) || '';
+    const clobIdentity = `${walletAddress}-${tradingSession.safeAddress}-${apiKeyPrefix}`;
+    
+    // If identity hasn't changed, return the cached ClobClient
+    if (lastClobClientIdentityRef.current === clobIdentity && clobClientRef.current) {
+      return clobClientRef.current;
     }
 
     // Get remote signing URL (with full origin for client-side)
@@ -536,7 +557,7 @@ export function useTradingSession() {
     // Create authenticated ClobClient with browser wallet proxy (signatureType=2)
     // Polymarket requires signatureType=2 for external wallets with Safe proxy as funder
     console.log(`Creating ClobClient with signatureType=${SIGNATURE_TYPE_BROWSER_WALLET}, funder=${tradingSession.safeAddress}`);
-    return new ClobClient(
+    const newClient = new ClobClient(
       CLOB_API_URL,
       POLYGON_CHAIN_ID,
       wrappedSigner,
@@ -547,6 +568,12 @@ export function useTradingSession() {
       false,
       builderConfig
     );
+    
+    // Cache the new client and identity
+    clobClientRef.current = newClient;
+    lastClobClientIdentityRef.current = clobIdentity;
+    
+    return newClient;
   }, [wrappedSigner, walletAddress, tradingSession?.apiCredentials, tradingSession?.safeAddress]);
 
   return {
