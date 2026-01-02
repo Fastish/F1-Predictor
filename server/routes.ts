@@ -1684,6 +1684,12 @@ export async function registerRoutes(
       
       // Transform order to Polymarket API format (see SDK's orderToJson)
       // The API expects a wrapped format with order, owner, orderType fields
+      // For Safe wallets (signatureType=2):
+      //   - order.maker = Safe wallet (where funds come from)
+      //   - order.signer = EOA (who controls the Safe)
+      //   - owner = signer (EOA) - this must match the API key owner
+      // The API key was created with POLY_ADDRESS = signer, so owner must also be signer
+      const owner = signedOrder.signer || signedOrder.maker;
       const apiOrderPayload = {
         order: {
           salt: parseInt(signedOrder.salt, 10),  // Must be integer
@@ -1700,7 +1706,7 @@ export async function registerRoutes(
           signatureType: signedOrder.signatureType,
           signature: signedOrder.signature,
         },
-        owner: signedOrder.maker,  // Owner is the maker (Safe wallet for external wallets)
+        owner: owner,  // Owner must match API key owner (signer/EOA for Safe wallets)
         orderType: orderType,
       };
       
@@ -1742,10 +1748,12 @@ export async function registerRoutes(
       console.log("[submit-order] Timestamp:", timestamp);
 
       const proxyAgent = getOxylabsProxyAgent();
-      // POLY_ADDRESS is required for L2 authentication - use the maker address (Safe wallet for external wallets)
-      // The API key is registered to the maker/funder address, not the signer
-      const polyAddress = signedOrder.maker;
-      console.log("[submit-order] POLY_ADDRESS (maker):", polyAddress);
+      // POLY_ADDRESS is required for L2 authentication - use the signer address (EOA)
+      // The API key was created with the signer's address as POLY_ADDRESS
+      // But the order 'owner' field should be the maker (Safe wallet)
+      const polyAddress = signedOrder.signer || signedOrder.maker;
+      console.log("[submit-order] POLY_ADDRESS (signer):", polyAddress);
+      console.log("[submit-order] Order owner (maker):", signedOrder.maker);
       
       const submitHeaders = {
         ...getBrowserHeaders(),
