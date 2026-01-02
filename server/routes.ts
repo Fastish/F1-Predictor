@@ -1693,19 +1693,15 @@ export async function registerRoutes(
       // Transform order to Polymarket API format (see SDK's orderToJson)
       // The API expects a wrapped format with order, owner, orderType fields
       // 
+      // Per Polymarket docs: owner = "api key of order owner" (the API key STRING, not an address!)
+      // See: https://docs.polymarket.com/developers/CLOB/orders/create-order#request-payload-parameters
+      // 
       // For Safe wallets (signatureType=2):
       //   - order.maker = Safe wallet (where funds are held and trades execute from)
       //   - order.signer = EOA (who controls the Safe and signs orders)
-      //   - owner = SIGNER (EOA) - API keys are ALWAYS bound to the EOA
-      // 
-      // API KEY BINDING EXPLAINED:
-      // - L1 authentication (deriveApiKey/createApiKey) uses POLY_ADDRESS which must match signer
-      // - ecrecover verifies the signature came from POLY_ADDRESS
-      // - Therefore API keys are bound to EOA (the actual signer), NOT the Safe
-      // - Order submission must use owner=EOA to match API key binding
-      // - maker=Safe is where funds are, but owner=EOA is for API key authentication
-      const owner = signedOrder.signer;  // Use signer (EOA) - API keys are bound to EOA
-      console.log("[submit-order] Using owner:", owner, "(signer/EOA - API keys are bound to EOA)");
+      //   - owner = API KEY STRING (not an address!)
+      const owner = apiKey;  // Per docs: owner is the API key string, not a wallet address
+      console.log("[submit-order] Using owner (API key):", apiKey.substring(0, 15) + "...");
       const apiOrderPayload = {
         order: {
           salt: parseInt(signedOrder.salt, 10),  // Must be integer
@@ -1764,11 +1760,11 @@ export async function registerRoutes(
       console.log("[submit-order] Timestamp:", timestamp);
 
       const proxyAgent = getOxylabsProxyAgent();
-      // POLY_ADDRESS is required for L2 authentication - it must match the API key owner
-      // API keys are bound to EOA (via L1 auth ecrecover), so POLY_ADDRESS must be EOA
-      const polyAddress = owner;  // owner = signer (EOA) - matches API key binding
-      console.log("[submit-order] POLY_ADDRESS:", polyAddress, "(EOA - matches API key binding)");
-      console.log("[submit-order] Order owner:", owner, "(EOA - for API key auth)");
+      // POLY_ADDRESS is required for L2 authentication - it must match the API key binding
+      // API keys are bound to EOA (via L1 auth ecrecover), so POLY_ADDRESS must be EOA (signer)
+      const polyAddress = signedOrder.signer;  // Must be EOA for HMAC verification
+      console.log("[submit-order] POLY_ADDRESS:", polyAddress, "(EOA/signer - for HMAC auth)");
+      console.log("[submit-order] Order owner (API key):", apiKey.substring(0, 15) + "...");
       console.log("[submit-order] Order maker (Safe wallet):", signedOrder.maker);
       console.log("[submit-order] Order signer (EOA):", signedOrder.signer);
       
