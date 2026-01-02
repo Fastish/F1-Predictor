@@ -230,12 +230,23 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (walletClient && wagmiIsConnected && wagmiAddress && walletType === 'walletconnect') {
+      const transport = walletClient.transport;
+      
+      // CRITICAL: ALWAYS set the external provider for gasless operations when WalletConnect is active
+      // This must happen unconditionally to ensure gasless operations use the right provider
+      // even if the signer recreation is skipped due to same wallet identity
+      if (transport) {
+        setExternalProviderForGasless(transport);
+        console.log("[Wagmi] Set external provider for gasless operations (transport available)");
+      }
+      
       // Create a stable identity string to compare
       // Only recreate signer if the wallet identity actually changes
       const walletIdentity = `${wagmiAddress.toLowerCase()}-${walletClient.chain?.id || 'unknown'}`;
       
       if (lastWalletIdentityRef.current === walletIdentity) {
-        // Same wallet, no need to recreate signer
+        // Same wallet, signer already set up - but we DID set the external provider above
+        console.log("[Wagmi] Same wallet identity, skipping signer recreation");
         return;
       }
       
@@ -243,20 +254,17 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       console.log("[Wagmi] Wallet identity changed:", lastWalletIdentityRef.current, "->", walletIdentity);
       console.log("[Wagmi] walletClient transport type:", typeof walletClient.transport);
       
-      // CRITICAL: Reset gasless state when wallet identity changes
-      // This clears the external provider and cached deployment status to prevent
-      // using stale Safe addresses from a previous wallet
+      // Reset gasless state when wallet identity changes (different wallet)
+      // This clears cached deployment status to prevent using stale Safe addresses
       resetGaslessState();
+      // Re-set the external provider after reset
+      if (transport) {
+        setExternalProviderForGasless(transport);
+      }
       
       lastWalletIdentityRef.current = walletIdentity;
       
-      const transport = walletClient.transport;
       if (transport) {
-        // CRITICAL: Set the external provider for gasless operations BEFORE creating signer
-        // This ensures deploySafeIfNeeded uses the WalletConnect provider, not window.ethereum
-        setExternalProviderForGasless(transport);
-        console.log("[Wagmi] Set external provider for gasless operations");
-        
         const ethersProvider = new ethers.BrowserProvider(transport);
         setProvider(ethersProvider);
         ethersProvider.getSigner().then(s => {

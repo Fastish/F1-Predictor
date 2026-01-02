@@ -153,20 +153,26 @@ async function getExternalV5Signer() {
 // Get the best available signer - prioritizes external provider (WalletConnect) over window.ethereum
 // This is critical to avoid using the wrong wallet when multiple wallets are installed
 async function getBestAvailableSigner() {
+  console.log("[Gasless] getBestAvailableSigner called, externalEIP1193Provider:", !!externalEIP1193Provider);
+  
   // Priority 1: External EIP-1193 provider (WalletConnect)
   // This must be checked first because window.ethereum might be a different wallet (e.g., Phantom)
   if (externalEIP1193Provider) {
+    console.log("[Gasless] External provider is set, attempting to get signer...");
     const externalSigner = await getExternalV5Signer();
     if (externalSigner) {
-      console.log("[Gasless] Using external provider signer (WalletConnect)");
+      const address = await externalSigner.getAddress();
+      console.log("[Gasless] Using external provider signer (WalletConnect), address:", address);
       return externalSigner;
     }
+    console.log("[Gasless] External provider set but couldn't get signer");
   }
   
   // Priority 2: window.ethereum (MetaMask, Phantom, etc.)
   const windowSigner = await getEthersV5Signer();
   if (windowSigner) {
-    console.log("[Gasless] Using window.ethereum signer");
+    const address = await windowSigner.getAddress();
+    console.log("[Gasless] Using window.ethereum signer, address:", address);
     return windowSigner;
   }
   
