@@ -1669,6 +1669,12 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Missing required fields: signedOrder or API credentials" });
       }
 
+      // CRITICAL DEBUG: Log signer and maker immediately upon receipt
+      console.log("[submit-order] ===== ORDER RECEIVED =====");
+      console.log("[submit-order] signedOrder.signer:", signedOrder.signer);
+      console.log("[submit-order] signedOrder.maker:", signedOrder.maker);
+      console.log("[submit-order] signedOrder.signatureType:", signedOrder.signatureType);
+      
       // Only log non-sensitive order info (tokenId not credentials)
       const sideString = signedOrder.side === 0 ? "BUY" : "SELL";
       console.log("Proxying order submission:", { 
@@ -1676,7 +1682,9 @@ export async function registerRoutes(
         side: sideString,
         makerAmount: signedOrder.makerAmount,
         takerAmount: signedOrder.takerAmount,
-        maker: signedOrder.maker
+        maker: signedOrder.maker,
+        signer: signedOrder.signer,
+        signatureType: signedOrder.signatureType
       });
 
       // Get orderType from request (default to GTC)
