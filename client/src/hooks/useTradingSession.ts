@@ -19,7 +19,8 @@ const SIGNATURE_TYPE_BROWSER_WALLET = 2;
 // v2: Safe address override in ClobAuth for Safe wallets (didn't work - L1 auth fails)
 // v3: EOA address in ClobAuth (correct - L1 auth needs ecrecover to match POLY_ADDRESS)
 //     Order submission uses owner=EOA (API key binding), maker=Safe (funds)
-const CREDENTIAL_VERSION = 3;
+// v4: Force re-derive after fixing API key binding (v2/v3 keys may be bound to wrong address)
+const CREDENTIAL_VERSION = 4;
 
 // MODULE-LEVEL ClobClient cache - shared across ALL components using useTradingSession
 // This prevents the issue where each component (header, bet modal) gets its own ClobClient
@@ -146,10 +147,12 @@ export function useTradingSession() {
     
     // VALIDATION 1: Check credential version - invalidate sessions with old credential format
     // This forces re-derivation when credential derivation logic changes
+    console.log(`[TradingSession] Checking credential version: stored=${stored?.credentialVersion}, current=${CREDENTIAL_VERSION}`);
     if (stored?.hasApiCredentials && stored.credentialVersion !== CREDENTIAL_VERSION) {
-      console.warn(`[TradingSession] Credential version mismatch! Stored: ${stored.credentialVersion}, Current: ${CREDENTIAL_VERSION}`);
-      console.warn("[TradingSession] Clearing stale credentials to force re-derivation with Safe address binding");
+      console.warn(`[TradingSession] CREDENTIAL VERSION MISMATCH! Stored: ${stored.credentialVersion}, Current: ${CREDENTIAL_VERSION}`);
+      console.warn("[TradingSession] CLEARING STALE CREDENTIALS - API keys may be bound to wrong address");
       clearSession(walletAddress);
+      clearClobClientCache(); // Also clear the module-level cache
       setTradingSession(null);
       setCurrentStep("idle");
       setCredentialsValidated(false);
