@@ -13,6 +13,12 @@ const SESSION_STORAGE_KEY = "polymarket_trading_session";
 // signatureType=0 (EOA) is no longer supported for trading
 const SIGNATURE_TYPE_BROWSER_WALLET = 2;
 
+// Version for credential derivation format
+// Increment this when making breaking changes to how credentials are derived
+// v1: Initial implementation (EOA address in ClobAuth)
+// v2: Safe address override in ClobAuth for Safe wallets (API keys bound to Safe)
+const CREDENTIAL_VERSION = 2;
+
 // MODULE-LEVEL ClobClient cache - shared across ALL components using useTradingSession
 // This prevents the issue where each component (header, bet modal) gets its own ClobClient
 // and the bet modal would submit orders with missing credentials
@@ -78,6 +84,7 @@ export interface TradingSession {
   hasApiCredentials: boolean;
   apiCredentials?: UserApiCredentials;
   lastChecked: number;
+  credentialVersion?: number; // Version of credential derivation format
 }
 
 export type SessionStep =
@@ -135,7 +142,19 @@ export function useTradingSession() {
     }
     const stored = loadSession(walletAddress);
     
-    // VALIDATION: Check if stored Safe address matches the derived one
+    // VALIDATION 1: Check credential version - invalidate sessions with old credential format
+    // This forces re-derivation when credential derivation logic changes
+    if (stored?.hasApiCredentials && stored.credentialVersion !== CREDENTIAL_VERSION) {
+      console.warn(`[TradingSession] Credential version mismatch! Stored: ${stored.credentialVersion}, Current: ${CREDENTIAL_VERSION}`);
+      console.warn("[TradingSession] Clearing stale credentials to force re-derivation with Safe address binding");
+      clearSession(walletAddress);
+      setTradingSession(null);
+      setCurrentStep("idle");
+      setCredentialsValidated(false);
+      return;
+    }
+    
+    // VALIDATION 2: Check if stored Safe address matches the derived one
     // This catches corrupted sessions where the wrong Safe address was stored
     // (e.g., if window.ethereum returned a different wallet's address)
     if (stored?.safeAddress) {
@@ -526,6 +545,7 @@ export function useTradingSession() {
         hasApiCredentials: true,
         apiCredentials: apiCreds,
         lastChecked: Date.now(),
+        credentialVersion: CREDENTIAL_VERSION, // Track credential derivation format version
       };
 
       setTradingSession(newSession);
