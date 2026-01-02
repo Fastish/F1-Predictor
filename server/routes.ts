@@ -1685,20 +1685,30 @@ export async function registerRoutes(
       const message = timestamp + method + path + body;
       
       // Decode secret (base64url or hex)
+      // Polymarket SDK returns secrets in base64url format
       let secretBytes: Buffer;
-      if (/^[0-9a-fA-F]+$/.test(apiSecret) && apiSecret.length % 2 === 0) {
+      const isHex = /^[0-9a-fA-F]+$/.test(apiSecret) && apiSecret.length % 2 === 0;
+      if (isHex) {
         secretBytes = Buffer.from(apiSecret, "hex");
+        console.log("[submit-order] Secret decoded as hex, length:", secretBytes.length);
       } else {
         // Convert base64url to base64
         let base64 = apiSecret.replace(/-/g, '+').replace(/_/g, '/');
         while (base64.length % 4) base64 += '=';
         secretBytes = Buffer.from(base64, "base64");
+        console.log("[submit-order] Secret decoded as base64url, length:", secretBytes.length);
       }
 
       const crypto = await import("crypto");
       const hmac = crypto.createHmac("sha256", secretBytes);
       hmac.update(message);
       const hmacSignature = hmac.digest("base64");
+      
+      // Debug: Log HMAC inputs (not the actual secret)
+      console.log("[submit-order] HMAC message preview:", message.substring(0, 50) + "...");
+      console.log("[submit-order] HMAC signature:", hmacSignature.substring(0, 20) + "...");
+      console.log("[submit-order] API key:", apiKey.substring(0, 15) + "...");
+      console.log("[submit-order] Timestamp:", timestamp);
 
       const proxyAgent = getOxylabsProxyAgent();
       const submitHeaders = {
