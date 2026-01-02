@@ -250,6 +250,19 @@ export function usePlaceOrder(
             `Request failed with status ${resultAny.status}`;
           console.error("Polymarket order rejected:", errorMessage, "Full response:", result);
           await logToServer("ORDER_REJECTED", { errorMessage, fullResponse: result });
+          
+          // Check if this is a credential error - trigger session reinit
+          // Polymarket returns "Unauthorized/Invalid api key" for bad credentials
+          const errorLower = (typeof errorMessage === 'string' ? errorMessage : '').toLowerCase();
+          if (errorLower.includes("unauthorized") || 
+              errorLower.includes("invalid api") ||
+              errorLower.includes("api key") ||
+              errorLower.includes("401") ||
+              errorLower.includes("expired")) {
+            console.log("[PlaceOrder] Credential error detected in response, triggering session reinit");
+            onCredentialError?.();
+          }
+          
           setIsPlacing(false);
           return {
             success: false,
