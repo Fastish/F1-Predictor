@@ -1700,7 +1700,7 @@ export async function registerRoutes(
           signatureType: signedOrder.signatureType,
           signature: signedOrder.signature,
         },
-        owner: signedOrder.signer,  // Owner is the signer address
+        owner: signedOrder.maker,  // Owner is the maker (Safe wallet for external wallets)
         orderType: orderType,
       };
       
