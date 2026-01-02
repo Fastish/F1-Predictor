@@ -527,9 +527,12 @@ export function useTradingSession() {
   // all components share the same ClobClient instance with valid credentials
   const clobClient = useMemo(() => {
     if (!wrappedSigner || !walletAddress || !tradingSession?.apiCredentials) {
-      // Don't clear the cache here - other components might still need it
-      // Only clear when wallet disconnects (handled elsewhere)
-      return cachedClobClient; // Return cached client if available, null otherwise
+      // IMPORTANT: Only return cached client if it belongs to the SAME wallet
+      // Otherwise return null to prevent using stale credentials from a previous session
+      if (cachedClobClient && cachedClobClientIdentity?.startsWith(walletAddress || '')) {
+        return cachedClobClient;
+      }
+      return null;
     }
 
     // Require Safe address for trading (signatureType=2)
@@ -537,7 +540,11 @@ export function useTradingSession() {
     // If proxy isn't deployed, Polymarket server will reject the order
     if (!tradingSession.safeAddress) {
       console.warn("ClobClient not created: No Safe address available. User needs to set up proxy on polymarket.com");
-      return cachedClobClient; // Return cached client if available
+      // Only return cached if same wallet
+      if (cachedClobClient && cachedClobClientIdentity?.startsWith(walletAddress)) {
+        return cachedClobClient;
+      }
+      return null;
     }
 
     // Create a stable identity string based on actual credential VALUES, not object references

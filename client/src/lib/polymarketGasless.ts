@@ -122,6 +122,18 @@ export function clearExternalProviderForGasless() {
   externalEIP1193Provider = null;
 }
 
+// Cache deployment status to avoid re-checking/re-deploying within same session
+// Moved here so resetGaslessState can access it
+let cachedDeploymentStatus: { safeAddress: string; deployed: boolean } | null = null;
+
+// Reset all gasless state (provider + cached deployment status)
+// Call this when wallet identity changes to prevent stale Safe address issues
+export function resetGaslessState() {
+  externalEIP1193Provider = null;
+  cachedDeploymentStatus = null;
+  console.log("[Gasless] State reset - external provider and deployment cache cleared");
+}
+
 async function getExternalV5Signer() {
   if (!externalEIP1193Provider) return null;
   
@@ -305,9 +317,6 @@ export async function deploySafeIfNeeded(): Promise<SafeAddressResult> {
     throw error;
   }
 }
-
-// Cache deployment status to avoid re-checking/re-deploying within same session
-let cachedDeploymentStatus: { safeAddress: string; deployed: boolean } | null = null;
 
 export async function executeGaslessTransactions(
   transactions: Transaction[]

@@ -4,6 +4,7 @@ import { ethers } from "ethers";
 import { queryClient } from "@/lib/queryClient";
 import { useConnect, useDisconnect, useAccount, useWalletClient, Connector } from "wagmi";
 import { walletConnect, injected } from "@wagmi/connectors";
+import { setExternalProviderForGasless, resetGaslessState } from "@/lib/polymarketGasless";
 
 type WalletType = "magic" | "external" | "walletconnect" | "phantom" | null;
 
@@ -242,10 +243,20 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       console.log("[Wagmi] Wallet identity changed:", lastWalletIdentityRef.current, "->", walletIdentity);
       console.log("[Wagmi] walletClient transport type:", typeof walletClient.transport);
       
+      // CRITICAL: Reset gasless state when wallet identity changes
+      // This clears the external provider and cached deployment status to prevent
+      // using stale Safe addresses from a previous wallet
+      resetGaslessState();
+      
       lastWalletIdentityRef.current = walletIdentity;
       
       const transport = walletClient.transport;
       if (transport) {
+        // CRITICAL: Set the external provider for gasless operations BEFORE creating signer
+        // This ensures deploySafeIfNeeded uses the WalletConnect provider, not window.ethereum
+        setExternalProviderForGasless(transport);
+        console.log("[Wagmi] Set external provider for gasless operations");
+        
         const ethersProvider = new ethers.BrowserProvider(transport);
         setProvider(ethersProvider);
         ethersProvider.getSigner().then(s => {
@@ -670,6 +681,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error("Logout error:", error);
     }
+    
+    // Reset gasless state to clear external provider and cached deployment status
+    // This ensures a fresh start when reconnecting
+    resetGaslessState();
     
     queryClient.removeQueries({ queryKey: ["polymarket-cash-balance"] });
     queryClient.removeQueries({ queryKey: ["polygon-usdc-balance"] });
