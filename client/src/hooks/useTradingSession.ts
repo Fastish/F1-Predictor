@@ -54,6 +54,7 @@ export interface TradingSession {
 export type SessionStep =
   | "idle"
   | "checking"
+  | "deploying"
   | "credentials"
   | "complete"
   | "error";
@@ -388,37 +389,52 @@ export function useTradingSession() {
         }
       }
 
-      // STEP 2: Derive user API credentials - THIS WILL TRIGGER A SIGNATURE REQUEST
+      if (!safeAddress) {
+        // Can't derive Safe address - user needs to set up on polymarket.com
+        console.warn("Could not derive Safe address. User needs to complete setup on polymarket.com");
+        setSessionError("Could not set up trading. Please visit polymarket.com to create your account first.");
+        setCurrentStep("error");
+        setIsInitializing(false);
+        return null;
+      }
+
+      // STEP 2: Deploy Safe if not already deployed
+      // CRITICAL: According to Polymarket docs, Safe must be deployed BEFORE deriving API credentials
+      // https://github.com/Polymarket/wagmi-safe-builder-example#5-safe-deployment
+      if (!proxyDeployed) {
+        console.log("[TradingSession] Safe not deployed, deploying now (one-time setup)...");
+        setCurrentStep("deploying");
+        
+        try {
+          // Import and call deploySafeIfNeeded
+          const { deploySafeIfNeeded } = await import("@/lib/polymarketGasless");
+          const deployResult = await deploySafeIfNeeded();
+          
+          if (deployResult.proxyDeployed) {
+            console.log("[TradingSession] Safe deployed successfully!");
+            proxyDeployed = true;
+          } else {
+            console.warn("[TradingSession] Safe deployment initiated but may not be confirmed yet");
+            // Continue anyway - the deployment might be in progress
+          }
+        } catch (deployError: any) {
+          console.error("[TradingSession] Safe deployment failed:", deployError);
+          // Don't block - user can try again
+          setSessionError("Failed to deploy trading wallet. Please try again.");
+          setCurrentStep("error");
+          setIsInitializing(false);
+          return null;
+        }
+      }
+
+      // STEP 3: Derive user API credentials - THIS WILL TRIGGER A SIGNATURE REQUEST
       // IMPORTANT: Pass safeAddress so credentials are derived with signatureType=2
+      // Now that Safe is deployed, credentials will be valid for trading
       console.log("[TradingSession] Deriving API credentials (will request signature from wallet)...");
       console.log("[TradingSession] Using Safe address for credential derivation:", safeAddress);
       setCurrentStep("credentials");
       const apiCreds = await deriveApiCredentials(safeAddress || undefined);
       console.log("[TradingSession] Got API credentials:", apiCreds ? "success" : "failed");
-
-      if (!safeAddress) {
-        // Can't derive Safe address - user needs to set up on polymarket.com
-        console.warn("Could not derive Safe address. User needs to complete setup on polymarket.com");
-        const partialSession: TradingSession = {
-          eoaAddress: walletAddress,
-          signatureType: SIGNATURE_TYPE_BROWSER_WALLET,
-          proxyDeployed: false,
-          hasApiCredentials: true,
-          apiCredentials: apiCreds,
-          lastChecked: Date.now(),
-        };
-        setTradingSession(partialSession);
-        saveSession(walletAddress, partialSession);
-        setSessionError("Could not set up trading. Please visit polymarket.com to create your account first.");
-        setCurrentStep("error");
-        setIsInitializing(false);
-        return partialSession;
-      }
-      
-      // If we have a Safe address but proxy not deployed, still save it but warn user
-      if (!proxyDeployed) {
-        console.warn("Safe address derived but proxy not yet deployed on-chain");
-      }
 
       // Create complete session with Safe address
       // Even if proxyDeployed check returned false, we'll try to proceed
