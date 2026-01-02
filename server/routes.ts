@@ -1695,17 +1695,16 @@ export async function registerRoutes(
       // For Safe wallets (signatureType=2):
       //   - order.maker = Safe wallet (where funds come from)
       //   - order.signer = EOA (who controls the Safe)
-      //   - owner = the address that the API key was registered to
+      //   - owner = SIGNER (EOA) - this must match the API key owner
       // 
-      // IMPORTANT: When ClobClient is created with funder=safeAddress, the API key
-      // is registered to the SIGNER (EOA), not the funder. However, we need to test
-      // with both values since the behavior depends on SDK version.
+      // IMPORTANT: Polymarket SDK's deriveApiKey() uses the signer's address (EOA)
+      // as POLY_ADDRESS for API key registration. The funder parameter only affects
+      // which wallet is charged for trades, not the API key ownership.
       // 
-      // Current approach: Use maker (Safe address) since credentials were derived
-      // with ClobClient(funder=safeAddress) and SDK may bind to funder.
-      // If this fails, try reverting to signer.
-      const owner = signedOrder.maker; // Safe address for signatureType=2
-      console.log("[submit-order] Using owner:", owner, "(maker/Safe address)");
+      // If you're getting "order owner has to be owner of API KEY" errors,
+      // clear your trading session and re-initialize to get fresh credentials.
+      const owner = signedOrder.signer || signedOrder.maker;
+      console.log("[submit-order] Using owner:", owner, "(signer/EOA address)");
       const apiOrderPayload = {
         order: {
           salt: parseInt(signedOrder.salt, 10),  // Must be integer
