@@ -1695,21 +1695,15 @@ export async function registerRoutes(
       // For Safe wallets (signatureType=2):
       //   - order.maker = Safe wallet (where funds come from)
       //   - order.signer = EOA (who controls the Safe)
-      //   - owner = SIGNER (EOA) - this must match the API key owner
+      //   - owner = SIGNER (EOA) - API keys are ALWAYS bound to the EOA
       // 
-      // IMPORTANT: For Safe wallets (signatureType=2), the API key ownership is complex:
-      // - The API key is derived using the signer's (EOA) signature
-      // - But the "owner" in the order should be the FUNDER (Safe address)
-      //   because that's how Polymarket binds API keys to accounts
+      // IMPORTANT: Per Polymarket docs, "API credentials are bound to your EOA, not the Safe address"
+      // The API key is derived/created using the signer's (EOA) signature with POLY_ADDRESS=EOA
+      // Therefore, the "owner" field for order submission MUST be the EOA (signer)
       // 
-      // If this wallet was used on Polymarket web app, the API key is likely bound to the Safe.
-      // Try maker (Safe) first; if that fails, try signer (EOA).
-      // 
-      // For signatureType=2, owner should be the funder (maker/Safe)
-      const owner = signedOrder.signatureType === 2 
-        ? signedOrder.maker  // Safe wallet for signatureType=2
-        : (signedOrder.signer || signedOrder.maker);  // Fallback for other types
-      console.log("[submit-order] Using owner:", owner, signedOrder.signatureType === 2 ? "(maker/Safe for signatureType=2)" : "(signer/EOA)");
+      // For signatureType=2, owner should be the SIGNER (EOA), NOT the maker (Safe)
+      const owner = signedOrder.signer || signedOrder.maker;  // Prefer signer (EOA) for API key ownership
+      console.log("[submit-order] Using owner:", owner, "(signer/EOA - API keys are bound to EOA)");
       const apiOrderPayload = {
         order: {
           salt: parseInt(signedOrder.salt, 10),  // Must be integer
@@ -1769,11 +1763,11 @@ export async function registerRoutes(
 
       const proxyAgent = getOxylabsProxyAgent();
       // POLY_ADDRESS is required for L2 authentication - it must match the API key owner
-      // For signatureType=2 (Safe wallets), the API key is bound to the funder (Safe address)
-      // So POLY_ADDRESS should also be the Safe address to match the owner field
-      const polyAddress = owner;  // Use same address as owner for consistency
-      console.log("[submit-order] POLY_ADDRESS:", polyAddress);
-      console.log("[submit-order] Order owner:", owner);
+      // For signatureType=2 (Safe wallets), the API key is bound to the EOA (signer), NOT the Safe
+      // POLY_ADDRESS should be the EOA (signer) to match the API key binding
+      const polyAddress = owner;  // owner is now EOA (signer) - matches API key binding
+      console.log("[submit-order] POLY_ADDRESS:", polyAddress, "(EOA - matches API key binding)");
+      console.log("[submit-order] Order owner:", owner, "(EOA)");
       console.log("[submit-order] Order maker (Safe wallet):", signedOrder.maker);
       console.log("[submit-order] Order signer (EOA):", signedOrder.signer);
       

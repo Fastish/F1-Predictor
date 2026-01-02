@@ -69,6 +69,7 @@ Preferred communication style: Simple, everyday language.
 - Polymarket Relayer (`https://relayer-v2.polymarket.com/`)
 - Polymarket Builder Signing SDK
 - Specific contract addresses for USDC, CTF, CTF Exchange, NegRisk CTF Exchange on Polygon.
+- **API Key Binding (Critical)**: For signatureType=2 (Safe wallets), API keys are bound to the **EOA** (signer), NOT the Safe address. The `owner` and `POLY_ADDRESS` fields in order submission must use the EOA to match the API key binding. The order `maker` field uses the Safe address (where funds are held).
 
 ### Development Tools
 - Replit-specific Vite plugins (runtime-error-modal, cartographer, dev-banner)
