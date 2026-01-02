@@ -184,6 +184,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const { data: walletClient } = useWalletClient();
 
   const wcConnectorRef = useRef<Connector | null>(null);
+  
+  // Track the last wallet identity to prevent signer recreation on every render
+  // wagmi returns a new walletClient object every render, but we only want to update
+  // the signer when the actual wallet identity (address + chain) changes
+  const lastWalletIdentityRef = useRef<string | null>(null);
 
   useEffect(() => {
     const wcConnector = connectors.find(c => c.id === 'walletConnect');
@@ -224,8 +229,21 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (walletClient && wagmiIsConnected && wagmiAddress && walletType === 'walletconnect') {
+      // Create a stable identity string to compare
+      // Only recreate signer if the wallet identity actually changes
+      const walletIdentity = `${wagmiAddress.toLowerCase()}-${walletClient.chain?.id || 'unknown'}`;
+      
+      if (lastWalletIdentityRef.current === walletIdentity) {
+        // Same wallet, no need to recreate signer
+        return;
+      }
+      
       console.log("[Wagmi] Setting up provider from walletClient for WalletConnect");
+      console.log("[Wagmi] Wallet identity changed:", lastWalletIdentityRef.current, "->", walletIdentity);
       console.log("[Wagmi] walletClient transport type:", typeof walletClient.transport);
+      
+      lastWalletIdentityRef.current = walletIdentity;
+      
       const transport = walletClient.transport;
       if (transport) {
         const ethersProvider = new ethers.BrowserProvider(transport);
@@ -663,6 +681,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     setProvider(null);
     setSigner(null);
     setPolymarketCredentials(null);
+    // Reset wallet identity ref to allow fresh signer creation on reconnect
+    lastWalletIdentityRef.current = null;
     localStorage.removeItem("polygon_wallet_type");
     localStorage.removeItem("polygon_wallet_address");
   }, [walletType, wagmiDisconnect]);

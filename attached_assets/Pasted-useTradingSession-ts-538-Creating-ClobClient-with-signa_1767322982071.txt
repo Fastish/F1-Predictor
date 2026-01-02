@@ -1,0 +1,106 @@
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0xC39f10f80EF3Aa5B235460F3A6bEc802C6F77E44
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0xC39f10f80EF3Aa5B235460F3A6bEc802C6F77E44
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0xC39f10f80EF3Aa5B235460F3A6bEc802C6F77E44
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0xC39f10f80EF3Aa5B235460F3A6bEc802C6F77E44
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0xC39f10f80EF3Aa5B235460F3A6bEc802C6F77E44
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0xC39f10f80EF3Aa5B235460F3A6bEc802C6F77E44
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0xC39f10f80EF3Aa5B235460F3A6bEc802C6F77E44
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0xC39f10f80EF3Aa5B235460F3A6bEc802C6F77E44
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0xC39f10f80EF3Aa5B235460F3A6bEc802C6F77E44
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0xC39f10f80EF3Aa5B235460F3A6bEc802C6F77E44
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0xC39f10f80EF3Aa5B235460F3A6bEc802C6F77E44
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0xC39f10f80EF3Aa5B235460F3A6bEc802C6F77E44
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0xC39f10f80EF3Aa5B235460F3A6bEc802C6F77E44
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0xC39f10f80EF3Aa5B235460F3A6bEc802C6F77E44
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0xC39f10f80EF3Aa5B235460F3A6bEc802C6F77E44
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0xC39f10f80EF3Aa5B235460F3A6bEc802C6F77E44
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0xC39f10f80EF3Aa5B235460F3A6bEc802C6F77E44
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0xC39f10f80EF3Aa5B235460F3A6bEc802C6F77E44
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0xC39f10f80EF3Aa5B235460F3A6bEc802C6F77E44
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0xC39f10f80EF3Aa5B235460F3A6bEc802C6F77E44
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0xC39f10f80EF3Aa5B235460F3A6bEc802C6F77E44
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0xC39f10f80EF3Aa5B235460F3A6bEc802C6F77E44
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0xC39f10f80EF3Aa5B235460F3A6bEc802C6F77E44
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0xC39f10f80EF3Aa5B235460F3A6bEc802C6F77E44
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0xC39f10f80EF3Aa5B235460F3A6bEc802C6F77E44
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0xC39f10f80EF3Aa5B235460F3A6bEc802C6F77E44
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+PolymarketBetModal.tsx:144 [BetModal] Trading via Safe wallet (derived for WalletConnect): 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+usePlaceOrder.ts:85 [usePlaceOrder] Trading via Safe proxy on Polygon (EOA network is irrelevant)
+useTradingSession.ts:501 [TradingSession] Force reinitializing session (credentials expired)
+useTradingSession.ts:331 [TradingSession] initializeTradingSession called Object
+useTradingSession.ts:345 [TradingSession] Existing session: none
+useTradingSession.ts:384 [TradingSession] Fetching Safe address from Polymarket...
+useTradingSession.ts:287 [fetchSafeAddress] WalletConnect detected - using direct derivation from EOA: 0x234Cc20818238c0D54a28b696374A95D3C59302B
+useTradingSession.ts:289 [fetchSafeAddress] Safe address result (direct derivation): 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+useTradingSession.ts:392 [TradingSession] Safe address result: Object
+useTradingSession.ts:415 [TradingSession] Safe not deployed, deploying now (one-time setup)...
+useTradingSession.ts:424 [TradingSession] Safe deployed successfully!
+useTradingSession.ts:443 [TradingSession] Deriving API credentials (will request signature from wallet)...
+useTradingSession.ts:444 [TradingSession] Using Safe address for credential derivation: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+useTradingSession.ts:219 [TradingSession] deriveApiCredentials called Object
+useTradingSession.ts:153 [TradingSession] Creating temp ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+useTradingSession.ts:225 [TradingSession] Created temporary ClobClient for credential derivation
+useTradingSession.ts:226 [TradingSession] This will trigger a signature request from your wallet!
+useTradingSession.ts:231 [TradingSession] Calling tempClient.deriveApiKey() - SIGNATURE REQUEST SHOULD APPEAR NOW
+useTradingSession.ts:232 [TradingSession] Timeout set to 60 seconds - please sign in your wallet app
+useTradingSession.ts:249 [TradingSession] Successfully derived API Credentials!
+useTradingSession.ts:250 [TradingSession] API key prefix: 61894bfc-e22f-9...
+useTradingSession.ts:253 [TradingSession] Validating freshly derived credentials...
+useTradingSession.ts:173 [TradingSession] Validating cached API credentials via server...
+useTradingSession.ts:174 [TradingSession] API key prefix: 61894bfc-e...
+useTradingSession.ts:188 [TradingSession] Credential validation result: Object
+useTradingSession.ts:191 [TradingSession] Credentials are valid
+useTradingSession.ts:260 [TradingSession] Freshly derived credentials validated successfully!
+useTradingSession.ts:447 [TradingSession] Got API credentials: success
+useTradingSession.ts:467 Trading session initialized with Safe: 0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
+useTradingSession.ts:538 Creating ClobClient with signatureType=2, funder=0x22F60a0d59A710Df8242df5E8d7A4B7518871A9f
