@@ -726,7 +726,16 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
                   {approvalStatus.checked && !approvalStatus.needsApproval && isTradingSessionComplete && (
                     <div className="flex items-center gap-1.5 rounded-md bg-green-500/10 p-1.5 text-xs">
                       <CheckCircle2 className="h-3 w-3 text-green-500 flex-shrink-0" />
-                      <span className="text-green-600 dark:text-green-400">USDC approved</span>
+                      <span className="text-green-600 dark:text-green-400 flex-1">USDC approved</span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-auto p-0 text-xs text-muted-foreground underline"
+                        onClick={() => setShowDepositWizard(true)}
+                        data-testid="button-view-approvals"
+                      >
+                        view
+                      </Button>
                     </div>
                   )}
 
@@ -1166,7 +1175,7 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
               isMagic, 
               isExternalType ? displaySafeAddress : null
             )
-              .then(status => setApprovalStatus({ needsApproval: status.needsApproval, checked: true }))
+              .then(status => setApprovalStatus({ needsApproval: status.needsApproval, needsCTFApproval: status.needsCTFApproval, checked: true }))
               .catch(() => {});
           }
         }}

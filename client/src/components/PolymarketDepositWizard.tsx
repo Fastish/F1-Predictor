@@ -43,6 +43,7 @@ type Step = "check" | "approve_usdc" | "approve_ctf" | "deposit" | "complete" | 
 interface DepositStatus {
   usdcBalance: string;
   nativeUsdcBalance: string;
+  eoaBalance: string; // Explicitly tracked EOA balance for display
   ctfExchangeAllowance: string;
   negRiskExchangeAllowance: string;
   ctfContractAllowance: string;
@@ -198,8 +199,13 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
       const needsSwap = parseFloat(rawStatus.nativeUsdcBalance) >= 1 && 
         parseFloat(rawStatus.usdcBalance) < 0.01;
       
+      // Explicitly capture EOA balance before any potential overwrites
+      // rawStatus.usdcBalance is the EOA's balance from the first checkDepositRequirements call
+      const eoaBalance = rawStatus.usdcBalance;
+      
       const status: DepositStatus = {
         ...rawStatus,
+        eoaBalance, // Explicitly tracked for display
         safeAddress: safeAddr,
         safeBalance,
         needsDeposit,
@@ -342,6 +348,7 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
       
       setDepositStatus({
         ...updatedStatus,
+        eoaBalance: depositStatus?.eoaBalance || updatedStatus.usdcBalance, // Preserve EOA balance from initial check
         needsDeposit,
         needsSwap,
       });
@@ -425,6 +432,7 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
       
       setDepositStatus({
         ...updatedStatus,
+        eoaBalance: depositStatus?.eoaBalance || updatedStatus.usdcBalance, // Preserve EOA balance from initial check
         needsDeposit,
         needsSwap,
       });
@@ -1071,7 +1079,7 @@ export function PolymarketDepositWizard({ open, onClose }: PolymarketDepositWiza
                 })()}
                 <div className="flex justify-between items-center text-muted-foreground">
                   <span className="text-sm">In Your Wallet (EOA)</span>
-                  <span className="tabular-nums">${parseFloat(depositStatus.usdcBalance).toFixed(2)}</span>
+                  <span className="tabular-nums">${parseFloat(depositStatus.eoaBalance).toFixed(2)}</span>
                 </div>
               </Card>
             )}
