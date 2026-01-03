@@ -40,48 +40,66 @@ interface WalletContextType {
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
 let MAGIC_API_KEY = import.meta.env.VITE_MAGIC_API_KEY || "";
-const WALLETCONNECT_PROJECT_ID = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || "";
+let WALLETCONNECT_PROJECT_ID = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || "";
 
 let runtimeConfigLoaded = false;
+
+// Fetch runtime config from server (for production where VITE_* vars may not be baked in)
+async function fetchRuntimeConfig(): Promise<void> {
+  if (runtimeConfigLoaded) return;
+  
+  console.log("[Config] Fetching runtime config from /api/config...");
+  
+  try {
+    const response = await fetch('/api/config');
+    if (response.ok) {
+      const config = await response.json();
+      if (config.magicApiKey && !MAGIC_API_KEY) {
+        MAGIC_API_KEY = config.magicApiKey;
+        console.log("[Config] Magic API key loaded from runtime config");
+      }
+      if (config.walletConnectProjectId && !WALLETCONNECT_PROJECT_ID) {
+        WALLETCONNECT_PROJECT_ID = config.walletConnectProjectId;
+        console.log("[Config] WalletConnect project ID loaded from runtime config");
+      }
+    } else {
+      console.error("[Config] Failed to fetch /api/config:", response.status, response.statusText);
+    }
+  } catch (err) {
+    console.error("[Config] Failed to fetch runtime config:", err);
+  }
+  
+  runtimeConfigLoaded = true;
+}
+
 async function ensureMagicApiKey(): Promise<string> {
   if (MAGIC_API_KEY) {
     console.log("[Magic Debug] Using build-time Magic API key");
     return MAGIC_API_KEY;
   }
   
-  if (runtimeConfigLoaded) {
-    if (!MAGIC_API_KEY) {
-      console.error("[Magic Debug] No Magic API key available after runtime config fetch. Email login will not work.");
-    }
-    return MAGIC_API_KEY;
-  }
-  
-  console.log("[Magic Debug] Build-time Magic API key not found, fetching from /api/config...");
-  
-  try {
-    const response = await fetch('/api/config');
-    if (response.ok) {
-      const config = await response.json();
-      if (config.magicApiKey) {
-        MAGIC_API_KEY = config.magicApiKey;
-        console.log("[Magic Debug] Magic API key loaded from runtime config successfully");
-      } else {
-        console.error("[Magic Debug] /api/config returned empty magicApiKey.");
-      }
-    } else {
-      console.error("[Magic Debug] Failed to fetch /api/config:", response.status, response.statusText);
-    }
-  } catch (err) {
-    console.error("[Magic Debug] Failed to fetch runtime config:", err);
-  }
-  
-  runtimeConfigLoaded = true;
+  await fetchRuntimeConfig();
   
   if (!MAGIC_API_KEY) {
     console.error("[Magic Debug] CRITICAL: No Magic API key available. Email wallet login will not work.");
   }
   
   return MAGIC_API_KEY;
+}
+
+async function ensureWalletConnectProjectId(): Promise<string> {
+  if (WALLETCONNECT_PROJECT_ID) {
+    console.log("[WalletConnect] Using build-time project ID");
+    return WALLETCONNECT_PROJECT_ID;
+  }
+  
+  await fetchRuntimeConfig();
+  
+  if (!WALLETCONNECT_PROJECT_ID) {
+    console.error("[WalletConnect] CRITICAL: No project ID available. WalletConnect will not work.");
+  }
+  
+  return WALLETCONNECT_PROJECT_ID;
 }
 
 const POLYGON_RPC = "https://polygon-rpc.com";
@@ -628,7 +646,9 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   }, [getPhantomProvider]);
 
   const connectWalletConnect = useCallback(async (): Promise<boolean> => {
-    if (!WALLETCONNECT_PROJECT_ID) {
+    // Ensure WalletConnect project ID is available (may need to fetch from runtime config)
+    const projectId = await ensureWalletConnectProjectId();
+    if (!projectId) {
       throw new Error("WalletConnect is not configured. Missing project ID.");
     }
     
@@ -638,7 +658,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     
     try {
       console.log("[Wagmi WC] Starting WalletConnect connection...");
-      console.log("[Wagmi WC] Project ID:", WALLETCONNECT_PROJECT_ID.slice(0, 8) + "...");
+      console.log("[Wagmi WC] Project ID:", projectId.slice(0, 8) + "...");
       console.log("[Wagmi WC] Available connectors:", connectors.map(c => ({ id: c.id, name: c.name, ready: c.ready })));
       
       const wcConnector = connectors.find(c => c.id === 'walletConnect');
