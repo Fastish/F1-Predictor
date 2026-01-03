@@ -961,7 +961,7 @@ async function waitForRelayerTransaction(
 ): Promise<{ transactionHash: string; proxyAddress?: string } | null> {
   const maxAttempts = 60;
   const delayMs = 2000;
-  const statusPath = `/${walletType}/status/${id}`;
+  const statusPath = `/transaction?id=${id}`;
   
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     await new Promise(resolve => setTimeout(resolve, delayMs));
@@ -1012,7 +1012,8 @@ export async function executeRelayerTransaction(
   ownerAddress?: string  // For Safe wallets, this should be the EOA address
 ): Promise<RelayerExecutionResult> {
   try {
-    const path = walletType === "safe" ? "/safe/execute" : "/proxy/execute";
+    // All transactions go through /submit - the transaction type is in the payload
+    const path = "/submit";
     
     // Normalize all transaction values to hex format
     const normalizedTransactions = transactions.map(tx => ({
@@ -1067,7 +1068,8 @@ export async function deployRelayerWallet(
   ownerAddress?: string  // For Safe wallets, this should be the EOA address
 ): Promise<RelayerExecutionResult> {
   try {
-    const path = walletType === "safe" ? "/safe/deploy" : "/proxy/deploy";
+    // All transactions go through /submit - the transaction type is in the payload
+    const path = "/submit";
     
     // For Safe wallets, use the EOA as owner (the Safe is derived from the EOA)
     const owner = walletType === "safe" && ownerAddress ? ownerAddress : walletAddress;
