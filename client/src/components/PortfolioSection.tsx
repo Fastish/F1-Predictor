@@ -13,6 +13,7 @@ import { usePolymarketPositions, type PolymarketPosition } from "@/hooks/usePoly
 import { useTradingSession } from "@/hooks/useTradingSession";
 import { usePlaceOrder } from "@/hooks/usePlaceOrder";
 import { PolymarketBetModal } from "@/components/PolymarketBetModal";
+import { DepositModal } from "@/components/DepositModal";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { useTradingWalletBalance } from "@/hooks/useTradingWalletBalance";
 
@@ -247,10 +248,11 @@ function PortfolioChart({
 }
 
 export function PortfolioSection() {
-  const { walletAddress, connectWallet, isConnecting } = useWallet();
+  const { walletAddress } = useWallet();
   const { toast } = useToast();
   const [selectedPosition, setSelectedPosition] = useState<PolymarketPosition | null>(null);
   const [sellModalOpen, setSellModalOpen] = useState(false);
+  const [depositModalOpen, setDepositModalOpen] = useState(false);
   
   const { tradingSession, isTradingSessionComplete, clobClient } = useTradingSession();
   // Cancel order doesn't need network check since it's an API call, not an on-chain transaction
@@ -426,7 +428,7 @@ export function PortfolioSection() {
               <p className="text-muted-foreground mb-4">
                 Connect your wallet to view your Polymarket positions and start trading
               </p>
-              <Button onClick={() => connectWallet()} disabled={isConnecting}>
+              <Button onClick={() => setDepositModalOpen(true)}>
                 <Wallet className="mr-2 h-4 w-4" />
                 Connect Wallet
               </Button>
@@ -802,6 +804,8 @@ export function PortfolioSection() {
           position={selectedPosition}
         />
       )}
+
+      <DepositModal open={depositModalOpen} onOpenChange={setDepositModalOpen} />
     </section>
   );
 }
