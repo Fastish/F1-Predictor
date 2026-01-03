@@ -995,11 +995,14 @@ async function waitForRelayerTransaction(
 }
 
 // Execute transactions via the Polymarket relayer (gasless)
+// For Safe wallets: ownerAddress should be the EOA (signer), not the Safe address
+// Polymarket's relayer uses the EOA as the owner for authentication/registration
 export async function executeRelayerTransaction(
   walletAddress: string,
   walletType: "safe" | "proxy",
   transactions: Transaction[],
-  description: string
+  description: string,
+  ownerAddress?: string  // For Safe wallets, this should be the EOA address
 ): Promise<RelayerExecutionResult> {
   try {
     const path = walletType === "safe" ? "/v2/safe/execute" : "/v2/proxy/execute";
@@ -1010,8 +1013,12 @@ export async function executeRelayerTransaction(
       value: normalizeTransactionValue(tx.value),
     }));
     
+    // For Safe wallets, use the EOA as owner (required by Polymarket's relayer)
+    // For proxy wallets, use the wallet address directly
+    const owner = walletType === "safe" && ownerAddress ? ownerAddress : walletAddress;
+    
     const body = {
-      owner: walletAddress,
+      owner,
       transactions: normalizedTransactions,
       description,
     };
@@ -1046,15 +1053,20 @@ export async function executeRelayerTransaction(
 }
 
 // Deploy a Safe/Proxy wallet via the relayer
+// For Safe wallets: ownerAddress should be the EOA (signer) that the Safe is derived from
 export async function deployRelayerWallet(
   walletAddress: string,
-  walletType: "safe" | "proxy"
+  walletType: "safe" | "proxy",
+  ownerAddress?: string  // For Safe wallets, this should be the EOA address
 ): Promise<RelayerExecutionResult> {
   try {
     const path = walletType === "safe" ? "/v2/safe/deploy" : "/v2/proxy/deploy";
     
+    // For Safe wallets, use the EOA as owner (the Safe is derived from the EOA)
+    const owner = walletType === "safe" && ownerAddress ? ownerAddress : walletAddress;
+    
     const body = {
-      owner: walletAddress,
+      owner,
     };
     
     const response = await executeRelayerHttpRequest("POST", path, body);

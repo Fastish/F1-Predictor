@@ -1205,9 +1205,10 @@ export async function registerRoutes(
 
   // Server-side proxy for relayer requests - credentials NEVER leave the server
   // Client sends transaction data, server signs and executes the relayer request
+  // For Safe wallets, eoaAddress (the signer) is used as owner for Polymarket's relayer
   app.post("/api/polymarket/relayer-execute", async (req, res) => {
     try {
-      const { walletAddress, walletType, transactions, description } = req.body;
+      const { walletAddress, walletType, transactions, description, eoaAddress } = req.body;
       
       if (!walletAddress || !transactions || !Array.isArray(transactions)) {
         return res.status(400).json({ error: "walletAddress and transactions are required" });
@@ -1223,11 +1224,13 @@ export async function registerRoutes(
       }
 
       // Execute the relayer transaction server-side (credentials never exposed)
+      // For Safe wallets, pass eoaAddress as the owner (required by Polymarket's relayer)
       const result = await executeRelayerTransaction(
         walletAddress,
         walletType || "proxy",
         transactions,
-        description || ""
+        description || "",
+        eoaAddress  // EOA address for Safe wallets
       );
       
       if (!result.success) {
@@ -1246,9 +1249,10 @@ export async function registerRoutes(
   });
 
   // Deploy a Safe/Proxy wallet via relayer
+  // For Safe wallets, eoaAddress (the signer) is used as owner
   app.post("/api/polymarket/relayer-deploy", async (req, res) => {
     try {
-      const { walletAddress, walletType } = req.body;
+      const { walletAddress, walletType, eoaAddress } = req.body;
       
       if (!walletAddress) {
         return res.status(400).json({ error: "walletAddress is required" });
@@ -1263,7 +1267,8 @@ export async function registerRoutes(
         });
       }
 
-      const result = await deployRelayerWallet(walletAddress, walletType || "proxy");
+      // For Safe wallets, pass eoaAddress as the owner
+      const result = await deployRelayerWallet(walletAddress, walletType || "proxy", eoaAddress);
       
       if (!result.success) {
         return res.status(400).json({ error: result.error || "Wallet deployment failed" });
