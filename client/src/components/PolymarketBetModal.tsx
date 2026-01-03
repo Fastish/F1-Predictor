@@ -193,6 +193,7 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
     isTradingSessionComplete, 
     invalidateSession,
     forceReinitialize,
+    reregisterApprovals,
     clobClient,
     initializeTradingSession,
     isInitializing,
@@ -802,11 +803,63 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
         }
         onClose();
       } else {
-        toast({
-          title: "Sell Failed",
-          description: result.error || "Failed to sell position",
-          variant: "destructive",
+        // Check if this is an allowance/approval error that can be fixed by re-registering
+        // Inspect multiple response fields to catch all Polymarket error formats
+        const errorMsg = result.error || "";
+        const rawError = typeof result.rawResponse?.error === "string" ? result.rawResponse.error : "";
+        const rawMessage = typeof result.rawResponse?.message === "string" ? result.rawResponse.message : "";
+        const nestedMessage = typeof result.rawResponse?.data?.message === "string" ? result.rawResponse.data.message : "";
+        const statusCode = result.rawResponse?.status || result.rawResponse?.statusCode || 0;
+        
+        // Combine all possible error sources for pattern matching
+        const fullError = `${errorMsg} ${rawError} ${rawMessage} ${nestedMessage}`.toLowerCase();
+        
+        const isAllowanceError = 
+          fullError.includes("allowance") || 
+          fullError.includes("not enough balance") ||
+          fullError.includes("balance insufficient") ||
+          fullError.includes("insufficient") ||
+          fullError.includes("not approved") ||
+          (statusCode === 400 && (fullError.includes("balance") || fullError.includes("approval")));
+        
+        console.log("[Sell] Error analysis:", { 
+          errorMsg, rawError, rawMessage, nestedMessage, statusCode, 
+          isAllowanceError, fullError: fullError.substring(0, 200) 
         });
+        
+        if (isAllowanceError && reregisterApprovals) {
+          // Try to re-register approvals with Polymarket's relayer
+          toast({
+            title: "Fixing Approvals",
+            description: "Re-registering token approvals with Polymarket...",
+          });
+          
+          console.log("[Sell] Detected allowance error, attempting to re-register approvals");
+          const approvalResult = await reregisterApprovals();
+          
+          if (approvalResult.success) {
+            // Invalidate approval status cache to force re-check
+            setApprovalStatus({ needsApproval: false, checked: false });
+            
+            toast({
+              title: "Approvals Fixed",
+              description: "Token approvals registered with Polymarket. Click Sell again to retry.",
+              duration: 6000,
+            });
+          } else {
+            toast({
+              title: "Sell Failed",
+              description: `${result.error || "Failed to sell position"}. Try resetting your trading session.`,
+              variant: "destructive",
+            });
+          }
+        } else {
+          toast({
+            title: "Sell Failed",
+            description: result.error || "Failed to sell position",
+            variant: "destructive",
+          });
+        }
       }
     } catch (error) {
       // Clear the timeout on error

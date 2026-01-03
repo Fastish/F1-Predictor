@@ -80,6 +80,11 @@ Preferred communication style: Simple, everyday language.
 - Polymarket Builder Signing SDK
 - Specific contract addresses for USDC, CTF, CTF Exchange, NegRisk CTF Exchange on Polygon.
 - **API Key Binding (Critical)**: For signatureType=2 (Safe wallets), API keys are bound to the **EOA** (signer), NOT the Safe address. The `owner` and `POLY_ADDRESS` fields in order submission must use the EOA to match the API key binding. The order `maker` field uses the Safe address (where funds are held).
+- **Approval Registration (Critical)**: Polymarket's relayer requires token approvals to be registered through their `/v2/safe/execute` endpoint, not just set on-chain. The system:
+  - Automatically registers USDC and CTF approvals during trading session initialization (after Safe deployment)
+  - Exposes `reregisterApprovals()` in useTradingSession hook for manual re-registration
+  - Auto-detects "not enough balance / allowance" errors during sell orders and attempts to re-register approvals
+  - Uses EOA address as `owner` in relayer transactions (required by Polymarket's Safe endpoint)
 
 ### Development Tools
 - Replit-specific Vite plugins (runtime-error-modal, cartographer, dev-banner)

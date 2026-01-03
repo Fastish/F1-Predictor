@@ -3,6 +3,7 @@ import { ClobClient } from "@polymarket/clob-client";
 import { BuilderConfig } from "@polymarket/builder-signing-sdk";
 import { useWallet } from "@/context/WalletContext";
 import { getSafeAddress as fetchSafeAddressFromRelayer, isExternalWalletAvailable, deriveSafeAddressFromEoa } from "@/lib/polymarketGasless";
+import { approveUSDCForTradingGasless, approveCTFForTradingGasless } from "@/lib/polymarketRelayer";
 import type { ethers } from "ethers";
 
 const CLOB_API_URL = "https://clob.polymarket.com";
@@ -529,6 +530,32 @@ export function useTradingSession() {
         }
       }
 
+      // STEP 2.5: Register token approvals with Polymarket's relayer
+      // This is CRITICAL for sell orders - on-chain approvals alone are not recognized by Polymarket's API
+      // The relayer tracks approvals internally and validates them when processing orders
+      console.log("[TradingSession] Registering token approvals with Polymarket relayer...");
+      try {
+        // Register USDC approvals for buying
+        const usdcResult = await approveUSDCForTradingGasless(safeAddress, "safe", walletAddress);
+        if (usdcResult.success) {
+          console.log("[TradingSession] USDC approvals registered:", usdcResult.transactionHash);
+        } else {
+          console.warn("[TradingSession] USDC approval registration failed (may already be registered):", usdcResult.error);
+        }
+        
+        // Register CTF approvals for selling outcome tokens
+        const ctfResult = await approveCTFForTradingGasless(safeAddress, "safe", walletAddress);
+        if (ctfResult.success) {
+          console.log("[TradingSession] CTF approvals registered:", ctfResult.transactionHash);
+        } else {
+          console.warn("[TradingSession] CTF approval registration failed (may already be registered):", ctfResult.error);
+        }
+      } catch (approvalError: any) {
+        // Don't block on approval failures - they may already be registered
+        // The actual trade will fail if approvals are truly missing
+        console.warn("[TradingSession] Token approval registration warning:", approvalError.message);
+      }
+
       // STEP 3: Derive user API credentials - THIS WILL TRIGGER A SIGNATURE REQUEST
       // IMPORTANT: Pass safeAddress so credentials are derived with signatureType=2
       // Now that Safe is deployed, credentials will be valid for trading
@@ -602,6 +629,38 @@ export function useTradingSession() {
     // Re-run initialization which will derive new credentials
     return initializeTradingSession();
   }, [walletAddress, initializeTradingSession]);
+
+  // Re-register token approvals with Polymarket's relayer
+  // Called when sell orders fail with "not enough balance / allowance"
+  // This can fix issues where approvals exist on-chain but aren't registered with Polymarket
+  const reregisterApprovals = useCallback(async () => {
+    if (!walletAddress || !tradingSession?.safeAddress) {
+      console.error("[TradingSession] Cannot register approvals: no wallet or Safe address");
+      return { success: false, error: "No wallet connected" };
+    }
+    
+    console.log("[TradingSession] Re-registering token approvals with Polymarket relayer...");
+    const safeAddress = tradingSession.safeAddress;
+    
+    try {
+      // Register USDC approvals
+      const usdcResult = await approveUSDCForTradingGasless(safeAddress, "safe", walletAddress);
+      console.log("[TradingSession] USDC approval result:", usdcResult);
+      
+      // Register CTF approvals (required for sell orders)
+      const ctfResult = await approveCTFForTradingGasless(safeAddress, "safe", walletAddress);
+      console.log("[TradingSession] CTF approval result:", ctfResult);
+      
+      if (ctfResult.success || usdcResult.success) {
+        return { success: true, message: "Approvals registered successfully" };
+      } else {
+        return { success: false, error: ctfResult.error || usdcResult.error };
+      }
+    } catch (error: any) {
+      console.error("[TradingSession] Failed to register approvals:", error);
+      return { success: false, error: error.message || "Failed to register approvals" };
+    }
+  }, [walletAddress, tradingSession?.safeAddress]);
 
   // Create authenticated ClobClient with builder config for order placement
   // Uses MODULE-LEVEL cache (cachedClobClient, cachedClobClientIdentity) to ensure
@@ -688,6 +747,7 @@ export function useTradingSession() {
     endTradingSession,
     invalidateSession,
     forceReinitialize,
+    reregisterApprovals, // Re-register approvals with Polymarket's relayer
     clobClient,
   };
 }
