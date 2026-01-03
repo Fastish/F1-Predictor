@@ -46,7 +46,11 @@ Preferred communication style: Simple, everyday language.
   - Check if user had a saved external/phantom session in localStorage
   - Auto-disconnect wagmi if no saved session exists and connection wasn't user-initiated
   - Track user-initiated connections via `userInitiatedConnectionRef` to allow explicit connections
-- **WalletConnect**: Requires `VITE_WALLETCONNECT_PROJECT_ID` environment variable. Changes to this variable require republishing the app since Vite bakes frontend env vars at build time.
+- **WalletConnect**: Requires `VITE_WALLETCONNECT_PROJECT_ID` environment variable. The app uses a lazy-loading pattern with runtime config fallback:
+  - `client/src/lib/wagmi.ts` exports `getWagmiConfig()` - an async function that fetches from `/api/config` if build-time value is missing
+  - `App.tsx` awaits the config before rendering `WagmiProvider`, showing a loading spinner during initialization
+  - The WalletConnect connector is only added if a project ID is available
+  - Changes to this variable in production require republishing since Vite bakes env vars at build time, but the runtime fallback via `/api/config` ensures the server-side value is used if build-time value is missing
 
 ## External Dependencies
 

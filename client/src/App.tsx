@@ -1,8 +1,9 @@
 import { Switch, Route } from "wouter";
+import { useState, useEffect } from "react";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { WagmiProvider } from "wagmi";
-import { wagmiConfig } from "./lib/wagmi";
+import { WagmiProvider, type Config } from "wagmi";
+import { getWagmiConfig } from "./lib/wagmi";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/context/ThemeContext";
@@ -41,6 +42,32 @@ function Router() {
 }
 
 function App() {
+  const [wagmiConfig, setWagmiConfig] = useState<Config | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    getWagmiConfig()
+      .then(config => {
+        setWagmiConfig(config);
+        setIsLoading(false);
+      })
+      .catch(err => {
+        console.error("[App] Failed to initialize wagmi config:", err);
+        setIsLoading(false);
+      });
+  }, []);
+
+  if (isLoading || !wagmiConfig) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <WagmiProvider config={wagmiConfig}>
       <QueryClientProvider client={queryClient}>
