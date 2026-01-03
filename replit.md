@@ -41,6 +41,12 @@ Preferred communication style: Simple, everyday language.
   - **External Wallet Users**: Trades execute from a Gnosis Safe wallet derived from their EOA address. **Important**: Users must deposit USDC.e to their Safe wallet before trading - the EOA wallet balance is not used for trades.
 - **Polymarket Integration**: Utilizes Polymarket's Gamma API for market data and CLOB client for order execution, supporting gasless transactions via Polymarket Relayer and Gnosis Safe proxy for external wallets.
 - **Order Types**: GTC (Good Til Cancelled), FOK (Fill Or Kill), GTD (Good Til Date) with user-adjustable limit prices.
+- **Phantom Auto-Connect Prevention**: When Phantom is installed, wagmi's injected connector can auto-connect and hijack wallet selection. The WalletContext includes logic to:
+  - Detect unwanted auto-connections from injected connectors (not WalletConnect)
+  - Check if user had a saved external/phantom session in localStorage
+  - Auto-disconnect wagmi if no saved session exists and connection wasn't user-initiated
+  - Track user-initiated connections via `userInitiatedConnectionRef` to allow explicit connections
+- **WalletConnect**: Requires `VITE_WALLETCONNECT_PROJECT_ID` environment variable. Changes to this variable require republishing the app since Vite bakes frontend env vars at build time.
 
 ## External Dependencies
 

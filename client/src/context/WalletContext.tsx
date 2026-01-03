@@ -191,6 +191,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   // wagmi returns a new walletClient object every render, but we only want to update
   // the signer when the actual wallet identity (address + chain) changes
   const lastWalletIdentityRef = useRef<string | null>(null);
+  
+  // Track when user explicitly initiated a connection vs wagmi auto-reconnect
+  // This prevents Phantom from hijacking wallet selection via wagmi's injected connector
+  const userInitiatedConnectionRef = useRef<boolean>(false);
 
   useEffect(() => {
     const wcConnector = connectors.find(c => c.id === 'walletConnect');
@@ -289,6 +293,27 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       }
     }
   }, [walletClient, wagmiIsConnected, wagmiAddress, walletType]);
+
+  // Effect to disconnect wagmi's injected connector if it auto-connected but user didn't have an external/phantom session
+  // This prevents Phantom from hijacking wallet selection when user wants WalletConnect
+  useEffect(() => {
+    const savedType = localStorage.getItem("polygon_wallet_type");
+    
+    // Check if this is an injected-type connector (not WalletConnect)
+    // Phantom's connector ID is "app.phantom", MetaMask is "injected", etc.
+    const isInjectedConnector = activeConnector && activeConnector.id !== 'walletConnect';
+    
+    // If wagmi is connected via injected connector but user didn't have external/phantom saved
+    // AND this wasn't a user-initiated connection, disconnect wagmi
+    if (wagmiIsConnected && isInjectedConnector) {
+      const shouldBeConnected = savedType === "external" || savedType === "phantom";
+      if (!shouldBeConnected && !userInitiatedConnectionRef.current) {
+        console.log("[Wagmi] Auto-disconnecting injected connector - no saved external/phantom session");
+        console.log("[Wagmi] Connector:", activeConnector.id, "savedType:", savedType, "userInitiated:", userInitiatedConnectionRef.current);
+        wagmiDisconnect();
+      }
+    }
+  }, [wagmiIsConnected, activeConnector, wagmiDisconnect]);
 
   useEffect(() => {
     const initWallet = async () => {
@@ -445,6 +470,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   const connectExternalWallet = useCallback(async (): Promise<boolean> => {
     setIsConnecting(true);
+    // Mark as user-initiated so we don't auto-disconnect
+    userInitiatedConnectionRef.current = true;
     try {
       console.log("Attempting to connect external wallet...");
       
@@ -531,6 +558,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   const connectPhantomWallet = useCallback(async (): Promise<boolean> => {
     setIsConnecting(true);
+    // Mark as user-initiated so we don't auto-disconnect
+    userInitiatedConnectionRef.current = true;
     try {
       console.log("[Phantom] Attempting to connect Phantom wallet...");
       
@@ -604,6 +633,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
     
     setIsConnecting(true);
+    // Mark as user-initiated so we don't auto-disconnect
+    userInitiatedConnectionRef.current = true;
     
     try {
       console.log("[Wagmi WC] Starting WalletConnect connection...");
@@ -695,9 +726,17 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         console.log("[Wagmi] Disconnecting WalletConnect...");
         wagmiDisconnect();
       }
+      // Also disconnect wagmi for external/phantom to prevent auto-reconnect
+      if (wagmiIsConnected) {
+        console.log("[Wagmi] Disconnecting wagmi (injected connector cleanup)...");
+        wagmiDisconnect();
+      }
     } catch (error) {
       console.error("Logout error:", error);
     }
+    
+    // Reset user-initiated flag
+    userInitiatedConnectionRef.current = false;
     
     // Reset gasless state to clear external provider and cached deployment status
     // This ensures a fresh start when reconnecting
@@ -719,7 +758,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     lastWalletIdentityRef.current = null;
     localStorage.removeItem("polygon_wallet_type");
     localStorage.removeItem("polygon_wallet_address");
-  }, [walletType, wagmiDisconnect]);
+  }, [walletType, wagmiDisconnect, wagmiIsConnected]);
 
   const signMessage = useCallback(async (message: string): Promise<string> => {
     if (!signer) {
