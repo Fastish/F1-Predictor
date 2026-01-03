@@ -5,6 +5,7 @@ export const POLYMARKET_CONTRACTS = {
   CTF: "0x4d97dcd97ec945f40cf65f87097ace5ea0476045" as const,
   CTF_EXCHANGE: "0x4bFb41d5B3570DeFd03C39a9A4D8dE6Bd8B8982E" as const,
   NEG_RISK_CTF_EXCHANGE: "0xC5d563A36AE78145C45a50134d48A1215220f80a" as const,
+  NEG_RISK_ADAPTER: "0xd91E80cF2E7be2e162c6513ceD06f1dD0dA35296" as const,
 };
 
 const ERC20_ABI = [
@@ -182,6 +183,16 @@ export async function approveCTFForTradingGasless(
         abi: ERC1155_ABI,
         functionName: "setApprovalForAll",
         args: [POLYMARKET_CONTRACTS.NEG_RISK_CTF_EXCHANGE, true],
+      }),
+      value: "0",
+    },
+    // Also approve NEG_RISK_ADAPTER for CTF tokens (required for negRisk market sells)
+    {
+      to: POLYMARKET_CONTRACTS.CTF,
+      data: encodeFunctionData({
+        abi: ERC1155_ABI,
+        functionName: "setApprovalForAll",
+        args: [POLYMARKET_CONTRACTS.NEG_RISK_ADAPTER, true],
       }),
       value: "0",
     },

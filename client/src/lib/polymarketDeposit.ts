@@ -576,8 +576,10 @@ export async function checkDepositRequirements(
   ctfExchangeAllowance: string;
   negRiskExchangeAllowance: string;
   ctfContractAllowance: string;
+  negRiskAdapterAllowance: string;
   ctfApprovedForExchange: boolean;
   ctfApprovedForNegRisk: boolean;
+  ctfApprovedForNegRiskAdapter: boolean;
   proxyAddress: string | null;
   proxyBalance: string | null;
   safeAddress: string | null;
@@ -663,6 +665,12 @@ export async function checkDepositRequirements(
     approvalCheckAddress,
     POLYMARKET_CONTRACTS.NEG_RISK_CTF_EXCHANGE
   );
+  // Also check CTF approval for NegRisk Adapter (required for negRisk market sells)
+  const ctfApprovedForNegRiskAdapter = await getCTFApproval(
+    provider,
+    approvalCheckAddress,
+    POLYMARKET_CONTRACTS.NEG_RISK_ADAPTER
+  );
   
   // Trading balance is the balance in the trading wallet (proxy for Magic, Safe for external)
   // For Magic wallets: proxyBalance
@@ -678,7 +686,8 @@ export async function checkDepositRequirements(
                         parseFloat(negRiskExchangeAllowance) < 1 ||
                         parseFloat(ctfContractAllowance) < 1 ||
                         parseFloat(negRiskAdapterAllowance) < 1;
-  const needsCTFApproval = !ctfApprovedForExchange || !ctfApprovedForNegRisk;
+  // Include CTF approval for NegRisk Adapter (required for negRisk market sells)
+  const needsCTFApproval = !ctfApprovedForExchange || !ctfApprovedForNegRisk || !ctfApprovedForNegRiskAdapter;
   
   console.log("[checkDepositRequirements] Results:", {
     approvalCheckAddress,
@@ -688,6 +697,7 @@ export async function checkDepositRequirements(
     negRiskAdapterAllowance,
     ctfApprovedForExchange,
     ctfApprovedForNegRisk,
+    ctfApprovedForNegRiskAdapter,
     needsApproval,
     needsCTFApproval,
   });
@@ -701,6 +711,7 @@ export async function checkDepositRequirements(
       negRiskAdapterAllowance,
       ctfApprovedForExchange,
       ctfApprovedForNegRisk,
+      ctfApprovedForNegRiskAdapter,
       proxyAddress,
       proxyBalance,
       safeAddress: actualSafeAddress,
