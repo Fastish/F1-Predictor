@@ -83,7 +83,7 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
     title: string;
     sendLabel?: string;
   }>({ initialTab: "receive", prefilledAddress: "", title: "Wallet Management" });
-  const [approvalStatus, setApprovalStatus] = useState<{ needsApproval: boolean; checked: boolean }>({ needsApproval: false, checked: false });
+  const [approvalStatus, setApprovalStatus] = useState<{ needsApproval: boolean; needsCTFApproval: boolean; checked: boolean }>({ needsApproval: false, needsCTFApproval: false, checked: false });
   const [autoInitAttempted, setAutoInitAttempted] = useState(false);
   const [showWithdrawForm, setShowWithdrawForm] = useState(false);
   const [withdrawAmount, setWithdrawAmount] = useState("");
@@ -108,7 +108,7 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
   useEffect(() => {
     const checkApproval = async () => {
       if (!walletAddress || !provider) {
-        setApprovalStatus({ needsApproval: false, checked: false });
+        setApprovalStatus({ needsApproval: false, needsCTFApproval: false, checked: false });
         return;
       }
       try {
@@ -141,10 +141,10 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
           safeBalance: status.safeBalance,
         });
         
-        setApprovalStatus({ needsApproval: status.needsApproval, checked: true });
+        setApprovalStatus({ needsApproval: status.needsApproval, needsCTFApproval: status.needsCTFApproval, checked: true });
       } catch (error) {
         console.error("Failed to check approval status:", error);
-        setApprovalStatus({ needsApproval: false, checked: true });
+        setApprovalStatus({ needsApproval: false, needsCTFApproval: false, checked: true });
       }
     };
     if (open && walletAddress) {
@@ -727,6 +727,23 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
                     <div className="flex items-center gap-1.5 rounded-md bg-green-500/10 p-1.5 text-xs">
                       <CheckCircle2 className="h-3 w-3 text-green-500 flex-shrink-0" />
                       <span className="text-green-600 dark:text-green-400">USDC approved</span>
+                    </div>
+                  )}
+
+                  {approvalStatus.checked && approvalStatus.needsCTFApproval && isTradingSessionComplete && (
+                    <div 
+                      className="flex items-center gap-2 rounded-md bg-yellow-500/10 p-2 text-xs border border-yellow-500/20"
+                      data-testid="banner-ctf-approval-needed"
+                    >
+                      <AlertCircle className="h-3.5 w-3.5 text-yellow-500 flex-shrink-0" />
+                      <span className="text-yellow-600 dark:text-yellow-400 flex-1">Token approval update needed for selling</span>
+                      <Button
+                        size="sm"
+                        onClick={() => setShowDepositWizard(true)}
+                        data-testid="button-fix-approvals"
+                      >
+                        Fix Approvals
+                      </Button>
                     </div>
                   )}
 
