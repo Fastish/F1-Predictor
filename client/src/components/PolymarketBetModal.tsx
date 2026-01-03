@@ -398,7 +398,7 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
         }
         
         await apiRequest("POST", "/api/polymarket/record-order", {
-          userId,
+          userId: tradingWallet.address || walletAddress,
           tokenId: selectedTokenId,
           marketName: outcome.name,
           outcome: side,
@@ -496,8 +496,9 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
         });
 
         queryClient.invalidateQueries({ queryKey: ["/api/polymarket"] });
-        if (userId) {
-          queryClient.invalidateQueries({ queryKey: ["/api/polymarket/orders", userId] });
+        const ordersKey = tradingWallet.address || walletAddress;
+        if (ordersKey) {
+          queryClient.invalidateQueries({ queryKey: ["/api/polymarket/orders", ordersKey] });
         }
         onClose();
       } else {
@@ -698,7 +699,7 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
 
       if (result.success) {
         await apiRequest("POST", "/api/polymarket/record-order", {
-          userId,
+          userId: tradingWallet.address || walletAddress,
           tokenId: position.tokenId,
           marketName: outcome.name,
           outcome: position.outcome,
@@ -795,8 +796,9 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
 
         queryClient.invalidateQueries({ queryKey: ["/api/polymarket"] });
         queryClient.invalidateQueries({ queryKey: ["polymarket-positions"] });
-        if (userId) {
-          queryClient.invalidateQueries({ queryKey: ["/api/polymarket/orders", userId] });
+        const sellOrdersKey = tradingWallet.address || walletAddress;
+        if (sellOrdersKey) {
+          queryClient.invalidateQueries({ queryKey: ["/api/polymarket/orders", sellOrdersKey] });
         }
         onClose();
       } else {

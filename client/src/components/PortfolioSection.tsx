@@ -5,7 +5,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useWallet } from "@/context/WalletContext";
-import { useMarket } from "@/context/MarketContext";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -249,7 +248,6 @@ function PortfolioChart({
 
 export function PortfolioSection() {
   const { walletAddress, connectWallet, isConnecting } = useWallet();
-  const { userId } = useMarket();
   const { toast } = useToast();
   const [selectedPosition, setSelectedPosition] = useState<PolymarketPosition | null>(null);
   const [sellModalOpen, setSellModalOpen] = useState(false);
@@ -304,28 +302,47 @@ export function PortfolioSection() {
     }).catch(console.error);
   }, [safeAddress, portfolioValue, cashBalance, totalPnl, isLoadingPositions, isLoadingBalance]);
 
+  // Migrate orphan orders (user_id="undefined") to this wallet address (one-time per session)
+  const migrationAttemptedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!safeAddress || migrationAttemptedRef.current === safeAddress) return;
+    migrationAttemptedRef.current = safeAddress;
+    
+    // Server only migrates orders with user_id="undefined" (hardcoded for security)
+    apiRequest("POST", "/api/polymarket/orders/migrate", {
+      walletAddress: safeAddress
+    }).then((res) => res.json())
+      .then((data) => {
+        if (data.migratedCount > 0) {
+          console.log(`Migrated ${data.migratedCount} orphan orders to ${safeAddress}`);
+          queryClient.invalidateQueries({ queryKey: ["/api/polymarket/orders", safeAddress] });
+        }
+      })
+      .catch(console.error);
+  }, [safeAddress]);
+
   const { data: orders = [], isLoading: isLoadingOrders } = useQuery<PolymarketOrder[]>({
-    queryKey: ["/api/polymarket/orders", userId],
-    enabled: !!userId,
+    queryKey: ["/api/polymarket/orders", safeAddress],
+    enabled: !!safeAddress,
   });
 
   const syncOrdersMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest("POST", "/api/polymarket/orders/sync", { userId });
+      const response = await apiRequest("POST", "/api/polymarket/orders/sync", { userId: safeAddress });
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/polymarket/orders", userId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/polymarket/orders", safeAddress] });
     },
   });
 
   const deleteOrderMutation = useMutation({
     mutationFn: async (orderId: string) => {
-      const response = await apiRequest("DELETE", `/api/polymarket/orders/${orderId}`, { userId });
+      const response = await apiRequest("DELETE", `/api/polymarket/orders/${orderId}`, { userId: safeAddress });
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/polymarket/orders", userId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/polymarket/orders", safeAddress] });
       toast({
         title: "Order deleted",
         description: "The order has been removed from your history.",
@@ -367,7 +384,7 @@ export function PortfolioSection() {
         await apiRequest("PATCH", `/api/polymarket/orders/${order.id}/status`, { 
           status: "cancelled" 
         });
-        queryClient.invalidateQueries({ queryKey: ["/api/polymarket/orders", userId] });
+        queryClient.invalidateQueries({ queryKey: ["/api/polymarket/orders", safeAddress] });
         toast({
           title: "Order cancelled",
           description: `Your ${order.marketName} order has been cancelled`,

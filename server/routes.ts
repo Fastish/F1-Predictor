@@ -2438,6 +2438,39 @@ export async function registerRoutes(
     }
   });
 
+  // Migrate orphan orders with user_id="undefined" to a wallet address
+  // Security: Only migrates orders with the literal value "undefined" - no custom fromUserIds allowed
+  app.post("/api/polymarket/orders/migrate", async (req, res) => {
+    try {
+      const { walletAddress } = req.body;
+      
+      if (!walletAddress || !/^0x[a-fA-F0-9]{40}$/i.test(walletAddress)) {
+        return res.status(400).json({ error: "Invalid wallet address" });
+      }
+      
+      // SECURITY: Only migrate orders with userId="undefined" - hardcoded, not from client
+      // This prevents attackers from hijacking orders by specifying custom user IDs
+      const orphanUserId = "undefined";
+      const orders = await storage.getPolymarketOrdersByUser(orphanUserId);
+      
+      let migratedCount = 0;
+      for (const order of orders) {
+        await storage.updatePolymarketOrder(order.id, { 
+          userId: walletAddress.toLowerCase() 
+        });
+        migratedCount++;
+      }
+      
+      if (migratedCount > 0) {
+        console.log(`Migrated ${migratedCount} orphan orders to wallet ${walletAddress}`);
+      }
+      res.json({ success: true, migratedCount });
+    } catch (error) {
+      console.error("Failed to migrate orders:", error);
+      res.status(500).json({ error: "Failed to migrate orders" });
+    }
+  });
+
   // ============ Portfolio History Routes ============
 
   // Save portfolio snapshot
