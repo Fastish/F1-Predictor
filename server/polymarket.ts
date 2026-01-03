@@ -890,6 +890,7 @@ export function signRelayerRequest(request: RelayerSignRequest & { timestamp?: n
 
 // Polymarket Builder Relayer API base URL
 // Note: The correct URL is relayer-v2.polymarket.com (not relayer.polymarket.com)
+// API endpoints use /v3/ paths (e.g., /v3/safe/execute, /v3/safe/deploy)
 const RELAYER_URL = "https://relayer-v2.polymarket.com";
 
 interface Transaction {
@@ -954,7 +955,7 @@ async function waitForRelayerTransaction(
 ): Promise<{ transactionHash: string; proxyAddress?: string } | null> {
   const maxAttempts = 60;
   const delayMs = 2000;
-  const statusPath = `/v2/${walletType}/status/${id}`;
+  const statusPath = `/v3/${walletType}/status/${id}`;
   
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     await new Promise(resolve => setTimeout(resolve, delayMs));
@@ -1005,7 +1006,7 @@ export async function executeRelayerTransaction(
   ownerAddress?: string  // For Safe wallets, this should be the EOA address
 ): Promise<RelayerExecutionResult> {
   try {
-    const path = walletType === "safe" ? "/v2/safe/execute" : "/v2/proxy/execute";
+    const path = walletType === "safe" ? "/v3/safe/execute" : "/v3/proxy/execute";
     
     // Normalize all transaction values to hex format
     const normalizedTransactions = transactions.map(tx => ({
@@ -1060,7 +1061,7 @@ export async function deployRelayerWallet(
   ownerAddress?: string  // For Safe wallets, this should be the EOA address
 ): Promise<RelayerExecutionResult> {
   try {
-    const path = walletType === "safe" ? "/v2/safe/deploy" : "/v2/proxy/deploy";
+    const path = walletType === "safe" ? "/v3/safe/deploy" : "/v3/proxy/deploy";
     
     // For Safe wallets, use the EOA as owner (the Safe is derived from the EOA)
     const owner = walletType === "safe" && ownerAddress ? ownerAddress : walletAddress;
