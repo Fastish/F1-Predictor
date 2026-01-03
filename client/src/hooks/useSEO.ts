@@ -3,9 +3,11 @@ import { useEffect } from "react";
 interface SEOProps {
   title: string;
   description: string;
+  image?: string;
+  url?: string;
 }
 
-export function useSEO({ title, description }: SEOProps) {
+export function useSEO({ title, description, image, url }: SEOProps) {
   useEffect(() => {
     const fullTitle = `${title} | F1 Predict`;
     document.title = fullTitle;
@@ -25,6 +27,16 @@ export function useSEO({ title, description }: SEOProps) {
       ogDescription.setAttribute("content", description);
     }
 
+    let ogImage = document.querySelector('meta[property="og:image"]');
+    if (ogImage && image) {
+      ogImage.setAttribute("content", image);
+    }
+
+    let ogUrl = document.querySelector('meta[property="og:url"]');
+    if (ogUrl && url) {
+      ogUrl.setAttribute("content", url);
+    }
+
     let twitterTitle = document.querySelector('meta[name="twitter:title"]');
     if (twitterTitle) {
       twitterTitle.setAttribute("content", fullTitle);
@@ -35,8 +47,15 @@ export function useSEO({ title, description }: SEOProps) {
       twitterDescription.setAttribute("content", description);
     }
 
+    let twitterImage = document.querySelector('meta[name="twitter:image"]');
+    if (twitterImage && image) {
+      twitterImage.setAttribute("content", image);
+    }
+
     return () => {
       document.title = "F1 Predict - Trade the 2026 Formula 1 Championship";
+      if (ogImage) ogImage.setAttribute("content", "/og-image.jpg");
+      if (twitterImage) twitterImage.setAttribute("content", "/og-image.jpg");
     };
-  }, [title, description]);
+  }, [title, description, image, url]);
 }

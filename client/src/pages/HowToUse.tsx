@@ -351,6 +351,32 @@ export default function HowToUse() {
                     </div>
                   </div>
                 </div>
+
+                <div className="flex items-start gap-4 p-4 rounded-lg bg-primary/10 border border-primary/20">
+                  <ShieldCheck className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-medium text-foreground">
+                      External Wallet Users: Fund Your Safe Trading Wallet
+                    </p>
+                    <p className="text-sm text-muted-foreground mt-1 mb-3">
+                      When using MetaMask, Rainbow, or other external wallets, trades execute from your <strong>Safe Trading Wallet</strong> - a secure smart contract wallet created for you. You need to deposit USDC.e to this Safe wallet before trading.
+                    </p>
+                    <div className="space-y-2">
+                      <div className="flex items-start gap-2">
+                        <Badge variant="outline" className="rounded-full h-5 w-5 flex items-center justify-center p-0 text-xs flex-shrink-0 mt-0.5">1</Badge>
+                        <p className="text-sm text-muted-foreground">Click the <strong>Cash</strong> button in the header to open wallet management</p>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <Badge variant="outline" className="rounded-full h-5 w-5 flex items-center justify-center p-0 text-xs flex-shrink-0 mt-0.5">2</Badge>
+                        <p className="text-sm text-muted-foreground">Select <strong>Deposit / Withdraw</strong> to see your Safe wallet address and QR code</p>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <Badge variant="outline" className="rounded-full h-5 w-5 flex items-center justify-center p-0 text-xs flex-shrink-0 mt-0.5">3</Badge>
+                        <p className="text-sm text-muted-foreground">Send <strong>USDC.e on Polygon</strong> to this Safe address, or use the built-in transfer from your connected wallet</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </section>

@@ -25,7 +25,9 @@ export default function NewsArticle() {
 
   useSEO({
     title: article?.metaTitle || article?.title || "Article",
-    description: article?.metaDescription || article?.summary || "F1 news and analysis"
+    description: article?.metaDescription || article?.summary || "F1 news and analysis",
+    image: article?.heroImageUrl || undefined,
+    url: typeof window !== "undefined" ? window.location.href : undefined
   });
 
   const estimatedReadTime = article ? Math.ceil(article.content.split(/\s+/).length / 200) : 0;
