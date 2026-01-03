@@ -62,7 +62,8 @@ async function executeViaRelayer(
   walletAddress: string,
   walletType: WalletType,
   transactions: Transaction[],
-  description: string
+  description: string,
+  eoaAddress?: string  // For Safe wallets, provide the EOA (signer) address
 ): Promise<RelayerExecutionResult> {
   const response = await fetch("/api/polymarket/relayer-execute", {
     method: "POST",
@@ -72,6 +73,7 @@ async function executeViaRelayer(
       walletType,
       transactions,
       description,
+      eoaAddress,  // Pass EOA for Safe wallet authentication
     }),
   });
   
@@ -85,7 +87,8 @@ async function executeViaRelayer(
 
 async function deployViaRelayer(
   walletAddress: string,
-  walletType: WalletType
+  walletType: WalletType,
+  eoaAddress?: string  // For Safe wallets, provide the EOA (signer) address
 ): Promise<RelayerExecutionResult> {
   const response = await fetch("/api/polymarket/relayer-deploy", {
     method: "POST",
@@ -93,6 +96,7 @@ async function deployViaRelayer(
     body: JSON.stringify({
       walletAddress,
       walletType,
+      eoaAddress,  // Pass EOA for Safe wallet authentication
     }),
   });
   
@@ -104,9 +108,11 @@ async function deployViaRelayer(
   return response.json();
 }
 
+// For Safe wallets, eoaAddress should be provided (the signer address)
 export async function approveUSDCForTradingGasless(
   walletAddress: string,
-  walletType: WalletType = "proxy"
+  walletType: WalletType = "proxy",
+  eoaAddress?: string
 ): Promise<{ success: boolean; transactionHash?: string; error?: string }> {
   const transactions: Transaction[] = [
     {
@@ -127,7 +133,6 @@ export async function approveUSDCForTradingGasless(
       }),
       value: "0",
     },
-    // CTF Contract also needs USDC approval for splitting positions
     {
       to: POLYMARKET_CONTRACTS.USDC,
       data: encodeFunctionData({
@@ -143,7 +148,8 @@ export async function approveUSDCForTradingGasless(
     walletAddress,
     walletType,
     transactions,
-    "Approve USDC for Polymarket trading"
+    "Approve USDC for Polymarket trading",
+    eoaAddress
   );
   
   return {
@@ -153,9 +159,12 @@ export async function approveUSDCForTradingGasless(
   };
 }
 
+// For Safe wallets, eoaAddress should be provided (the signer address)
+// This registers CTF token approvals with Polymarket's relayer (required for sell orders)
 export async function approveCTFForTradingGasless(
   walletAddress: string,
-  walletType: WalletType = "proxy"
+  walletType: WalletType = "proxy",
+  eoaAddress?: string
 ): Promise<{ success: boolean; transactionHash?: string; error?: string }> {
   const transactions: Transaction[] = [
     {
@@ -182,7 +191,8 @@ export async function approveCTFForTradingGasless(
     walletAddress,
     walletType,
     transactions,
-    "Approve CTF for Polymarket trading"
+    "Approve CTF for Polymarket trading",
+    eoaAddress
   );
   
   return {
@@ -192,18 +202,22 @@ export async function approveCTFForTradingGasless(
   };
 }
 
+// For Safe wallets, eoaAddress should be provided (the signer address)
 export async function deployPolymarketWallet(
   walletAddress: string,
-  walletType: WalletType = "proxy"
+  walletType: WalletType = "proxy",
+  eoaAddress?: string
 ): Promise<{ success: boolean; transactionHash?: string; proxyAddress?: string; error?: string }> {
-  return deployViaRelayer(walletAddress, walletType);
+  return deployViaRelayer(walletAddress, walletType, eoaAddress);
 }
 
+// For Safe wallets, eoaAddress should be provided (the signer address)
 export async function transferUSDCGasless(
   walletAddress: string,
   to: string,
   amount: string,
-  walletType: WalletType = "proxy"
+  walletType: WalletType = "proxy",
+  eoaAddress?: string
 ): Promise<{ success: boolean; transactionHash?: string; error?: string }> {
   const amountWei = parseUnits(amount, 6);
   
@@ -233,7 +247,8 @@ export async function transferUSDCGasless(
     walletAddress,
     walletType,
     transactions,
-    `Transfer ${amount} USDC`
+    `Transfer ${amount} USDC`,
+    eoaAddress
   );
   
   return {
