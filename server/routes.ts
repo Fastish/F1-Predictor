@@ -2297,6 +2297,59 @@ export async function registerRoutes(
     }
   });
 
+  // Debug: Check CTF token balance for a specific token ID (for debugging sell order issues)
+  app.get("/api/polymarket/ctf-balance/:walletAddress/:tokenId", async (req, res) => {
+    try {
+      const { walletAddress, tokenId } = req.params;
+      const { ethers } = await import("ethers");
+      
+      if (!walletAddress || !/^0x[a-fA-F0-9]{40}$/.test(walletAddress)) {
+        return res.status(400).json({ error: "Invalid wallet address" });
+      }
+      
+      const POLYGON_RPC = "https://polygon-rpc.com";
+      const provider = new ethers.JsonRpcProvider(POLYGON_RPC);
+      
+      const CTF_ADDRESS = "0x4d97dcd97ec945f40cf65f87097ace5ea0476045";
+      const CTF_EXCHANGE = "0x4bFb41d5B3570DeFd03C39a9A4D8dE6Bd8B8982E";
+      const NEG_RISK_CTF_EXCHANGE = "0xC5d563A36AE78145C45a50134d48A1215220f80a";
+      
+      const ERC1155_ABI = [
+        "function balanceOf(address account, uint256 id) view returns (uint256)",
+        "function isApprovedForAll(address account, address operator) view returns (bool)"
+      ];
+      
+      const ctf = new ethers.Contract(CTF_ADDRESS, ERC1155_ABI, provider);
+      
+      // Check CTF token balance for the specific token ID
+      const balance = await ctf.balanceOf(walletAddress, tokenId);
+      const balanceFormatted = ethers.formatUnits(balance, 6); // CTF tokens use 6 decimals
+      
+      // Check CTF approval status
+      const approvedForExchange = await ctf.isApprovedForAll(walletAddress, CTF_EXCHANGE);
+      const approvedForNegRisk = await ctf.isApprovedForAll(walletAddress, NEG_RISK_CTF_EXCHANGE);
+      
+      const result = {
+        walletAddress,
+        tokenId,
+        ctfBalance: balanceFormatted,
+        ctfBalanceRaw: balance.toString(),
+        approvals: {
+          ctfExchange: approvedForExchange,
+          negRiskExchange: approvedForNegRisk
+        },
+        canSell: balance > 0n && (approvedForExchange || approvedForNegRisk),
+        note: balance === 0n ? "No CTF tokens found - position may not be settled or tokens are in different wallet" : "CTF tokens available"
+      };
+      
+      console.log("[CTF Balance Check]", walletAddress, "token", tokenId.substring(0, 20) + "...", "=", balanceFormatted);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Failed to check CTF balance:", error);
+      res.status(500).json({ error: "Failed to check CTF balance", details: error.message });
+    }
+  });
+
   // Delete a Polymarket order (for failed/local orders)
   app.delete("/api/polymarket/orders/:orderId", async (req, res) => {
     try {
