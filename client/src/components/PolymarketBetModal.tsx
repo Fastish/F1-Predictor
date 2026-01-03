@@ -1019,10 +1019,22 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
                     </span>
                     <span className="font-medium">${sellProceeds.toFixed(2)}</span>
                   </div>
+                  {feePercentage > 0 && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">Platform Fee ({feePercentage}%):</span>
+                      <span className="text-amber-600 dark:text-amber-400">-${(sellProceeds * (feePercentage / 100)).toFixed(2)}</span>
+                    </div>
+                  )}
+                  {feePercentage > 0 && (
+                    <div className="flex items-center justify-between text-sm font-medium border-t border-border pt-2">
+                      <span>Net Proceeds:</span>
+                      <span>${(sellProceeds * (1 - feePercentage / 100)).toFixed(2)}</span>
+                    </div>
+                  )}
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">P&L:</span>
-                    <span className={sellPnl >= 0 ? "text-green-600" : "text-red-600"}>
-                      {sellPnl >= 0 ? "+" : ""}${sellPnl.toFixed(2)}
+                    <span className="text-muted-foreground">P&L (after fee):</span>
+                    <span className={sellPnl - (sellProceeds * (feePercentage / 100)) >= 0 ? "text-green-600" : "text-red-600"}>
+                      {sellPnl - (sellProceeds * (feePercentage / 100)) >= 0 ? "+" : ""}${(sellPnl - (sellProceeds * (feePercentage / 100))).toFixed(2)}
                     </span>
                   </div>
                 </div>
