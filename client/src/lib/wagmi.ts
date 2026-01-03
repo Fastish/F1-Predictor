@@ -58,6 +58,9 @@ function createWagmiConfig(): Config {
           url: typeof window !== "undefined" ? window.location.origin : "https://f1predict.com",
           icons: [typeof window !== "undefined" ? `${window.location.origin}/favicon.ico` : ""],
         },
+        qrModalOptions: {
+          themeMode: "dark",
+        },
       })
     );
   } else {
