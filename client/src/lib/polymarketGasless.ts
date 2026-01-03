@@ -485,6 +485,56 @@ export async function approveCTFGasless(): Promise<GaslessResult> {
   return executeGaslessTransactions(transactions);
 }
 
+export async function transferFeeFromSafe(treasuryAddress: string, amountInWei: bigint): Promise<GaslessResult> {
+  console.log(`[TransferFee] Initiating fee transfer of ${amountInWei} to treasury ${treasuryAddress}`);
+  
+  const ERC20_TRANSFER_ABI = [
+    {
+      name: "transfer",
+      type: "function",
+      inputs: [
+        { name: "to", type: "address" },
+        { name: "amount", type: "uint256" },
+      ],
+      outputs: [{ type: "bool" }],
+    },
+  ] as const;
+
+  try {
+    const transferData = encodeFunctionData({
+      abi: ERC20_TRANSFER_ABI,
+      functionName: "transfer",
+      args: [treasuryAddress as `0x${string}`, amountInWei],
+    });
+    
+    console.log(`[TransferFee] Transfer data encoded: ${transferData.slice(0, 20)}...`);
+
+    const transactions: Transaction[] = [
+      {
+        to: POLYMARKET_CONTRACTS.USDC,
+        data: transferData,
+        value: "0",
+      },
+    ];
+    
+    const result = await executeGaslessTransactions(transactions);
+    
+    if (result.success) {
+      console.log(`[TransferFee] Success! TX: ${result.transactionHash}`);
+    } else {
+      console.error(`[TransferFee] Failed: ${result.error}`);
+    }
+    
+    return result;
+  } catch (error) {
+    console.error("[TransferFee] Error during fee transfer:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown fee transfer error",
+    };
+  }
+}
+
 export async function withdrawFromSafe(recipientAddress: string, amountInWei: bigint): Promise<GaslessResult> {
   console.log(`[Withdraw] Initiating withdrawal of ${amountInWei} to ${recipientAddress}`);
   
