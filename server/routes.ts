@@ -3772,6 +3772,52 @@ export async function registerRoutes(
     }
   });
 
+  // Admin: Generate AI article
+  app.post("/api/admin/articles/generate", requireAdmin, async (req, res) => {
+    try {
+      const { topic } = req.body;
+      const { generateAndSaveArticle, F1_TOPICS } = await import("./articleGenerator");
+      
+      const result = await generateAndSaveArticle(topic);
+      res.json({
+        success: true,
+        article: result,
+        availableTopics: F1_TOPICS,
+      });
+    } catch (error: any) {
+      console.error("Failed to generate AI article:", error);
+      res.status(500).json({ error: error.message || "Failed to generate article" });
+    }
+  });
+
+  // Admin: Generate multiple AI articles
+  app.post("/api/admin/articles/generate-batch", requireAdmin, async (req, res) => {
+    try {
+      const { count = 3 } = req.body;
+      const { generateMultipleArticles } = await import("./articleGenerator");
+      
+      const results = await generateMultipleArticles(Math.min(count, 5));
+      res.json({
+        success: true,
+        articles: results,
+        generated: results.length,
+      });
+    } catch (error: any) {
+      console.error("Failed to generate AI articles batch:", error);
+      res.status(500).json({ error: error.message || "Failed to generate articles" });
+    }
+  });
+
+  // Admin: Get available article topics (public - topics list isn't sensitive)
+  app.get("/api/admin/articles/topics", async (req, res) => {
+    try {
+      const { F1_TOPICS } = await import("./articleGenerator");
+      res.json({ topics: F1_TOPICS });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to get topics" });
+    }
+  });
+
   return httpServer;
 }
 

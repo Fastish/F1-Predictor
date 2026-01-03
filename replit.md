@@ -104,6 +104,23 @@ Preferred communication style: Simple, everyday language.
   - How to Use: "How to Trade F1 Predictions"
   - Admin: "Admin Panel"
 
+### AI Article Generation System
+- **Purpose**: Generate F1-related news articles using OpenAI to drive organic traffic
+- **Integration**: Replit AI Integrations (uses AI_INTEGRATIONS_OPENAI_BASE_URL, AI_INTEGRATIONS_OPENAI_API_KEY)
+- **Key Files**:
+  - `server/articleGenerator.ts`: AI generation service with topic-based prompting
+  - `client/src/components/ArticleAdmin.tsx`: Admin UI for article management
+  - `shared/schema.ts`: Articles table with slug, content, SEO fields, publication status
+- **Admin API Routes**:
+  - POST /api/admin/articles/generate - Generate single AI article (optional topic parameter)
+  - POST /api/admin/articles/generate-batch - Generate multiple articles (max 5)
+  - GET /api/admin/articles/topics - Get available F1 topic list
+- **Public API Routes**:
+  - GET /api/articles - Published articles list
+  - GET /api/articles/slug/:slug - Single article by slug
+- **Workflow**: Generate draft -> Admin review in ArticleAdmin component -> Publish -> Visible on /news page
+- **Topics**: 2026 predictions, team comparisons, driver championship analysis, betting insights, regulations impact
+
 ### Arbitrage Detection System
 - **Purpose**: Compare Polymarket prices against traditional sportsbook betting lines to identify value opportunities
 - **Data Source**: TheOddsAPI for live odds (requires THEODDSAPI_KEY env var) with mock bet365 estimates as fallback

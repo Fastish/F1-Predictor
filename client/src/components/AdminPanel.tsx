@@ -26,6 +26,7 @@ import { useMarket } from "@/context/MarketContext";
 import { useWallet } from "@/context/WalletContext";
 import { Trophy, Play, CheckCircle, AlertCircle, DollarSign, Lock, RefreshCw, Link2, Plus, Flag, Trash2, Eye, EyeOff, MapPin, Calendar, Users, Settings, Save } from "lucide-react";
 import type { Payout, RaceMarket, RaceMarketOutcome, Driver } from "@shared/schema";
+import { ArticleAdmin } from "./ArticleAdmin";
 
 interface EnrichedOutcome extends RaceMarketOutcome {
   driver: Driver | null;
@@ -457,6 +458,7 @@ export function AdminPanel() {
   }
 
   return (
+    <>
     <Card className="mt-6">
       <CardHeader className="flex flex-row items-center justify-between gap-2">
         <CardTitle className="flex items-center gap-2">
@@ -978,5 +980,10 @@ export function AdminPanel() {
         </DialogContent>
       </Dialog>
     </Card>
+
+      <div className="mt-6">
+        <ArticleAdmin />
+      </div>
+    </>
   );
 }
