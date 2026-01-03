@@ -18,6 +18,8 @@ import ConstructorsChampionship from "@/pages/ConstructorsChampionship";
 import DriversChampionship from "@/pages/DriversChampionship";
 import NotFound from "@/pages/not-found";
 import HowToUse from "@/pages/HowToUse";
+import News from "@/pages/News";
+import NewsArticle from "@/pages/NewsArticle";
 
 function Router() {
   return (
@@ -29,6 +31,8 @@ function Router() {
       <Route path="/races" component={Races} />
       <Route path="/races/:id" component={RaceDetail} />
       <Route path="/portfolio" component={Positions} />
+      <Route path="/news" component={News} />
+      <Route path="/news/:slug" component={NewsArticle} />
       <Route path="/admin" component={Admin} />
       <Route path="/how-to-use" component={HowToUse} />
       <Route component={NotFound} />

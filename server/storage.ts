@@ -1,7 +1,7 @@
 import { 
   users, teams, drivers, holdings, transactions, deposits, priceHistory, seasons, payouts, markets, orderFills,
   championshipPools, championshipOutcomes, poolTrades, poolPositions, poolPayouts, zkProofs, poolPriceHistory,
-  raceMarkets, raceMarketOutcomes, polymarketOrders, portfolioHistory, platformConfig, collectedFees, marketComments,
+  raceMarkets, raceMarketOutcomes, polymarketOrders, portfolioHistory, platformConfig, collectedFees, marketComments, articles,
   type User, type InsertUser, 
   type Team, type InsertTeam,
   type Driver, type InsertDriver,
@@ -27,7 +27,8 @@ import {
   type CollectedFee, type InsertCollectedFee,
   type MarketComment,
   type BuySharesRequest,
-  type SellSharesRequest
+  type SellSharesRequest,
+  type Article, type InsertArticle
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, asc, sql, inArray, gte } from "drizzle-orm";
@@ -199,6 +200,15 @@ export interface IStorage {
   isUsernameAvailable(displayName: string, excludeWallet?: string): Promise<boolean>;
   getMarketComments(marketType: string, marketId: string): Promise<MarketComment[]>;
   createComment(data: { walletAddress: string; marketType: string; marketId: string; content: string; displayName: string | null }): Promise<MarketComment>;
+  
+  // Articles
+  getArticles(status?: string): Promise<Article[]>;
+  getArticle(id: string): Promise<Article | undefined>;
+  getArticleBySlug(slug: string): Promise<Article | undefined>;
+  createArticle(article: InsertArticle): Promise<Article>;
+  updateArticle(id: string, updates: Partial<Article>): Promise<Article | undefined>;
+  publishArticle(id: string): Promise<Article | undefined>;
+  deleteArticle(id: string): Promise<void>;
 }
 
 // Initial F1 2026 teams data - all teams start at equal $0.10 price
@@ -1483,6 +1493,77 @@ export class DatabaseStorage implements IStorage {
       displayName: data.displayName,
     }).returning();
     return comment;
+  }
+
+  // Articles
+  async getArticles(status?: string): Promise<Article[]> {
+    if (status) {
+      return await db
+        .select()
+        .from(articles)
+        .where(eq(articles.status, status))
+        .orderBy(desc(articles.publishedAt), desc(articles.createdAt));
+    }
+    return await db
+      .select()
+      .from(articles)
+      .orderBy(desc(articles.publishedAt), desc(articles.createdAt));
+  }
+
+  async getArticle(id: string): Promise<Article | undefined> {
+    const [article] = await db.select().from(articles).where(eq(articles.id, id));
+    return article || undefined;
+  }
+
+  async getArticleBySlug(slug: string): Promise<Article | undefined> {
+    const [article] = await db.select().from(articles).where(eq(articles.slug, slug));
+    return article || undefined;
+  }
+
+  async createArticle(article: InsertArticle): Promise<Article> {
+    const slug = this.generateSlug(article.title);
+    const [created] = await db.insert(articles).values({
+      ...article,
+      slug,
+    }).returning();
+    return created;
+  }
+
+  async updateArticle(id: string, updates: Partial<Article>): Promise<Article | undefined> {
+    const updateData = { ...updates, updatedAt: new Date() };
+    if (updates.title) {
+      (updateData as any).slug = this.generateSlug(updates.title);
+    }
+    const [updated] = await db
+      .update(articles)
+      .set(updateData)
+      .where(eq(articles.id, id))
+      .returning();
+    return updated || undefined;
+  }
+
+  async publishArticle(id: string): Promise<Article | undefined> {
+    const [published] = await db
+      .update(articles)
+      .set({ status: "published", publishedAt: new Date(), updatedAt: new Date() })
+      .where(eq(articles.id, id))
+      .returning();
+    return published || undefined;
+  }
+
+  async deleteArticle(id: string): Promise<void> {
+    await db.delete(articles).where(eq(articles.id, id));
+  }
+
+  private generateSlug(title: string): string {
+    const base = title
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, "")
+      .replace(/\s+/g, "-")
+      .replace(/-+/g, "-")
+      .substring(0, 50);
+    const timestamp = Date.now().toString(36);
+    return `${base}-${timestamp}`;
   }
 }
 

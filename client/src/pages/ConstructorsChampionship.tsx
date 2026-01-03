@@ -48,8 +48,8 @@ const teamColors: Record<string, string> = {
 
 export default function ConstructorsChampionship() {
   useSEO({
-    title: "2026 Constructors Championship",
-    description: "Bet on which F1 team will win the 2026 Constructors Championship. Trade McLaren, Ferrari, Red Bull, Mercedes and more with real USDC on Polymarket."
+    title: "Who will win the 2026 F1 Constructors Championship?",
+    description: "Predict which F1 team will win the 2026 Constructors Championship. Trade McLaren, Ferrari, Red Bull, Mercedes and more with real USDC on Polymarket."
   });
 
   const { getHolding } = useMarket();

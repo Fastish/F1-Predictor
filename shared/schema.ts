@@ -875,3 +875,58 @@ export type CreateCommentRequest = z.infer<typeof createCommentSchema>;
 export const updateDisplayNameSchema = z.object({
   displayName: z.string().min(1).max(30).regex(/^[a-zA-Z0-9_]+$/, "Only letters, numbers, and underscores allowed"),
 });
+
+// =====================================================
+// ARTICLES - AI-generated F1 news articles
+// =====================================================
+
+export const articles = pgTable("articles", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  slug: text("slug").notNull().unique(),
+  title: text("title").notNull(),
+  summary: text("summary").notNull(),
+  content: text("content").notNull(),
+  heroImageUrl: text("hero_image_url"),
+  category: text("category").notNull().default("news"),
+  tags: text("tags").array(),
+  status: text("status").notNull().default("draft"),
+  metaTitle: text("meta_title"),
+  metaDescription: text("meta_description"),
+  publishedAt: timestamp("published_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const insertArticleSchema = createInsertSchema(articles).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const createArticleSchema = z.object({
+  title: z.string().min(5).max(200),
+  summary: z.string().min(10).max(500),
+  content: z.string().min(50),
+  heroImageUrl: z.string().url().optional(),
+  category: z.string().optional(),
+  tags: z.array(z.string()).optional(),
+  metaTitle: z.string().max(70).optional(),
+  metaDescription: z.string().max(160).optional(),
+});
+
+export const updateArticleSchema = z.object({
+  title: z.string().min(5).max(200).optional(),
+  summary: z.string().min(10).max(500).optional(),
+  content: z.string().min(50).optional(),
+  heroImageUrl: z.string().url().optional(),
+  category: z.string().optional(),
+  tags: z.array(z.string()).optional(),
+  status: z.enum(["draft", "published", "archived"]).optional(),
+  metaTitle: z.string().max(70).optional(),
+  metaDescription: z.string().max(160).optional(),
+});
+
+export type InsertArticle = z.infer<typeof insertArticleSchema>;
+export type Article = typeof articles.$inferSelect;
+export type CreateArticleRequest = z.infer<typeof createArticleSchema>;
+export type UpdateArticleRequest = z.infer<typeof updateArticleSchema>;

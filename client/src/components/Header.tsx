@@ -1,4 +1,4 @@
-import { Wallet, TrendingUp, Menu, Plus, Loader2, Briefcase, Flag, DollarSign, PieChart, LogOut, Check, ArrowRightLeft, Settings, ArrowUpRight, ArrowDownLeft, Car, User, HelpCircle, RefreshCw, Pencil } from "lucide-react";
+import { Wallet, TrendingUp, Menu, Plus, Loader2, Briefcase, Flag, DollarSign, PieChart, LogOut, Check, ArrowRightLeft, Settings, ArrowUpRight, ArrowDownLeft, Car, User, HelpCircle, RefreshCw, Pencil, Newspaper } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -94,6 +94,16 @@ export function Header() {
               >
                 <Flag className="mr-1 h-4 w-4" />
                 Races
+              </Button>
+            </Link>
+            <Link href="/news">
+              <Button
+                variant={location === "/news" || location.startsWith("/news/") ? "secondary" : "ghost"}
+                size="sm"
+                data-testid="button-nav-news"
+              >
+                <Newspaper className="mr-1 h-4 w-4" />
+                News
               </Button>
             </Link>
             <Link href="/how-to-use">
@@ -339,6 +349,17 @@ export function Header() {
                   >
                     <Flag className="mr-2 h-4 w-4" />
                     Races
+                  </Button>
+                </Link>
+                <Link href="/news">
+                  <Button
+                    variant={location === "/news" || location.startsWith("/news/") ? "secondary" : "ghost"}
+                    className="justify-start w-full"
+                    onClick={() => setMobileMenuOpen(false)}
+                    data-testid="button-mobile-nav-news"
+                  >
+                    <Newspaper className="mr-2 h-4 w-4" />
+                    News
                   </Button>
                 </Link>
                 <Link href="/portfolio">

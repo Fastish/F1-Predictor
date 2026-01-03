@@ -61,8 +61,8 @@ const driverTeamColors: Record<string, string> = {
 
 export default function DriversChampionship() {
   useSEO({
-    title: "2026 Drivers Championship",
-    description: "Bet on who will win the 2026 F1 World Drivers Championship. Trade Verstappen, Norris, Hamilton, Leclerc and more with real USDC on Polymarket."
+    title: "Who will win the 2026 F1 World Drivers Championship?",
+    description: "Predict who will win the 2026 F1 World Drivers Championship. Trade Verstappen, Norris, Hamilton, Leclerc and more with real USDC on Polymarket."
   });
 
   const { walletAddress } = useWallet();
