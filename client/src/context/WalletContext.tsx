@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useEffect, useCallback, useRef, ty
 import { Magic } from "magic-sdk";
 import { ethers } from "ethers";
 import { queryClient } from "@/lib/queryClient";
-import { useConnect, useDisconnect, useAccount, useWalletClient, Connector } from "wagmi";
+import { useConnect, useDisconnect, useAccount, useWalletClient, type Connector } from "wagmi";
 import { walletConnect, injected } from "@wagmi/connectors";
 import { setExternalProviderForGasless, resetGaslessState } from "@/lib/polymarketGasless";
 import { clearClobClientCache } from "@/hooks/useTradingSession";
@@ -175,7 +175,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [signer, setSigner] = useState<ethers.Signer | null>(null);
   const [polymarketCredentials, setPolymarketCredentials] = useState<PolymarketCredentials | null>(null);
   
-  const { connect, connectors, isPending: wagmiConnecting, error: wagmiError } = useConnect();
+  const { connect, connectAsync, connectors, isPending: wagmiConnecting, error: wagmiError } = useConnect();
   const { disconnect: wagmiDisconnect } = useDisconnect();
   const { address: wagmiAddress, isConnected: wagmiIsConnected, connector: activeConnector } = useAccount();
   const { data: walletClient } = useWalletClient();
@@ -637,7 +637,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     try {
       console.log("[Wagmi WC] Starting WalletConnect connection...");
       console.log("[Wagmi WC] Project ID:", projectId.slice(0, 8) + "...");
-      console.log("[Wagmi WC] Available connectors:", connectors.map(c => ({ id: c.id, name: c.name, ready: c.ready })));
+      console.log("[Wagmi WC] Available connectors:", connectors.map(c => ({ id: c.id, name: c.name })));
       
       const wcConnector = connectors.find(c => c.id === 'walletConnect');
       
@@ -648,70 +648,43 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       
       console.log("[Wagmi WC] Found WalletConnect connector:", { 
         id: wcConnector.id, 
-        name: wcConnector.name,
-        ready: wcConnector.ready
+        name: wcConnector.name
       });
-      console.log("[Wagmi WC] Calling connect() with chain:", POLYGON_CHAIN_ID);
+      console.log("[Wagmi WC] Calling connectAsync() with chain:", POLYGON_CHAIN_ID);
       
-      return new Promise((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          console.error("[Wagmi WC] Connection timed out after 60 seconds");
-          setIsConnecting(false);
-          reject(new Error("WalletConnect connection timed out. Please try again."));
-        }, 60000);
-        
-        try {
-          connect(
-            { connector: wcConnector, chainId: POLYGON_CHAIN_ID },
-            {
-              onSuccess: (data) => {
-                clearTimeout(timeout);
-                console.log("[Wagmi WC] Connection successful:", data);
-                if (data.accounts && data.accounts.length > 0) {
-                  const address = data.accounts[0];
-                  setWalletAddress(address);
-                  setWalletType("walletconnect");
-                  setUserEmail(null);
-                  localStorage.setItem("polygon_wallet_type", "walletconnect");
-                  localStorage.setItem("polygon_wallet_address", address);
-                  setIsConnecting(false);
-                  resolve(true);
-                } else {
-                  setIsConnecting(false);
-                  reject(new Error("No accounts returned from WalletConnect"));
-                }
-              },
-              onError: (error) => {
-                clearTimeout(timeout);
-                console.error("[Wagmi WC] Connection onError callback:", error);
-                console.error("[Wagmi WC] Error details:", {
-                  message: error?.message,
-                  name: error?.name,
-                  code: (error as any)?.code,
-                  cause: (error as any)?.cause
-                });
-                setIsConnecting(false);
-                reject(error);
-              },
-              onSettled: (data, error) => {
-                console.log("[Wagmi WC] Connection settled:", { data, error });
-              }
-            }
-          );
-          console.log("[Wagmi WC] connect() called, waiting for modal...");
-        } catch (connectError: any) {
-          clearTimeout(timeout);
-          console.error("[Wagmi WC] Synchronous error calling connect():", connectError);
-          setIsConnecting(false);
-          reject(connectError);
-        }
+      // Use connectAsync which returns a promise directly - more reliable than callback-based connect
+      const result = await connectAsync({ 
+        connector: wcConnector, 
+        chainId: POLYGON_CHAIN_ID 
       });
+      
+      console.log("[Wagmi WC] Connection successful:", result);
+      
+      if (result.accounts && result.accounts.length > 0) {
+        const address = result.accounts[0];
+        setWalletAddress(address);
+        setWalletType("walletconnect");
+        setUserEmail(null);
+        localStorage.setItem("polygon_wallet_type", "walletconnect");
+        localStorage.setItem("polygon_wallet_address", address);
+        setIsConnecting(false);
+        return true;
+      } else {
+        setIsConnecting(false);
+        throw new Error("No accounts returned from WalletConnect");
+      }
     } catch (error: any) {
-      console.error("[Wagmi WC] Connection setup error:", error);
+      console.error("[Wagmi WC] Connection error:", error);
+      console.error("[Wagmi WC] Error details:", {
+        message: error?.message,
+        name: error?.name,
+        code: error?.code,
+        cause: error?.cause
+      });
       setIsConnecting(false);
       throw error;
     }
-  }, [connect, connectors]);
+  }, [connectAsync, connectors]);
 
   const disconnectWallet = useCallback(async () => {
     // Reset user-initiated flag FIRST before any async operations
