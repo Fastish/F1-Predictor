@@ -470,6 +470,16 @@ export async function approveCTFGasless(): Promise<GaslessResult> {
       }),
       value: "0",
     },
+    // Also approve NEG_RISK_ADAPTER for CTF tokens (required for negRisk market sells)
+    {
+      to: POLYMARKET_CONTRACTS.CTF,
+      data: encodeFunctionData({
+        abi: ERC1155_ABI,
+        functionName: "setApprovalForAll",
+        args: [POLYMARKET_CONTRACTS.NEG_RISK_ADAPTER, true],
+      }),
+      value: "0",
+    },
   ];
   
   return executeGaslessTransactions(transactions);
