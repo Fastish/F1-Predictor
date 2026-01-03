@@ -714,6 +714,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   }, [connect, connectors]);
 
   const disconnectWallet = useCallback(async () => {
+    // Reset user-initiated flag FIRST before any async operations
+    // This ensures auto-connect prevention works immediately
+    userInitiatedConnectionRef.current = false;
+    
     try {
       if (walletType === "magic") {
         const magic = await getMagic();
@@ -724,17 +728,40 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         console.log("[Wagmi] Disconnecting WalletConnect...");
         wagmiDisconnect();
       }
+      
+      // For injected connectors (Phantom, MetaMask, etc.), also call connector.disconnect()
+      // to properly revoke permissions and prevent auto-reconnect
+      if (activeConnector && activeConnector.id !== 'walletConnect') {
+        console.log("[Wagmi] Calling activeConnector.disconnect() for:", activeConnector.id);
+        try {
+          // Some connectors have a disconnect method that revokes permissions
+          if (typeof (activeConnector as any).disconnect === 'function') {
+            await (activeConnector as any).disconnect();
+          }
+        } catch (connectorError) {
+          console.warn("[Wagmi] Connector disconnect error (non-fatal):", connectorError);
+        }
+      }
+      
       // Also disconnect wagmi for external/phantom to prevent auto-reconnect
       if (wagmiIsConnected) {
         console.log("[Wagmi] Disconnecting wagmi (injected connector cleanup)...");
         wagmiDisconnect();
       }
+      
+      // Try to revoke Phantom permissions specifically if it's available
+      const phantomProvider = window.phantom?.ethereum || (window.ethereum?.isPhantom ? window.ethereum : null);
+      if (phantomProvider && typeof phantomProvider.disconnect === 'function') {
+        console.log("[Wagmi] Calling Phantom-specific disconnect...");
+        try {
+          await phantomProvider.disconnect();
+        } catch (phantomError) {
+          console.warn("[Wagmi] Phantom disconnect error (non-fatal):", phantomError);
+        }
+      }
     } catch (error) {
       console.error("Logout error:", error);
     }
-    
-    // Reset user-initiated flag
-    userInitiatedConnectionRef.current = false;
     
     // Reset gasless state to clear external provider and cached deployment status
     // This ensures a fresh start when reconnecting
@@ -756,7 +783,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     lastWalletIdentityRef.current = null;
     localStorage.removeItem("polygon_wallet_type");
     localStorage.removeItem("polygon_wallet_address");
-  }, [walletType, wagmiDisconnect, wagmiIsConnected]);
+  }, [walletType, wagmiDisconnect, wagmiIsConnected, activeConnector]);
 
   const signMessage = useCallback(async (message: string): Promise<string> => {
     if (!signer) {
