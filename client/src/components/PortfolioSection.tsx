@@ -152,6 +152,7 @@ function PortfolioChart({
             {hasHistory ? (
               <div className={`flex items-center gap-1 text-sm mt-1 ${periodIsPositive ? "text-green-600" : "text-red-600"}`}>
                 {periodIsPositive ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
+                <span className="text-muted-foreground mr-1">Profit/Loss:</span>
                 <span>
                   {periodIsPositive ? "+" : ""}${periodChange.change.toFixed(2)} ({periodIsPositive ? "+" : ""}{periodChange.percent.toFixed(1)}%)
                 </span>
@@ -159,6 +160,7 @@ function PortfolioChart({
             ) : totalPnl !== 0 && (
               <div className={`flex items-center gap-1 text-sm mt-1 ${isPositive ? "text-green-600" : "text-red-600"}`}>
                 {isPositive ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
+                <span className="text-muted-foreground mr-1">Profit/Loss:</span>
                 <span>
                   {isPositive ? "+" : ""}${totalPnl.toFixed(2)} all time
                 </span>

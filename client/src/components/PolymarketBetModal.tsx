@@ -81,6 +81,7 @@ interface PositionData {
   averagePrice: number;
   currentPrice: number;
   conditionId?: string;
+  title?: string;
 }
 
 interface PolymarketBetModalProps {
@@ -399,6 +400,12 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
           console.warn("WARNING: Order succeeded but no orderId returned from Polymarket");
         }
         
+        // FOK orders fill immediately or fail - they never stay "open"
+        // GTC/GTD orders stay open until filled or cancelled
+        const orderStatus = orderType === "FOK" 
+          ? "filled"  // FOK orders that succeed are immediately filled
+          : (result.orderId ? "open" : "pending");
+        
         await apiRequest("POST", "/api/polymarket/record-order", {
           userId: tradingWallet.address || walletAddress,
           tokenId: selectedTokenId,
@@ -409,7 +416,7 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
           size: shares,
           totalCost: parsedAmount,
           polymarketOrderId: result.orderId,
-          status: result.orderId ? "open" : "pending",
+          status: orderStatus,
           postOrderResponse: result.rawResponse,
         });
 
@@ -639,17 +646,23 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
       setShowSignatureWarning(false);
 
       if (result.success) {
+        // FOK orders fill immediately or fail - they never stay "open"
+        // GTC/GTD orders stay open until filled or cancelled
+        const sellOrderStatus = orderType === "FOK" 
+          ? "filled"  // FOK orders that succeed are immediately filled
+          : (result.orderId ? "open" : "pending");
+        
         await apiRequest("POST", "/api/polymarket/record-order", {
           userId: tradingWallet.address || walletAddress,
           tokenId: position.tokenId,
-          marketName: outcome.name,
+          marketName: position.title || outcome.name,
           outcome: position.outcome,
           side: "SELL",
           price: sellPrice,
           size: sharesToSell,
           totalCost: sellProceeds,
           polymarketOrderId: result.orderId,
-          status: result.orderId ? "open" : "pending",
+          status: sellOrderStatus,
           conditionId: position.conditionId,
         });
 
