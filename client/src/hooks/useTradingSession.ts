@@ -181,10 +181,15 @@ export function useTradingSession() {
     
     setTradingSession(stored);
     setCredentialsValidated(false); // Need to validate on each session load
-    // Mark as complete if we have credentials AND a Safe address
+    // Mark as complete if we have credentials AND a Safe address AND fee authorization
     // proxyDeployed status is informational - we'll let the server reject if not deployed
     if (stored?.hasApiCredentials && stored?.safeAddress) {
-      setCurrentStep("complete");
+      if (!stored.feeAuthorizationComplete) {
+        // Has credentials but fee authorization pending
+        setCurrentStep("fee_authorization");
+      } else {
+        setCurrentStep("complete");
+      }
     } else if (stored?.hasApiCredentials && !stored?.safeAddress) {
       // Has credentials but no Safe - needs to reinitialize
       setCurrentStep("idle");
@@ -458,6 +463,16 @@ export function useTradingSession() {
           const isValid = await validateApiCredentials(existingSession.apiCredentials);
           
           if (isValid) {
+            // Check if fee authorization is complete
+            if (!existingSession.feeAuthorizationComplete) {
+              console.log("[TradingSession] Session valid but fee authorization pending - showing fee step");
+              setTradingSession(existingSession);
+              setCurrentStep("fee_authorization");
+              setCredentialsValidated(true);
+              setIsInitializing(false);
+              return existingSession;
+            }
+            
             console.log("[TradingSession] Using existing complete session (credentials valid)");
             setTradingSession(existingSession);
             setCurrentStep("complete");
@@ -567,20 +582,7 @@ export function useTradingSession() {
       const apiCreds = await deriveApiCredentials(safeAddress || undefined);
       console.log("[TradingSession] Got API credentials:", apiCreds ? "success" : "failed");
 
-      // STEP 4: Fee Authorization
-      // Mark user as authorized for fee collection via relayer
-      // This doesn't require a signature - it's tracked in the session
-      // The relayer can collect fees gaslessly when needed
-      console.log("[TradingSession] Setting up fee authorization...");
-      setCurrentStep("fee_authorization");
-      
-      // Fee authorization is implicit once the trading session is set up
-      // The relayer already has permission to execute transactions from the Safe
-      // We just track that the user has gone through the setup process
-      const feeAuthorizationComplete = true;
-      console.log("[TradingSession] Fee authorization complete");
-
-      // Create complete session with Safe address
+      // Create session with Safe address (fee authorization pending)
       // Even if proxyDeployed check returned false, we'll try to proceed
       // The Polymarket server will reject if proxy truly isn't deployed
       const newSession: TradingSession = {
@@ -592,15 +594,20 @@ export function useTradingSession() {
         apiCredentials: apiCreds,
         lastChecked: Date.now(),
         credentialVersion: CREDENTIAL_VERSION, // Track credential derivation format version
-        feeAuthorizationComplete, // User has authorized fee collection via relayer
+        feeAuthorizationComplete: false, // Fee authorization pending - user must confirm
       };
 
       setTradingSession(newSession);
       saveSession(walletAddress, newSession);
-      setCurrentStep("complete");
+      
+      // STEP 4: Fee Authorization
+      // Pause at fee_authorization step - user must explicitly authorize
+      // The UI will show a button to authorize fee collection
+      console.log("[TradingSession] Fee authorization required - pausing for user confirmation");
+      setCurrentStep("fee_authorization");
       setCredentialsValidated(true);
       setIsInitializing(false);
-      console.log("Trading session initialized with Safe:", safeAddress);
+      console.log("Trading session initialized with Safe (fee auth pending):", safeAddress);
       return newSession;
     } catch (err: any) {
       console.error("Session initialization error:", err);

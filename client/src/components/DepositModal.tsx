@@ -47,6 +47,74 @@ interface DepositModalProps {
   onOpenChange: (open: boolean) => void;
 }
 
+// Fee authorization step shown during trading session setup
+function FeeAuthorizationStepInner({ authorizeFees }: { authorizeFees: () => Promise<{ success: boolean; error?: string }> }) {
+  const [isAuthorizing, setIsAuthorizing] = useState(false);
+  const { toast } = useToast();
+
+  const handleAuthorize = async () => {
+    setIsAuthorizing(true);
+    try {
+      const result = await authorizeFees();
+      if (result.success) {
+        toast({
+          title: "Fees Authorized",
+          description: "You can now trade on F1 Predict. A 2% platform fee applies to all trades.",
+        });
+      } else {
+        toast({
+          title: "Authorization Failed",
+          description: result.error || "Please try again",
+          variant: "destructive",
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: "Authorization Failed",
+        description: error.message || "Please try again",
+        variant: "destructive",
+      });
+    } finally {
+      setIsAuthorizing(false);
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-start gap-2 rounded-md bg-amber-500/10 p-2 border border-amber-500/20">
+        <AlertCircle className="h-4 w-4 text-amber-500 flex-shrink-0 mt-0.5" />
+        <div className="flex-1">
+          <p className="text-amber-600 dark:text-amber-400 text-xs font-medium">
+            Fee Authorization Required
+          </p>
+          <p className="text-muted-foreground text-xs mt-0.5">
+            F1 Predict charges a 2% platform fee on all trades. 
+            By authorizing, you agree to the fee collection from your trading proceeds.
+          </p>
+        </div>
+      </div>
+      <Button
+        onClick={handleAuthorize}
+        disabled={isAuthorizing}
+        className="w-full"
+        data-testid="button-authorize-fees"
+      >
+        {isAuthorizing ? (
+          <>
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            Authorizing...
+          </>
+        ) : (
+          <>
+            <CheckCircle2 className="h-4 w-4 mr-2" />
+            Authorize 2% Platform Fee
+          </>
+        )}
+      </Button>
+    </div>
+  );
+}
+
 export function DepositModal({ open, onOpenChange }: DepositModalProps) {
   const { userId, resetUser } = useMarket();
   const { 
@@ -71,6 +139,7 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
     sessionError,
     safeAddress,
     signerAvailable,
+    authorizeFees,
   } = useTradingSession();
   const { toast } = useToast();
   const [email, setEmail] = useState("");
@@ -616,6 +685,8 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
                         <p className="text-muted-foreground text-xs">Sign in your wallet</p>
                       </div>
                     </div>
+                  ) : currentStep === "fee_authorization" ? (
+                    <FeeAuthorizationStepInner authorizeFees={authorizeFees} />
                   ) : isTradingSessionComplete ? (
                     <div className="flex items-center gap-2 rounded-md bg-green-500/10 p-2 text-xs">
                       <CheckCircle2 className="h-3.5 w-3.5 text-green-500 flex-shrink-0" />
