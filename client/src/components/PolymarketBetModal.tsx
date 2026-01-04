@@ -33,7 +33,7 @@ import { useTradingSession } from "@/hooks/useTradingSession";
 import { usePlaceOrder, type PolymarketOrderType } from "@/hooks/usePlaceOrder";
 import { PolymarketDepositWizard } from "./PolymarketDepositWizard";
 import { checkDepositRequirements } from "@/lib/polymarketDeposit";
-import { getSafeAddress, deriveSafeAddressFromEoa, transferFeeFromSafe } from "@/lib/polymarketGasless";
+import { getSafeAddress, deriveSafeAddressFromEoa } from "@/lib/polymarketGasless";
 import { ethers } from "ethers";
 
 const USDC_CONTRACT = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174";
@@ -319,14 +319,15 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
 
     // Check trading wallet balance (Safe for external wallets, Proxy for Magic)
     const effectiveTradingBalance = tradingWallet.balance > 0 ? tradingWallet.balance : userBalance;
-    if (totalCost > effectiveTradingBalance) {
+    // Check balance for order amount only (fees collected from proceeds, not upfront)
+    if (parsedAmount > effectiveTradingBalance) {
       const walletTypeLabel = tradingWallet.type === "safe" ? "Safe trading wallet" : 
                               tradingWallet.type === "proxy" ? "trading proxy" : "wallet";
       toast({
         title: "Insufficient Trading Balance",
         description: tradingWallet.type === "safe" 
-          ? `Your Safe trading wallet has $${tradingWallet.balance.toFixed(2)} USDC.e but you need $${totalCost.toFixed(2)}. Use the Deposit Wizard to fund your Safe.`
-          : `You need $${totalCost.toFixed(2)} USDC.e (including ${feePercentage}% fee) but your ${walletTypeLabel} only has $${effectiveTradingBalance.toFixed(2)}`,
+          ? `Your Safe trading wallet has $${tradingWallet.balance.toFixed(2)} USDC.e but you need $${parsedAmount.toFixed(2)}. Use the Deposit Wizard to fund your Safe.`
+          : `You need $${parsedAmount.toFixed(2)} USDC.e but your ${walletTypeLabel} only has $${effectiveTradingBalance.toFixed(2)}`,
         variant: "destructive",
       });
       return;
@@ -412,77 +413,20 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
           postOrderResponse: result.rawResponse,
         });
 
-        // Step 2: Collect platform fee AFTER order succeeds
-        // This ensures fees are collected for ALL order types (FOK, GTC, GTD) only after order is accepted
-        if (feePercentage > 0 && feeAmount > 0 && walletAddress && feeConfig?.treasuryAddress) {
-          toast({
-            title: "Collecting Platform Fee",
-            description: `Transferring $${feeAmount.toFixed(2)} fee to platform...`,
-          });
-
-          try {
-            const feeAmountWei = ethers.parseUnits(feeAmount.toFixed(6), 6);
-            let feeTransferSuccess = false;
-            let feeTxHash: string | null = null;
-            
-            const isSafeWallet = tradingWallet.type === "safe";
-            
-            if (isSafeWallet) {
-              console.log("Collecting fee via gasless Safe transfer");
-              const feeResult = await transferFeeFromSafe(feeConfig.treasuryAddress, BigInt(feeAmountWei.toString()));
-              feeTransferSuccess = feeResult.success;
-              feeTxHash = feeResult.transactionHash || null;
-            } else if (signer) {
-              console.log("Collecting fee via direct wallet transfer");
-              const usdcContract = new ethers.Contract(USDC_CONTRACT, USDC_ABI, signer);
-              const feeTx = await usdcContract.transfer(feeConfig.treasuryAddress, feeAmountWei);
-              const feeReceipt = await feeTx.wait();
-              feeTransferSuccess = feeReceipt.status === 1;
-              feeTxHash = feeReceipt.hash;
-            }
-            
-            if (feeTransferSuccess && feeTxHash) {
-              console.log("Fee transferred successfully:", feeTxHash);
-              await apiRequest("POST", "/api/fees/record", {
-                walletAddress,
-                orderType: "buy",
-                marketName: outcome.name,
-                tokenId: selectedTokenId,
-                orderAmount: parsedAmount,
-                feePercentage,
-                feeAmount,
-                txHash: feeTxHash,
-                status: "confirmed",
-                polymarketOrderId: result.orderId,
-              });
-            } else {
-              console.error("Fee transfer failed");
-              await apiRequest("POST", "/api/fees/record", {
-                walletAddress,
-                orderType: "buy",
-                marketName: outcome.name,
-                tokenId: selectedTokenId,
-                orderAmount: parsedAmount,
-                feePercentage,
-                feeAmount,
-                status: "failed",
-                polymarketOrderId: result.orderId,
-              });
-            }
-          } catch (feeError: any) {
-            console.error("Fee transfer failed:", feeError);
-            await apiRequest("POST", "/api/fees/record", {
-              walletAddress,
-              orderType: "buy",
-              marketName: outcome.name,
-              tokenId: selectedTokenId,
-              orderAmount: parsedAmount,
-              feePercentage,
-              feeAmount,
-              status: "pending",
-              polymarketOrderId: result.orderId,
-            }).catch(() => {});
-          }
+        // Record expected fee for later collection (deferred fee model - no upfront signature)
+        // Fees will be collected from trade proceeds when order fills
+        if (feePercentage > 0 && feeAmount > 0 && walletAddress) {
+          await apiRequest("POST", "/api/fees/record", {
+            walletAddress,
+            orderType: "buy",
+            marketName: outcome.name,
+            tokenId: selectedTokenId,
+            orderAmount: parsedAmount,
+            feePercentage,
+            feeAmount,
+            status: "pending_collection", // Will be collected when order fills
+            polymarketOrderId: result.orderId,
+          }).catch((err) => console.error("Failed to record pending fee:", err));
         }
 
         toast({
@@ -667,25 +611,7 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
       const sellProceeds = sharesToSell * sellPrice;
       const sellFeeAmount = feePercentage > 0 ? sellProceeds * (feePercentage / 100) : 0;
 
-      // Step 1: Validate USDC.e balance for fee payment (before placing sell order)
-      // For sell orders, user needs to have USDC.e to pay the fee since they're selling tokens, not USDC
-      if (sellFeeAmount > 0 && walletAddress && feeConfig?.treasuryAddress) {
-        const effectiveTradingBalance = tradingWallet.balance > 0 ? tradingWallet.balance : userBalance;
-        if (sellFeeAmount > effectiveTradingBalance) {
-          const walletTypeLabel = tradingWallet.type === "safe" ? "Safe trading wallet" : 
-                                  tradingWallet.type === "proxy" ? "trading proxy" : "wallet";
-          toast({
-            title: "Insufficient Balance for Fee",
-            description: `You need $${sellFeeAmount.toFixed(2)} USDC.e to pay the ${feePercentage}% platform fee, but your ${walletTypeLabel} only has $${effectiveTradingBalance.toFixed(2)}. Please deposit more USDC.e before selling.`,
-            variant: "destructive",
-          });
-          setIsPlacingOrderLocal(false);
-          if (sellSignatureTimeout) clearTimeout(sellSignatureTimeout);
-          return;
-        }
-      }
-
-      // Step 2: Place the sell order
+      // Place the sell order (fee collected from proceeds, no upfront validation needed)
       toast({
         title: "Signing Sell Order",
         description: isPhantomMobile 
@@ -727,77 +653,20 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
           conditionId: position.conditionId,
         });
 
-        // Step 3: Collect platform fee AFTER order succeeds
-        // This ensures fees are collected for ALL order types (FOK, GTC, GTD) only after order is accepted
-        if (sellFeeAmount > 0 && walletAddress && feeConfig?.treasuryAddress) {
-          toast({
-            title: "Collecting Platform Fee",
-            description: `Transferring $${sellFeeAmount.toFixed(2)} fee to platform...`,
-          });
-
-          try {
-            const feeAmountWei = ethers.parseUnits(sellFeeAmount.toFixed(6), 6);
-            let feeTransferSuccess = false;
-            let sellFeeTxHash: string | null = null;
-            
-            const isSafeWallet = tradingWallet.type === "safe";
-            
-            if (isSafeWallet) {
-              console.log("Collecting sell fee via gasless Safe transfer");
-              const feeResult = await transferFeeFromSafe(feeConfig.treasuryAddress, BigInt(feeAmountWei.toString()));
-              feeTransferSuccess = feeResult.success;
-              sellFeeTxHash = feeResult.transactionHash || null;
-            } else if (signer) {
-              console.log("Collecting sell fee via direct wallet transfer");
-              const usdcContract = new ethers.Contract(USDC_CONTRACT, USDC_ABI, signer);
-              const feeTx = await usdcContract.transfer(feeConfig.treasuryAddress, feeAmountWei);
-              const feeReceipt = await feeTx.wait();
-              feeTransferSuccess = feeReceipt.status === 1;
-              sellFeeTxHash = feeReceipt.hash;
-            }
-            
-            if (feeTransferSuccess && sellFeeTxHash) {
-              console.log("Sell fee transferred successfully:", sellFeeTxHash);
-              await apiRequest("POST", "/api/fees/record", {
-                walletAddress,
-                orderType: "sell",
-                marketName: outcome.name,
-                tokenId: position.tokenId,
-                orderAmount: sellProceeds,
-                feePercentage,
-                feeAmount: sellFeeAmount,
-                txHash: sellFeeTxHash,
-                status: "confirmed",
-                polymarketOrderId: result.orderId,
-              });
-            } else {
-              console.error("Sell fee transfer failed");
-              await apiRequest("POST", "/api/fees/record", {
-                walletAddress,
-                orderType: "sell",
-                marketName: outcome.name,
-                tokenId: position.tokenId,
-                orderAmount: sellProceeds,
-                feePercentage,
-                feeAmount: sellFeeAmount,
-                status: "failed",
-                polymarketOrderId: result.orderId,
-              });
-            }
-          } catch (feeError: any) {
-            console.error("Sell fee transfer failed:", feeError);
-            await apiRequest("POST", "/api/fees/record", {
-              walletAddress,
-              orderType: "sell",
-              marketName: outcome.name,
-              tokenId: position.tokenId,
-              orderAmount: sellProceeds,
-              feePercentage,
-              feeAmount: sellFeeAmount,
-              status: "pending",
-              polymarketOrderId: result.orderId,
-            }).catch(() => {});
-          }
+        // Record expected fee for later collection (deferred fee model - no upfront signature)
+        // Fees will be collected from trade proceeds when order fills
+        if (sellFeeAmount > 0 && walletAddress) {
+          await apiRequest("POST", "/api/fees/record", {
+            walletAddress,
+            orderType: "sell",
+            marketName: outcome.name,
+            tokenId: position.tokenId,
+            orderAmount: sellProceeds,
+            feePercentage,
+            feeAmount: sellFeeAmount,
+            status: "pending_collection", // Will be collected when order fills
+            polymarketOrderId: result.orderId,
+          }).catch((err) => console.error("Failed to record pending sell fee:", err));
         }
 
         toast({
@@ -1262,13 +1131,13 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
                   )}
                   {feePercentage > 0 && (
                     <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground">Platform Fee ({feePercentage}%):</span>
+                      <span className="text-muted-foreground">Platform Fee ({feePercentage}%, from proceeds):</span>
                       <span className="text-amber-600 dark:text-amber-400">${feeAmount.toFixed(2)}</span>
                     </div>
                   )}
                   <div className="flex items-center justify-between text-sm font-medium border-t border-border pt-2">
-                    <span>Total Cost:</span>
-                    <span>${totalCost.toFixed(2)}</span>
+                    <span>Order Amount:</span>
+                    <span>${parsedAmount.toFixed(2)}</span>
                   </div>
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">Shares @ {orderType === "FOK" ? "market" : `${(effectivePrice * 100).toFixed(1)}c`}:</span>
@@ -1283,7 +1152,7 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">Potential Profit:</span>
                     <span className={potentialProfit >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}>
-                      {potentialProfit >= 0 ? "+" : ""}${potentialProfit.toFixed(2)} ({totalCost > 0 ? ((potentialProfit / totalCost) * 100).toFixed(0) : 0}%)
+                      {potentialProfit >= 0 ? "+" : ""}${potentialProfit.toFixed(2)} ({parsedAmount > 0 ? ((potentialProfit / parsedAmount) * 100).toFixed(0) : 0}%)
                     </span>
                   </div>
                 </div>
@@ -1399,7 +1268,7 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
             ) : (
               <Button
                 onClick={handlePlaceBet}
-                disabled={parsedAmount <= 0 || totalCost > (tradingWallet.balance > 0 ? tradingWallet.balance : userBalance) || isPlacing || isPlacingOrderLocal || !walletAddress || !isTradingSessionComplete || (approvalStatus.checked && approvalStatus.needsApproval)}
+                disabled={parsedAmount <= 0 || parsedAmount > (tradingWallet.balance > 0 ? tradingWallet.balance : userBalance) || isPlacing || isPlacingOrderLocal || !walletAddress || !isTradingSessionComplete || (approvalStatus.checked && approvalStatus.needsApproval)}
                 className="flex-1"
                 data-testid="button-confirm-bet"
               >

@@ -136,18 +136,21 @@ Preferred communication style: Simple, everyday language.
 - **Workflow**: Generate draft -> Admin review in ArticleAdmin component -> Publish -> Visible on /news page
 - **Topics**: 2026 predictions, team comparisons, driver championship analysis, betting insights, regulations impact
 
-### Fee Tracking System (Treasury Monitoring)
+### Fee Tracking System (Deferred Collection Model)
 - **Purpose**: Track platform fees (2%) on all trades through Polymarket
-- **Architecture**: Uses on-chain treasury wallet monitoring instead of manual status tracking
+- **Architecture**: Deferred fee collection model - fees are recorded as pending when orders are placed, requiring only ONE signature per order
 - **Treasury Address**: 0xb600979a5EF3ebA5302DE667d47c9F9A73a983b8
+- **Fee Model**: 
+  - Fees are recorded with status `pending_collection` when order is placed (no immediate on-chain transfer)
+  - This eliminates the need for a second signature during order placement
+  - Actual fee collection from trade proceeds is pending implementation (TODO)
 - **Key Files**:
   - `server/treasurySync.ts`: Service to fetch USDC.e Transfer events from Polygon blockchain
   - `shared/schema.ts`: Contains `collectedFees` (fee expectations) and `treasuryFeeTransfers` (on-chain transfers) tables
 - **Data Flow**:
-  1. When order is placed, a fee expectation is recorded in `collectedFees` table
-  2. Fee is transferred on-chain to treasury wallet during order execution
-  3. Admin clicks "Sync Blockchain" to fetch Transfer events from Polygon
-  4. System matches transfers to expectations for reconciliation
+  1. When order is placed, a fee expectation is recorded in `collectedFees` table with status `pending_collection`
+  2. Fee collection from trade proceeds is TODO - currently fees are tracked but not enforced
+  3. Admin can sync blockchain to fetch Transfer events and reconcile
 - **Reconciliation**: Compares expected fees vs actual collected to identify discrepancies
 - **Admin API Routes**:
   - GET /api/admin/fees/recent - Recent fee expectations (up to 50)

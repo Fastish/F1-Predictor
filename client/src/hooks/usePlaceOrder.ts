@@ -151,17 +151,28 @@ export function usePlaceOrder(
         let sdkOrderType: OrderType;
         
         if (isFOK) {
-          // FOK orders: Polymarket requires takerAmount (token size) to have max 2 decimal precision
-          // makerAmount (USDC) can have up to 5 decimal precision
-          // We use createOrder (not createMarketOrder) so we control the size precision directly
+          // FOK (market) orders have DIFFERENT precision requirements than limit orders:
+          // - makerAmount (USDC cost) max 2 decimals
+          // - takerAmount (token size) max 4 decimals
+          // We must ensure: size × price has max 2 decimals for USDC cost
+          
           const roundedPrice = Math.floor(params.price * 100) / 100;
           
-          // Calculate the size (token amount) with max 2 decimal precision
-          // params.size is already the share count (calculated as USDC / price in BetModal)
-          // Round to 2 decimals to meet Polymarket takerAmount requirements
-          const roundedSize = Math.floor(params.size * 100) / 100;
+          // Calculate intended USDC cost, round to 2 decimals, then derive size
+          // This ensures makerAmount (cost) won't exceed 2 decimal precision
+          const intendedCost = params.size * roundedPrice;
+          const roundedCost = Math.floor(intendedCost * 100) / 100;
           
-          console.log(`FOK order: Price: ${roundedPrice}, Size: ${roundedSize} shares (side: ${params.side})`);
+          // Derive size from rounded cost (size = cost / price)
+          // Round DOWN to 4 decimals - this ensures size × price ≤ roundedCost
+          const derivedSize = roundedCost / roundedPrice;
+          const roundedSize = Math.floor(derivedSize * 10000) / 10000;
+          
+          // Verify the final cost stays at 2 decimals (defensive check against floating point)
+          const verifiedCost = roundedSize * roundedPrice;
+          const finalCost = Math.floor(verifiedCost * 100) / 100;
+          
+          console.log(`FOK order: Price: ${roundedPrice}, Target Cost: ${roundedCost}, Size: ${roundedSize}, Final Cost: ${finalCost} (side: ${params.side})`);
           
           const orderArgs = {
             tokenID: params.tokenId,
