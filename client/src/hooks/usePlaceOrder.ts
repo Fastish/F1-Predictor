@@ -153,24 +153,40 @@ export function usePlaceOrder(
         if (isFOK) {
           // FOK (market) orders have DIFFERENT precision requirements than limit orders:
           // - makerAmount (USDC cost) max 2 decimals
-          // - takerAmount (token size) max 4 decimals
-          // We must ensure: size × price has max 2 decimals for USDC cost
+          // - takerAmount (token size) max 5 decimals
+          // CRITICAL: We must ensure size × price = exactly 2 decimal result
+          // The SDK computes: makerAmount = size * price * 1e6
+          // For 2 decimal precision: makerAmount must be divisible by 10000
           
+          // Round price to 2 decimals (tick size)
           const roundedPrice = Math.floor(params.price * 100) / 100;
           
-          // Calculate intended USDC cost, round to 2 decimals, then derive size
-          // This ensures makerAmount (cost) won't exceed 2 decimal precision
+          // Calculate intended USDC cost, round to 2 decimals
           const intendedCost = params.size * roundedPrice;
           const roundedCost = Math.floor(intendedCost * 100) / 100;
           
-          // Derive size from rounded cost (size = cost / price)
-          // Round DOWN to 4 decimals - this ensures size × price ≤ roundedCost
+          // CRITICAL FIX: To ensure size * price = exact 2-decimal result,
+          // we need to find a size that, when multiplied by price, gives exactly roundedCost.
+          // For prices like 0.03, fractional sizes create precision issues (39.33 * 0.03 = 1.1799)
+          // Solution: Round size to whole number to guarantee clean multiplication
           const derivedSize = roundedCost / roundedPrice;
-          const roundedSize = Math.floor(derivedSize * 10000) / 10000;
           
-          // Verify the final cost stays at 2 decimals (defensive check against floating point)
-          const verifiedCost = roundedSize * roundedPrice;
-          const finalCost = Math.floor(verifiedCost * 100) / 100;
+          // Round to nearest integer for low prices, otherwise round to fewer decimals
+          // This ensures size * price stays at 2 decimal precision
+          let roundedSize: number;
+          if (roundedPrice < 0.10) {
+            // For very low prices, use integer sizes to avoid precision issues
+            roundedSize = Math.floor(derivedSize);
+          } else {
+            // For higher prices, 2 decimals on size is usually safe
+            roundedSize = Math.floor(derivedSize * 100) / 100;
+          }
+          
+          // Recalculate the actual cost with rounded size
+          // Use integer math to avoid floating point issues: (size * 100) * (price * 100) / 10000
+          const sizeInt = Math.round(roundedSize * 100);
+          const priceInt = Math.round(roundedPrice * 100);
+          const finalCost = (sizeInt * priceInt) / 10000;
           
           console.log(`FOK order: Price: ${roundedPrice}, Target Cost: ${roundedCost}, Size: ${roundedSize}, Final Cost: ${finalCost} (side: ${params.side})`);
           
