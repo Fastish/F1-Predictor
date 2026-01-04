@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { useWallet } from "@/context/WalletContext";
 import { useTradingSession } from "@/hooks/useTradingSession";
 import { useToast } from "@/hooks/use-toast";
-import { Copy, Check, Send, QrCode, Wallet, AlertCircle, Loader2, ExternalLink, Shield } from "lucide-react";
+import { Copy, Check, Send, QrCode, Wallet, AlertCircle, Loader2, ExternalLink, Shield, CheckCircle2 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { ethers } from "ethers";
 import { getReadOnlyPolygonProvider } from "@/lib/polymarketDeposit";
@@ -47,7 +47,7 @@ async function fetchUsdcBalanceReadOnly(address: string): Promise<string> {
 
 export function WalletManagementModal({ open, onOpenChange, initialTab = "receive", prefilledAddress = "", title, sendLabel = "Send" }: WalletManagementModalProps) {
   const { walletAddress, walletType, signer, provider } = useWallet();
-  const { safeAddress } = useTradingSession();
+  const { safeAddress, feeAuthorizationComplete, authorizeFees } = useTradingSession();
   const { toast } = useToast();
   const [safeCopied, setSafeCopied] = useState(false);
   
@@ -367,9 +367,17 @@ export function WalletManagementModal({ open, onOpenChange, initialTab = "receiv
 
             {safeAddress && (
               <div className="rounded-md border p-3 space-y-3">
-                <div className="flex items-center gap-2">
-                  <Shield className="h-4 w-4 text-muted-foreground" />
-                  <Label className="text-sm font-medium">Safe Trading Wallet</Label>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <Shield className="h-4 w-4 text-muted-foreground" />
+                    <Label className="text-sm font-medium">Safe Trading Wallet</Label>
+                  </div>
+                  {feeAuthorizationComplete && (
+                    <Badge variant="outline" className="text-green-600 border-green-600/30 bg-green-500/10">
+                      <CheckCircle2 className="h-3 w-3 mr-1" />
+                      Fees Authorized
+                    </Badge>
+                  )}
                 </div>
                 <div className="flex items-start gap-3">
                   <div className="p-2 bg-white rounded-md flex-shrink-0">

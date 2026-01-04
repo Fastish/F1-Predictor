@@ -192,6 +192,7 @@ export interface IStorage {
   getRecentFees(limit: number): Promise<CollectedFee[]>;
   getFeeExpectationStats(): Promise<{ totalExpectedFees: number; totalVolume: number; feeCount: number }>;
   matchFeeToTransfer(feeId: string, txHash: string): Promise<void>;
+  getPendingFeesForWallet(walletAddress: string): Promise<CollectedFee[]>;
   
   // Treasury Fee Transfers (on-chain records)
   recordTreasuryTransfer(transfer: InsertTreasuryFeeTransfer): Promise<TreasuryFeeTransfer>;
@@ -1415,6 +1416,19 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(collectedFees)
       .where(sql`${collectedFees.txHash} IS NULL`)
+      .orderBy(asc(collectedFees.createdAt));
+  }
+
+  async getPendingFeesForWallet(walletAddress: string): Promise<CollectedFee[]> {
+    return await db
+      .select()
+      .from(collectedFees)
+      .where(
+        and(
+          eq(collectedFees.walletAddress, walletAddress),
+          sql`${collectedFees.txHash} IS NULL`
+        )
+      )
       .orderBy(asc(collectedFees.createdAt));
   }
 

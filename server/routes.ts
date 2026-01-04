@@ -3467,6 +3467,82 @@ export async function registerRoutes(
     }
   });
 
+  // Collect pending fees from a user's Safe wallet (client-initiated)
+  // This is called by the client when the user has authorized fee collection
+  // The deferred fee collection model means fees are recorded as pending_collection
+  // and this endpoint would trigger actual collection via the relayer
+  // NOTE: Actual fee collection via Polymarket relayer to non-Polymarket addresses
+  // requires verification - the relayer may only support Polymarket-specific transfers
+  app.post("/api/fees/collect", async (req, res) => {
+    try {
+      const { safeAddress, eoaAddress } = req.body;
+      
+      if (!safeAddress || !eoaAddress) {
+        return res.status(400).json({ error: "safeAddress and eoaAddress are required" });
+      }
+      
+      // Get pending fees for this Safe address
+      const pendingFees = await storage.getPendingFeesForWallet(safeAddress);
+      
+      if (!pendingFees || pendingFees.length === 0) {
+        return res.json({ 
+          success: true, 
+          message: "No pending fees to collect",
+          collected: 0,
+          count: 0
+        });
+      }
+      
+      // Calculate total pending fees
+      const totalPending = pendingFees.reduce((sum, fee) => sum + parseFloat(fee.feeAmountUsdc), 0);
+      
+      // NOTE: Fee collection via Polymarket relayer is pending verification
+      // The relayer may only support transfers to Polymarket-controlled addresses
+      // For now, we return the pending amount but don't execute the transfer
+      // TODO: Implement actual fee collection once relayer compatibility is verified
+      // Options if relayer doesn't work:
+      // 1. Require one-time user signature to authorize direct transfer
+      // 2. Deploy custom relayer for fee collection
+      // 3. Collect fees during withdrawal/settlement
+      
+      console.log(`[FeeCollection] Pending fees for ${safeAddress}: $${totalPending.toFixed(6)} USDC (${pendingFees.length} orders)`);
+      
+      res.json({
+        success: true,
+        message: "Fee collection queued",
+        pending: totalPending,
+        count: pendingFees.length,
+        note: "Actual collection pending relayer verification"
+      });
+    } catch (error: any) {
+      console.error("Fee collection error:", error);
+      res.status(500).json({ error: error.message || "Failed to collect fees" });
+    }
+  });
+
+  // Get pending fees for a wallet
+  app.get("/api/fees/pending/:safeAddress", async (req, res) => {
+    try {
+      const { safeAddress } = req.params;
+      
+      if (!safeAddress) {
+        return res.status(400).json({ error: "safeAddress is required" });
+      }
+      
+      const pendingFees = await storage.getPendingFeesForWallet(safeAddress);
+      const totalPending = pendingFees.reduce((sum, fee) => sum + parseFloat(fee.feeAmountUsdc), 0);
+      
+      res.json({
+        safeAddress,
+        pendingFees: pendingFees.length,
+        totalPending,
+        fees: pendingFees
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to get pending fees" });
+    }
+  });
+
   // ============ Builder Volume Routes (Admin) ============
 
   // Get builder volume statistics from Polymarket

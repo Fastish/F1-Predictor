@@ -144,14 +144,26 @@ Preferred communication style: Simple, everyday language.
   - Fees are recorded with status `pending_collection` when order is placed (no immediate on-chain transfer)
   - This eliminates the need for a second signature during order placement
   - Actual fee collection from trade proceeds is pending implementation (TODO)
+- **Fee Authorization System**:
+  - `TradingSession` interface includes `feeAuthorizationComplete` flag to track authorization status
+  - Fee authorization is implicit during trading session initialization (after USDC/CTF approvals)
+  - `useTradingSession` hook exposes:
+    - `feeAuthorizationComplete`: Boolean indicating if user has authorized fee collection
+    - `authorizeFees()`: Function to authorize fee collection for existing sessions
+    - `collectPendingFees()`: Function to trigger server-side fee collection
+  - Wallet modal displays "Fees Authorized" badge when authorization is complete
 - **Key Files**:
   - `server/treasurySync.ts`: Service to fetch USDC.e Transfer events from Polygon blockchain
+  - `client/src/hooks/useTradingSession.ts`: Trading session management with fee authorization
   - `shared/schema.ts`: Contains `collectedFees` (fee expectations) and `treasuryFeeTransfers` (on-chain transfers) tables
 - **Data Flow**:
   1. When order is placed, a fee expectation is recorded in `collectedFees` table with status `pending_collection`
   2. Fee collection from trade proceeds is TODO - currently fees are tracked but not enforced
   3. Admin can sync blockchain to fetch Transfer events and reconcile
 - **Reconciliation**: Compares expected fees vs actual collected to identify discrepancies
+- **API Routes**:
+  - POST /api/fees/collect - Collect pending fees for a user's Safe wallet (client-initiated)
+  - GET /api/fees/pending/:safeAddress - Get pending fees for a wallet
 - **Admin API Routes**:
   - GET /api/admin/fees/recent - Recent fee expectations (up to 50)
   - GET /api/admin/fees/stats - Fee expectation statistics
@@ -160,6 +172,7 @@ Preferred communication style: Simple, everyday language.
   - GET /api/admin/fees/reconciliation - Compare expected vs collected, show discrepancy
   - POST /api/admin/treasury/sync - Fetch USDC.e transfers from Polygon blockchain
 - **Block Sync**: Uses ethers.js getLogs to fetch ERC20 Transfer events in 2000-block batches, with cursor stored in platformConfig table
+- **TODO**: Actual fee collection via Polymarket relayer requires verification that relayer accepts non-Polymarket destination addresses. Fallback options include: user signature for direct transfer, custom relayer, or collection during withdrawal/settlement.
 
 ### Arbitrage Detection System
 - **Purpose**: Compare Polymarket prices against traditional sportsbook betting lines to identify value opportunities
