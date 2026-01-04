@@ -704,7 +704,10 @@ export function useTradingSession() {
       
       setTradingSession(updatedSession);
       saveSession(walletAddress, updatedSession);
-      console.log("[TradingSession] Fee authorization complete");
+      
+      // Transition to complete step now that fees are authorized
+      setCurrentStep("complete");
+      console.log("[TradingSession] Fee authorization complete - session now complete");
       
       return { success: true };
     } catch (error: any) {
