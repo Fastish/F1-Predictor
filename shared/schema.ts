@@ -1,5 +1,5 @@
 import { sql, relations } from "drizzle-orm";
-import { pgTable, text, varchar, integer, real, timestamp, boolean, unique } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, real, timestamp, boolean, unique, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -728,6 +728,7 @@ export const polymarketOrders = pgTable("polymarket_orders", {
   filledSize: real("filled_size").notNull().default(0), // How many shares have been filled
   status: text("status").notNull().default("pending"), // 'pending', 'open', 'filled', 'partial', 'cancelled', 'expired'
   totalCost: real("total_cost").notNull(), // Total USDC spent
+  postOrderResponse: jsonb("post_order_response"), // Store Polymarket API response for status detection
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
   lastSyncedAt: timestamp("last_synced_at"),
