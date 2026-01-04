@@ -400,10 +400,15 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
           console.warn("WARNING: Order succeeded but no orderId returned from Polymarket");
         }
         
+        // Determine order status based on response and order type
         // FOK orders fill immediately or fail - they never stay "open"
-        // GTC/GTD orders stay open until filled or cancelled
-        const orderStatus = orderType === "FOK" 
-          ? "filled"  // FOK orders that succeed are immediately filled
+        // GTC/GTD orders can also fill immediately if there's matching liquidity
+        // Check the Polymarket response status for accurate state
+        const responseStatus = result.rawResponse?.status?.toLowerCase() || "";
+        const isFilledImmediately = responseStatus === "matched" || responseStatus === "filled";
+        
+        const orderStatus = orderType === "FOK" || isFilledImmediately
+          ? "filled"  // Order was filled immediately
           : (result.orderId ? "open" : "pending");
         
         await apiRequest("POST", "/api/polymarket/record-order", {

@@ -2497,9 +2497,32 @@ export async function registerRoutes(
               } else if (updates.status === "filled") {
                 updates.filledSize = order.size;
               }
+            } else {
+              // Can't fetch order from CLOB - check if stored response shows it was filled
+              // FOK orders and orders that filled immediately may not be queryable
+              const storedResponse = order.postOrderResponse as any;
+              if (storedResponse) {
+                const responseStatus = (storedResponse.status || "").toLowerCase();
+                if (responseStatus === "matched" || responseStatus === "filled") {
+                  updates.status = "filled";
+                  updates.filledSize = order.size;
+                  console.log(`Order ${order.id} marked as filled based on stored response`);
+                }
+              }
             }
           } catch (syncError) {
             console.error(`Failed to sync order ${order.id}:`, syncError);
+          }
+        } else if (order.status === "open" || order.status === "pending") {
+          // No polymarketOrderId but marked as open/pending - check stored response
+          const storedResponse = order.postOrderResponse as any;
+          if (storedResponse) {
+            const responseStatus = (storedResponse.status || "").toLowerCase();
+            if (responseStatus === "matched" || responseStatus === "filled") {
+              updates.status = "filled";
+              updates.filledSize = order.size;
+              console.log(`Order ${order.id} marked as filled based on stored response (no polymarketOrderId)`);
+            }
           }
         }
         
