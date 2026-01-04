@@ -1403,6 +1403,11 @@ export class DatabaseStorage implements IStorage {
       .update(collectedFees)
       .set({ txHash })
       .where(eq(collectedFees.id, feeId));
+    
+    await db
+      .update(treasuryFeeTransfers)
+      .set({ matchedFeeId: feeId })
+      .where(eq(treasuryFeeTransfers.txHash, txHash));
   }
 
   async getUnmatchedExpectations(): Promise<CollectedFee[]> {

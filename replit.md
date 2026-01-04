@@ -136,20 +136,27 @@ Preferred communication style: Simple, everyday language.
 - **Workflow**: Generate draft -> Admin review in ArticleAdmin component -> Publish -> Visible on /news page
 - **Topics**: 2026 predictions, team comparisons, driver championship analysis, betting insights, regulations impact
 
-### Fee Tracking System
+### Fee Tracking System (Treasury Monitoring)
 - **Purpose**: Track platform fees (2%) on all trades through Polymarket
-- **Fee Collection**:
-  - **FOK Orders**: Fees are collected immediately upon successful order execution via USDC transfer
-  - **GTC/GTD Limit Orders**: Fees are recorded as "pending_fill" and need manual confirmation when filled
-- **Fee Statuses**: confirmed, pending_fill, pending, failed, cancelled
-- **API Limitation**: The Polymarket CLOB API only shows orders to the authenticated API key holder. Since user orders are placed through Safe wallets (not the builder), automatic status sync cannot check user order status.
-- **Manual Controls**: Admins can manually confirm or cancel pending_fill fees via the admin panel
+- **Architecture**: Uses on-chain treasury wallet monitoring instead of manual status tracking
+- **Treasury Address**: 0xb600979a5EF3ebA5302DE667d47c9F9A73a983b8
+- **Key Files**:
+  - `server/treasurySync.ts`: Service to fetch USDC.e Transfer events from Polygon blockchain
+  - `shared/schema.ts`: Contains `collectedFees` (fee expectations) and `treasuryFeeTransfers` (on-chain transfers) tables
+- **Data Flow**:
+  1. When order is placed, a fee expectation is recorded in `collectedFees` table
+  2. Fee is transferred on-chain to treasury wallet during order execution
+  3. Admin clicks "Sync Blockchain" to fetch Transfer events from Polygon
+  4. System matches transfers to expectations for reconciliation
+- **Reconciliation**: Compares expected fees vs actual collected to identify discrepancies
 - **Admin API Routes**:
-  - GET /api/admin/fees/recent - Recent fee records (up to 50)
-  - GET /api/admin/fees/stats - Fee statistics
-  - GET /api/admin/fees/pending-fill - Pending fill fees only
-  - POST /api/admin/fees/sync - Attempt automatic sync (limited due to API constraints)
-  - PATCH /api/admin/fees/:id/status - Manual status update (confirmed, cancelled, etc.)
+  - GET /api/admin/fees/recent - Recent fee expectations (up to 50)
+  - GET /api/admin/fees/stats - Fee expectation statistics
+  - GET /api/admin/treasury/summary - Total collected, transfer count from on-chain data
+  - GET /api/admin/treasury/transfers - Recent on-chain transfers to treasury
+  - GET /api/admin/fees/reconciliation - Compare expected vs collected, show discrepancy
+  - POST /api/admin/treasury/sync - Fetch USDC.e transfers from Polygon blockchain
+- **Block Sync**: Uses ethers.js getLogs to fetch ERC20 Transfer events in 2000-block batches, with cursor stored in platformConfig table
 
 ### Arbitrage Detection System
 - **Purpose**: Compare Polymarket prices against traditional sportsbook betting lines to identify value opportunities

@@ -23,6 +23,8 @@ interface SyncResult {
   totalCollected: number;
   fromBlock: number;
   toBlock: number;
+  matched: number;
+  unmatchedTransfers: number;
   error?: string;
 }
 
@@ -51,6 +53,7 @@ export async function syncTreasuryTransfers(): Promise<SyncResult> {
 
     if (fromBlock > currentBlock) {
       const summary = await storage.getTreasurySummary();
+      const matchResult = await matchTransfersToExpectations();
       return {
         success: true,
         newTransfers: 0,
@@ -58,6 +61,8 @@ export async function syncTreasuryTransfers(): Promise<SyncResult> {
         totalCollected: summary.totalCollected,
         fromBlock,
         toBlock: currentBlock,
+        matched: matchResult.matched,
+        unmatchedTransfers: matchResult.unmatched,
       };
     }
 
@@ -109,9 +114,10 @@ export async function syncTreasuryTransfers(): Promise<SyncResult> {
 
     await storage.setConfig("treasury_last_synced_block", currentBlock.toString());
 
+    const matchResult = await matchTransfersToExpectations();
     const summary = await storage.getTreasurySummary();
     
-    console.log(`[TreasurySync] Complete. New: ${newTransfers}, Total: ${summary.transferCount}, Collected: $${summary.totalCollected.toFixed(4)}`);
+    console.log(`[TreasurySync] Complete. New: ${newTransfers}, Total: ${summary.transferCount}, Collected: $${summary.totalCollected.toFixed(4)}, Matched: ${matchResult.matched}`);
 
     return {
       success: true,
@@ -120,6 +126,8 @@ export async function syncTreasuryTransfers(): Promise<SyncResult> {
       totalCollected: summary.totalCollected,
       fromBlock,
       toBlock: currentBlock,
+      matched: matchResult.matched,
+      unmatchedTransfers: matchResult.unmatched,
     };
   } catch (error: any) {
     console.error("[TreasurySync] Failed:", error);
@@ -130,6 +138,8 @@ export async function syncTreasuryTransfers(): Promise<SyncResult> {
       totalCollected: 0,
       fromBlock: 0,
       toBlock: 0,
+      matched: 0,
+      unmatchedTransfers: 0,
       error: error.message,
     };
   }
@@ -140,22 +150,49 @@ export async function matchTransfersToExpectations(): Promise<{ matched: number;
   const unmatchedExpectations = await storage.getUnmatchedExpectations();
   
   let matched = 0;
+  const matchedExpectationIds = new Set<string>();
+  const matchedTransferHashes = new Set<string>();
   
   for (const transfer of unmatchedTransfers) {
+    if (matchedTransferHashes.has(transfer.txHash)) continue;
+    
+    let bestMatch: { id: string; score: number } | null = null;
+    
     for (const expectation of unmatchedExpectations) {
-      if (expectation.txHash) continue;
+      if (matchedExpectationIds.has(expectation.id)) continue;
       
       const amountDiff = Math.abs(transfer.amount - expectation.feeAmount);
-      const tolerance = expectation.feeAmount * 0.01;
+      const tolerance = Math.max(expectation.feeAmount * 0.05, 0.01);
       
-      if (transfer.fromAddress.toLowerCase() === expectation.walletAddress.toLowerCase() ||
-          amountDiff <= tolerance) {
-        await storage.matchFeeToTransfer(expectation.id, transfer.txHash);
-        matched++;
-        break;
+      const walletMatch = transfer.fromAddress.toLowerCase() === expectation.walletAddress.toLowerCase();
+      const amountMatch = amountDiff <= tolerance;
+      
+      let score = 0;
+      if (walletMatch && amountMatch) {
+        score = 3;
+      } else if (amountMatch && amountDiff <= expectation.feeAmount * 0.01) {
+        score = 2;
+      } else if (walletMatch && amountDiff <= expectation.feeAmount * 0.10) {
+        score = 1;
       }
+      
+      if (score > 0 && (!bestMatch || score > bestMatch.score)) {
+        bestMatch = { id: expectation.id, score };
+      }
+      
+      if (score === 3) break;
+    }
+    
+    if (bestMatch) {
+      await storage.matchFeeToTransfer(bestMatch.id, transfer.txHash);
+      matchedExpectationIds.add(bestMatch.id);
+      matchedTransferHashes.add(transfer.txHash);
+      matched++;
+      console.log(`[Match] Transfer ${transfer.txHash.slice(0, 10)}... matched to fee ${bestMatch.id} (score: ${bestMatch.score})`);
     }
   }
   
-  return { matched, unmatched: unmatchedTransfers.length - matched };
+  const remainingUnmatched = unmatchedTransfers.length - matchedTransferHashes.size;
+  console.log(`[Matching] Matched: ${matched}, Unmatched transfers: ${remainingUnmatched}`);
+  return { matched, unmatched: remainingUnmatched };
 }
