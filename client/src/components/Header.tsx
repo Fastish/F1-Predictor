@@ -146,21 +146,11 @@ export function Header() {
                       variant="ghost" 
                       size="sm" 
                       className="justify-start"
-                      onClick={() => setDepositOpen(true)}
+                      onClick={() => setSwapOpen(true)}
                       data-testid="button-header-deposit-withdraw"
                     >
                       <ArrowDownLeft className="h-4 w-4 mr-2" />
                       Deposit / Withdraw
-                    </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      className="justify-start"
-                      onClick={() => setSwapOpen(true)}
-                      data-testid="button-header-swap-usdc"
-                    >
-                      <RefreshCw className="h-4 w-4 mr-2" />
-                      Swap USDC
                     </Button>
                   </div>
                 </PopoverContent>
