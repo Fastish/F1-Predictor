@@ -2440,49 +2440,71 @@ export async function registerRoutes(
       const { getOrderStatus } = await import("./polymarket");
       const orders = await storage.getPolymarketOrdersByUser(userId);
       
+      // Cache for market names to avoid redundant API calls
+      const marketNameCache: Record<string, string> = {};
+      
+      // Helper to fetch market name from Polymarket data API
+      async function fetchMarketName(tokenId: string): Promise<string | null> {
+        if (marketNameCache[tokenId]) return marketNameCache[tokenId];
+        try {
+          const response = await fetch(`https://gamma-api.polymarket.com/markets?clob_token_ids=${tokenId}`);
+          if (response.ok) {
+            const markets = await response.json();
+            if (markets && markets.length > 0) {
+              // Use question (market title) for the name
+              const marketName = markets[0].question || markets[0].title || null;
+              if (marketName) {
+                marketNameCache[tokenId] = marketName;
+                return marketName;
+              }
+            }
+          }
+        } catch (e) {
+          console.error(`Failed to fetch market name for ${tokenId}:`, e);
+        }
+        return null;
+      }
+      
       const syncedOrders = [];
       for (const order of orders) {
+        const updates: any = { lastSyncedAt: new Date() };
+        
+        // Check if marketName needs updating (missing or set to generic values)
+        const needsMarketName = !order.marketName || 
+          order.marketName === "Yes" || 
+          order.marketName === "No" ||
+          order.marketName === "Unknown Market";
+        
+        if (needsMarketName && order.tokenId) {
+          const fetchedName = await fetchMarketName(order.tokenId);
+          if (fetchedName) {
+            updates.marketName = fetchedName;
+            console.log(`Updated market name for order ${order.id}: ${fetchedName}`);
+          }
+        }
+        
         // If order has polymarketOrderId, fetch its status from CLOB
         if (order.polymarketOrderId) {
           try {
             const clobOrder = await getOrderStatus(order.polymarketOrderId);
             if (clobOrder) {
               // Use the normalized status from getOrderStatus
-              const newStatus = clobOrder.normalizedStatus || order.status;
+              updates.status = clobOrder.normalizedStatus || order.status;
               
               // Determine filled size
-              let filledSize = 0;
               if (clobOrder.sizeMatched !== undefined) {
-                filledSize = parseFloat(clobOrder.sizeMatched) || 0;
-              } else if (newStatus === "filled") {
-                filledSize = order.size;
+                updates.filledSize = parseFloat(clobOrder.sizeMatched) || 0;
+              } else if (updates.status === "filled") {
+                updates.filledSize = order.size;
               }
-
-              const updated = await storage.updatePolymarketOrder(order.id, {
-                status: newStatus,
-                filledSize: filledSize,
-                lastSyncedAt: new Date()
-              });
-              if (updated) syncedOrders.push(updated);
-            } else {
-              // Could not fetch order status, just update lastSyncedAt
-              const updated = await storage.updatePolymarketOrder(order.id, {
-                lastSyncedAt: new Date()
-              });
-              if (updated) syncedOrders.push(updated);
             }
           } catch (syncError) {
             console.error(`Failed to sync order ${order.id}:`, syncError);
-            // Continue with next order
-            syncedOrders.push(order);
           }
-        } else {
-          // No Polymarket order ID, just update lastSyncedAt
-          const updated = await storage.updatePolymarketOrder(order.id, {
-            lastSyncedAt: new Date()
-          });
-          if (updated) syncedOrders.push(updated);
         }
+        
+        const updated = await storage.updatePolymarketOrder(order.id, updates);
+        if (updated) syncedOrders.push(updated);
       }
 
       res.json({
