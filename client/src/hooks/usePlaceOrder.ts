@@ -166,21 +166,13 @@ export function usePlaceOrder(
           const roundedCost = Math.floor(intendedCost * 100) / 100;
           
           // CRITICAL FIX: To ensure size * price = exact 2-decimal result,
-          // we need to find a size that, when multiplied by price, gives exactly roundedCost.
-          // For prices like 0.03, fractional sizes create precision issues (39.33 * 0.03 = 1.1799)
-          // Solution: Round size to whole number to guarantee clean multiplication
+          // we MUST use integer sizes. Fractional sizes cause precision issues:
+          // e.g., 8.82 * 0.17 = 1.4994 (4 decimals) but Polymarket requires max 2 decimals
+          // Integer sizes guarantee clean multiplication: 8 * 0.17 = 1.36 (exactly 2 decimals)
           const derivedSize = roundedCost / roundedPrice;
           
-          // Round to nearest integer for low prices, otherwise round to fewer decimals
-          // This ensures size * price stays at 2 decimal precision
-          let roundedSize: number;
-          if (roundedPrice < 0.10) {
-            // For very low prices, use integer sizes to avoid precision issues
-            roundedSize = Math.floor(derivedSize);
-          } else {
-            // For higher prices, 2 decimals on size is usually safe
-            roundedSize = Math.floor(derivedSize * 100) / 100;
-          }
+          // ALWAYS use integer sizes for FOK orders to guarantee 2-decimal cost
+          const roundedSize = Math.floor(derivedSize);
           
           // Recalculate the actual cost with rounded size
           // Use integer math to avoid floating point issues: (size * 100) * (price * 100) / 10000
