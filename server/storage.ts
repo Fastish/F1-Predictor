@@ -1405,6 +1405,9 @@ export class DatabaseStorage implements IStorage {
     const updates: any = { status };
     if (txHash) {
       updates.txHash = txHash;
+    }
+    // Set confirmedAt when status is "confirmed"
+    if (status === "confirmed") {
       updates.confirmedAt = new Date();
     }
     await db

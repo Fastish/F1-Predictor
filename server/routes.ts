@@ -3464,6 +3464,91 @@ export async function registerRoutes(
     }
   });
 
+  // Sync pending_fill fee records with Polymarket order status
+  app.post("/api/admin/fees/sync", requireAdmin, async (req, res) => {
+    try {
+      const { getOrderStatus } = await import("./polymarket");
+      
+      // Get all pending_fill fees with polymarketOrderId
+      const pendingFees = await storage.getPendingFillFees();
+      
+      const results = {
+        checked: 0,
+        confirmed: 0,
+        cancelled: 0,
+        stillPending: 0,
+        errors: 0,
+        details: [] as { id: string; orderId: string; oldStatus: string; newStatus: string; error?: string }[]
+      };
+      
+      for (const fee of pendingFees) {
+        if (!fee.polymarketOrderId) continue;
+        
+        results.checked++;
+        
+        try {
+          const orderStatus = await getOrderStatus(fee.polymarketOrderId);
+          
+          if (!orderStatus) {
+            results.errors++;
+            results.details.push({
+              id: fee.id,
+              orderId: fee.polymarketOrderId,
+              oldStatus: fee.status,
+              newStatus: fee.status,
+              error: "Could not fetch order status"
+            });
+            continue;
+          }
+          
+          const normalizedStatus = orderStatus.normalizedStatus;
+          
+          if (normalizedStatus === "filled") {
+            await storage.updateFeeStatus(fee.id, "confirmed");
+            results.confirmed++;
+            results.details.push({
+              id: fee.id,
+              orderId: fee.polymarketOrderId,
+              oldStatus: fee.status,
+              newStatus: "confirmed"
+            });
+          } else if (normalizedStatus === "cancelled" || normalizedStatus === "expired") {
+            await storage.updateFeeStatus(fee.id, "cancelled");
+            results.cancelled++;
+            results.details.push({
+              id: fee.id,
+              orderId: fee.polymarketOrderId,
+              oldStatus: fee.status,
+              newStatus: "cancelled"
+            });
+          } else {
+            results.stillPending++;
+            results.details.push({
+              id: fee.id,
+              orderId: fee.polymarketOrderId,
+              oldStatus: fee.status,
+              newStatus: fee.status
+            });
+          }
+        } catch (err: any) {
+          results.errors++;
+          results.details.push({
+            id: fee.id,
+            orderId: fee.polymarketOrderId,
+            oldStatus: fee.status,
+            newStatus: fee.status,
+            error: err.message
+          });
+        }
+      }
+      
+      res.json(results);
+    } catch (error: any) {
+      console.error("Failed to sync fee statuses:", error);
+      res.status(500).json({ error: error.message || "Failed to sync fee statuses" });
+    }
+  });
+
   // ============ Builder Volume Routes (Admin) ============
 
   // Get builder volume statistics from Polymarket
