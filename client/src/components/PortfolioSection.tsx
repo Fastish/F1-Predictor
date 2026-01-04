@@ -120,17 +120,28 @@ function PortfolioChart({
     return historyData.map((point) => ({
       time: format(new Date(point.recordedAt), period === "1D" ? "h:mm a" : "MMM d"),
       value: point.totalValue,
+      pnl: point.totalPnl,
+      positionsValue: point.positionsValue,
     }));
   }, [historyData, period]);
 
   const hasHistory = chartData.length >= 2;
   
+  // Calculate P/L from positions only (excludes deposits/withdrawals)
+  // Use the change in totalPnl OR positionsValue minus cost basis
   const periodChange = useMemo(() => {
     if (!hasHistory) return { change: 0, percent: 0 };
-    const first = chartData[0].value;
-    const last = chartData[chartData.length - 1].value;
-    const change = last - first;
-    const percent = first > 0 ? (change / first) * 100 : 0;
+    
+    // Use the actual P/L field from history, not total value changes
+    // This ensures deposits don't appear as profit
+    const firstPnl = chartData[0].pnl || 0;
+    const lastPnl = chartData[chartData.length - 1].pnl || 0;
+    const change = lastPnl - firstPnl;
+    
+    // Calculate percent based on positions value at start of period
+    const firstPositionsValue = chartData[0].positionsValue || 0;
+    const percent = firstPositionsValue > 0 ? (change / firstPositionsValue) * 100 : 0;
+    
     return { change, percent };
   }, [chartData, hasHistory]);
 

@@ -428,9 +428,11 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
 
         // Record expected fee for later collection (deferred fee model - no upfront signature)
         // Fees will be collected from trade proceeds when order fills
-        if (feePercentage > 0 && feeAmount > 0 && walletAddress) {
+        // IMPORTANT: Use Safe address (tradingWallet.address) because fees are collected from Safe
+        const feeWalletAddress = tradingWallet.address || walletAddress;
+        if (feePercentage > 0 && feeAmount > 0 && feeWalletAddress) {
           await apiRequest("POST", "/api/fees/record", {
-            walletAddress,
+            walletAddress: feeWalletAddress,
             orderType: "buy",
             marketName: outcome.name,
             tokenId: selectedTokenId,
@@ -684,9 +686,11 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
 
         // Record expected fee for later collection (deferred fee model - no upfront signature)
         // Fees will be collected from trade proceeds when order fills
-        if (sellFeeAmount > 0 && walletAddress) {
+        // IMPORTANT: Use Safe address (tradingWallet.address) because fees are collected from Safe
+        const sellFeeWalletAddress = tradingWallet.address || walletAddress;
+        if (sellFeeAmount > 0 && sellFeeWalletAddress) {
           await apiRequest("POST", "/api/fees/record", {
-            walletAddress,
+            walletAddress: sellFeeWalletAddress,
             orderType: "sell",
             marketName: outcome.name,
             tokenId: position.tokenId,
