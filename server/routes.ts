@@ -3346,10 +3346,10 @@ export async function registerRoutes(
     }
   });
 
-  // Record a collected fee
+  // Record a fee expectation (when order is placed)
   app.post("/api/fees/record", async (req, res) => {
     try {
-      const { walletAddress, orderType, marketName, tokenId, polymarketOrderId, orderAmount, feePercentage, feeAmount, txHash, status } = req.body;
+      const { walletAddress, orderType, marketName, tokenId, polymarketOrderId, orderAmount, feePercentage, feeAmount, txHash } = req.body;
       
       if (!walletAddress || !orderType || !orderAmount || feePercentage === undefined || !feeAmount) {
         return res.status(400).json({ error: "Missing required fields" });
@@ -3365,7 +3365,6 @@ export async function registerRoutes(
         feePercentage,
         feeAmount,
         txHash,
-        status: status || (txHash ? "confirmed" : "pending"),
       });
       
       res.json({ success: true, feeId: fee.id });
@@ -3374,86 +3373,7 @@ export async function registerRoutes(
     }
   });
 
-  // Update fee status (confirm transaction)
-  app.patch("/api/fees/:feeId/confirm", async (req, res) => {
-    try {
-      const { feeId } = req.params;
-      const { txHash } = req.body;
-      
-      await storage.confirmCollectedFee(feeId, txHash);
-      
-      res.json({ success: true });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message || "Failed to confirm fee" });
-    }
-  });
-
-  // Cancel a pending fee (when limit order is cancelled)
-  app.patch("/api/fees/cancel-by-order/:orderId", async (req, res) => {
-    try {
-      const { orderId } = req.params;
-      
-      const fee = await storage.getFeeByOrderId(orderId);
-      if (!fee) {
-        return res.status(404).json({ error: "Fee not found for this order" });
-      }
-      
-      if (fee.status !== "pending_fill") {
-        return res.status(400).json({ error: "Fee is not in pending_fill status" });
-      }
-      
-      await storage.updateFeeStatus(fee.id, "cancelled");
-      
-      res.json({ success: true, message: "Fee cancelled" });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message || "Failed to cancel fee" });
-    }
-  });
-
-  // Confirm a pending fee (when limit order is filled) - used by frontend after successful transfer
-  app.patch("/api/fees/confirm-by-order/:orderId", async (req, res) => {
-    try {
-      const { orderId } = req.params;
-      const { txHash } = req.body;
-      
-      const fee = await storage.getFeeByOrderId(orderId);
-      if (!fee) {
-        return res.status(404).json({ error: "Fee not found for this order" });
-      }
-      
-      if (fee.status !== "pending_fill") {
-        return res.status(400).json({ error: "Fee is not in pending_fill status" });
-      }
-      
-      await storage.updateFeeStatus(fee.id, "confirmed", txHash);
-      
-      res.json({ success: true, message: "Fee confirmed", feeId: fee.id });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message || "Failed to confirm fee" });
-    }
-  });
-
-  // Get pending fill fees (for admin monitoring)
-  app.get("/api/admin/fees/pending-fill", requireAdmin, async (req, res) => {
-    try {
-      const fees = await storage.getPendingFillFees();
-      res.json(fees);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message || "Failed to get pending fees" });
-    }
-  });
-
-  // Get fee statistics (admin)
-  app.get("/api/admin/fees/stats", requireAdmin, async (req, res) => {
-    try {
-      const stats = await storage.getFeeStats();
-      res.json(stats);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message || "Failed to get fee stats" });
-    }
-  });
-
-  // Get recent fees (admin)
+  // Get recent fee expectations (admin)
   app.get("/api/admin/fees/recent", requireAdmin, async (req, res) => {
     try {
       const limit = parseInt(req.query.limit as string) || 50;
@@ -3464,122 +3384,86 @@ export async function registerRoutes(
     }
   });
 
-  // Sync pending_fill fee records with Polymarket order status
-  app.post("/api/admin/fees/sync", requireAdmin, async (req, res) => {
+  // Get fee expectation stats (admin)
+  app.get("/api/admin/fees/stats", requireAdmin, async (req, res) => {
     try {
-      const { getOrderStatus } = await import("./polymarket");
-      
-      // Get all pending_fill fees with polymarketOrderId
-      const pendingFees = await storage.getPendingFillFees();
-      console.log(`[Fee Sync] Found ${pendingFees.length} pending fees to check`);
-      
-      const results = {
-        checked: 0,
-        confirmed: 0,
-        cancelled: 0,
-        stillPending: 0,
-        noOrderId: 0,
-        errors: 0,
-        details: [] as { id: string; orderId: string | null; oldStatus: string; newStatus: string; error?: string }[]
-      };
-      
-      for (const fee of pendingFees) {
-        if (!fee.polymarketOrderId) {
-          results.noOrderId++;
-          results.details.push({
-            id: fee.id,
-            orderId: null,
-            oldStatus: fee.status,
-            newStatus: fee.status,
-            error: "No Polymarket order ID recorded"
-          });
-          continue;
-        }
-        
-        results.checked++;
-        
-        try {
-          const orderStatus = await getOrderStatus(fee.polymarketOrderId);
-          console.log(`[Fee Sync] Order ${fee.polymarketOrderId}: raw status=${orderStatus?.status}, normalized=${orderStatus?.normalizedStatus}`);
-          
-          if (!orderStatus) {
-            results.errors++;
-            results.details.push({
-              id: fee.id,
-              orderId: fee.polymarketOrderId,
-              oldStatus: fee.status,
-              newStatus: fee.status,
-              error: "Could not fetch order status"
-            });
-            continue;
-          }
-          
-          const normalizedStatus = orderStatus.normalizedStatus;
-          
-          // Treat filled and partial fills as confirmed - partial fills still represent executed trades
-          if (normalizedStatus === "filled" || normalizedStatus === "partial") {
-            await storage.updateFeeStatus(fee.id, "confirmed");
-            results.confirmed++;
-            results.details.push({
-              id: fee.id,
-              orderId: fee.polymarketOrderId,
-              oldStatus: fee.status,
-              newStatus: "confirmed"
-            });
-          } else if (normalizedStatus === "cancelled" || normalizedStatus === "expired") {
-            await storage.updateFeeStatus(fee.id, "cancelled");
-            results.cancelled++;
-            results.details.push({
-              id: fee.id,
-              orderId: fee.polymarketOrderId,
-              oldStatus: fee.status,
-              newStatus: "cancelled"
-            });
-          } else {
-            results.stillPending++;
-            results.details.push({
-              id: fee.id,
-              orderId: fee.polymarketOrderId,
-              oldStatus: fee.status,
-              newStatus: fee.status
-            });
-          }
-        } catch (err: any) {
-          results.errors++;
-          results.details.push({
-            id: fee.id,
-            orderId: fee.polymarketOrderId,
-            oldStatus: fee.status,
-            newStatus: fee.status,
-            error: err.message
-          });
-        }
-      }
-      
-      res.json(results);
+      const stats = await storage.getFeeExpectationStats();
+      res.json(stats);
     } catch (error: any) {
-      console.error("Failed to sync fee statuses:", error);
-      res.status(500).json({ error: error.message || "Failed to sync fee statuses" });
+      res.status(500).json({ error: error.message || "Failed to get fee stats" });
     }
   });
 
-  // Manually update a single fee record status (admin)
-  app.patch("/api/admin/fees/:id/status", requireAdmin, async (req, res) => {
+  // Get treasury summary (on-chain collected fees)
+  app.get("/api/admin/treasury/summary", requireAdmin, async (req, res) => {
     try {
-      const { id } = req.params;
-      const { status } = req.body;
-      
-      if (!status || !["confirmed", "cancelled", "pending_fill", "pending", "failed"].includes(status)) {
-        return res.status(400).json({ error: "Invalid status. Must be: confirmed, cancelled, pending_fill, pending, or failed" });
-      }
-      
-      await storage.updateFeeStatus(id, status);
-      console.log(`[Fee Manual Update] Fee ${id} status updated to ${status}`);
-      
-      res.json({ success: true, id, newStatus: status });
+      const summary = await storage.getTreasurySummary();
+      const treasuryAddress = await storage.getConfig("treasury_address");
+      res.json({ ...summary, treasuryAddress });
     } catch (error: any) {
-      console.error("Failed to update fee status:", error);
-      res.status(500).json({ error: error.message || "Failed to update fee status" });
+      res.status(500).json({ error: error.message || "Failed to get treasury summary" });
+    }
+  });
+
+  // Get recent treasury transfers
+  app.get("/api/admin/treasury/transfers", requireAdmin, async (req, res) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 50;
+      const transfers = await storage.getTreasuryTransfers(limit);
+      res.json(transfers);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to get treasury transfers" });
+    }
+  });
+
+  // Get reconciliation data (compare expected vs actual)
+  app.get("/api/admin/fees/reconciliation", requireAdmin, async (req, res) => {
+    try {
+      const expectationStats = await storage.getFeeExpectationStats();
+      const treasurySummary = await storage.getTreasurySummary();
+      const unmatchedExpectations = await storage.getUnmatchedExpectations();
+      const unmatchedTransfers = await storage.getUnmatchedTransfers();
+      
+      const discrepancy = expectationStats.totalExpectedFees - treasurySummary.totalCollected;
+      
+      res.json({
+        expected: expectationStats,
+        collected: treasurySummary,
+        discrepancy: {
+          amount: discrepancy,
+          percentage: expectationStats.totalExpectedFees > 0 
+            ? (discrepancy / expectationStats.totalExpectedFees * 100).toFixed(2) 
+            : "0.00",
+        },
+        unmatched: {
+          expectationCount: unmatchedExpectations.length,
+          transferCount: unmatchedTransfers.length,
+        },
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to get reconciliation data" });
+    }
+  });
+
+  // Sync treasury wallet transfers from blockchain
+  app.post("/api/admin/treasury/sync", requireAdmin, async (req, res) => {
+    try {
+      const { syncTreasuryTransfers } = await import("./treasurySync");
+      const result = await syncTreasuryTransfers();
+      res.json(result);
+    } catch (error: any) {
+      console.error("Failed to sync treasury transfers:", error);
+      res.status(500).json({ error: error.message || "Failed to sync treasury transfers" });
+    }
+  });
+
+  // Get unmatched expectations (fees without corresponding treasury transfers)
+  app.get("/api/admin/fees/unmatched", requireAdmin, async (req, res) => {
+    try {
+      const unmatched = await storage.getUnmatchedExpectations();
+      res.json(unmatched);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to get unmatched fees" });
     }
   });
 
