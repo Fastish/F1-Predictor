@@ -1025,14 +1025,20 @@ export async function executeRelayerTransaction(
       value: normalizeTransactionValue(tx.value),
     }));
     
-    // For Safe wallets, use the EOA as owner (required by Polymarket's relayer)
-    // For proxy wallets, use the wallet address directly
+    // For Safe wallets:
+    // - 'owner' = the EOA that controls the Safe (used for authentication/signing)
+    // - 'from' = the Safe address itself (where transactions execute from)
+    // For proxy wallets, both are the wallet address directly
     const owner = walletType === "safe" && ownerAddress ? ownerAddress : walletAddress;
+    const from = walletAddress;  // Always the wallet that transactions execute from
     
-    // IMPORTANT: The Polymarket relayer requires a 'type' field to specify wallet type
-    // Valid values: "safe" for Gnosis Safe wallets, "proxy" for Magic Link proxy wallets
+    // IMPORTANT: The Polymarket relayer requires:
+    // - 'type' field to specify wallet type ("safe" or "proxy")
+    // - 'from' field to specify the executing wallet address
+    // - 'owner' field for authentication/signing
     const body = {
       owner,
+      from,  // Required by relayer - the wallet executing the transactions
       type: walletType,  // Required by relayer - "safe" or "proxy"
       transactions: normalizedTransactions,
       description,
@@ -1081,9 +1087,10 @@ export async function deployRelayerWallet(
     // For Safe wallets, use the EOA as owner (the Safe is derived from the EOA)
     const owner = walletType === "safe" && ownerAddress ? ownerAddress : walletAddress;
     
-    // IMPORTANT: The Polymarket relayer requires a 'type' field to specify wallet type
+    // IMPORTANT: The Polymarket relayer requires type and from fields
     const body = {
       owner,
+      from: walletAddress,  // Required by relayer - the wallet to deploy/execute from
       type: walletType,  // Required by relayer - "safe" or "proxy"
     };
     
