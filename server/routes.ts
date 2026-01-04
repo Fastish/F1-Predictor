@@ -3494,7 +3494,7 @@ export async function registerRoutes(
       }
       
       // Calculate total pending fees
-      const totalPending = pendingFees.reduce((sum, fee) => sum + parseFloat(fee.feeAmountUsdc), 0);
+      const totalPending = pendingFees.reduce((sum, fee) => sum + (fee.feeAmount || 0), 0);
       
       // NOTE: Fee collection via Polymarket relayer is pending verification
       // The relayer may only support transfers to Polymarket-controlled addresses
@@ -3530,7 +3530,7 @@ export async function registerRoutes(
       }
       
       const pendingFees = await storage.getPendingFeesForWallet(safeAddress);
-      const totalPending = pendingFees.reduce((sum, fee) => sum + parseFloat(fee.feeAmountUsdc), 0);
+      const totalPending = pendingFees.reduce((sum, fee) => sum + (fee.feeAmount || 0), 0);
       
       res.json({
         safeAddress,
