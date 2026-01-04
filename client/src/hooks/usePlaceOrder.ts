@@ -151,39 +151,33 @@ export function usePlaceOrder(
         let sdkOrderType: OrderType;
         
         if (isFOK) {
-          // FOK orders use createMarketOrder which handles precision requirements internally
-          // For BUY: amount = USDC to spend, SDK calculates correct share size
-          // For SELL: amount = shares to sell
+          // FOK orders: Polymarket requires takerAmount (token size) to have max 2 decimal precision
+          // makerAmount (USDC) can have up to 5 decimal precision
+          // We use createOrder (not createMarketOrder) so we control the size precision directly
           const roundedPrice = Math.floor(params.price * 100) / 100;
           
-          // For BUY orders, calculate the USDC amount (cost) and round to 2 decimals
-          // For SELL orders, use the share size rounded to 2 decimals
-          let amount: number;
-          if (params.side === "BUY") {
-            // cost = size × price, rounded to 2 decimals
-            const rawCost = params.size * roundedPrice;
-            amount = Math.floor(rawCost * 100) / 100;
-          } else {
-            // For sells, amount = shares to sell
-            amount = Math.floor(params.size * 100) / 100;
-          }
+          // Calculate the size (token amount) with max 2 decimal precision
+          // params.size is already the share count (calculated as USDC / price in BetModal)
+          // Round to 2 decimals to meet Polymarket takerAmount requirements
+          const roundedSize = Math.floor(params.size * 100) / 100;
           
-          console.log(`FOK order: Price: ${roundedPrice}, Amount: ${amount} (${params.side === "BUY" ? "USDC" : "shares"})`);
+          console.log(`FOK order: Price: ${roundedPrice}, Size: ${roundedSize} shares (side: ${params.side})`);
           
-          const marketOrderArgs = {
+          const orderArgs = {
             tokenID: params.tokenId,
             price: roundedPrice,
             side: params.side === "BUY" ? Side.BUY : Side.SELL,
-            amount: amount,
+            size: roundedSize,
           };
           
-          // Use createMarketOrder for FOK orders - it handles precision correctly
-          signedOrder = await clobClient.createMarketOrder(marketOrderArgs);
+          // Use createOrder for FOK orders with manually controlled precision
+          signedOrder = await clobClient.createOrder(orderArgs);
           sdkOrderType = OrderType.FOK;
         } else {
-          // GTC/GTD use standard createOrder with flexible precision
+          // GTC/GTD use standard createOrder
+          // Polymarket requires: makerAmount (USDC) max 5 decimals, takerAmount (tokens) max 2 decimals
           const roundedPrice = Math.floor(params.price * 10000) / 10000;
-          const roundedSize = Math.floor(params.size * 10000) / 10000;
+          const roundedSize = Math.floor(params.size * 100) / 100; // Max 2 decimals for token size
           
           // For GTD orders, include expiration timestamp
           // Must add 60 second buffer per Polymarket security threshold
