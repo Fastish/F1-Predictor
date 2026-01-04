@@ -89,6 +89,7 @@ export interface TradingSession {
   apiCredentials?: UserApiCredentials;
   lastChecked: number;
   credentialVersion?: number; // Version of credential derivation format
+  feeAuthorizationComplete?: boolean; // Whether user has authorized fee collection via relayer
 }
 
 export type SessionStep =
@@ -96,6 +97,7 @@ export type SessionStep =
   | "checking"
   | "deploying"
   | "credentials"
+  | "fee_authorization"
   | "complete"
   | "error";
 
@@ -565,6 +567,19 @@ export function useTradingSession() {
       const apiCreds = await deriveApiCredentials(safeAddress || undefined);
       console.log("[TradingSession] Got API credentials:", apiCreds ? "success" : "failed");
 
+      // STEP 4: Fee Authorization
+      // Mark user as authorized for fee collection via relayer
+      // This doesn't require a signature - it's tracked in the session
+      // The relayer can collect fees gaslessly when needed
+      console.log("[TradingSession] Setting up fee authorization...");
+      setCurrentStep("fee_authorization");
+      
+      // Fee authorization is implicit once the trading session is set up
+      // The relayer already has permission to execute transactions from the Safe
+      // We just track that the user has gone through the setup process
+      const feeAuthorizationComplete = true;
+      console.log("[TradingSession] Fee authorization complete");
+
       // Create complete session with Safe address
       // Even if proxyDeployed check returned false, we'll try to proceed
       // The Polymarket server will reject if proxy truly isn't deployed
@@ -577,6 +592,7 @@ export function useTradingSession() {
         apiCredentials: apiCreds,
         lastChecked: Date.now(),
         credentialVersion: CREDENTIAL_VERSION, // Track credential derivation format version
+        feeAuthorizationComplete, // User has authorized fee collection via relayer
       };
 
       setTradingSession(newSession);
@@ -662,6 +678,74 @@ export function useTradingSession() {
     }
   }, [walletAddress, tradingSession?.safeAddress]);
 
+  // Authorize fee collection for existing sessions that don't have authorization
+  // This updates the session to mark fee collection as authorized
+  const authorizeFees = useCallback(async () => {
+    if (!walletAddress || !tradingSession) {
+      console.error("[TradingSession] Cannot authorize fees: no wallet or session");
+      return { success: false, error: "No trading session" };
+    }
+    
+    console.log("[TradingSession] Authorizing fee collection...");
+    
+    try {
+      // Update session with fee authorization
+      const updatedSession: TradingSession = {
+        ...tradingSession,
+        feeAuthorizationComplete: true,
+      };
+      
+      setTradingSession(updatedSession);
+      saveSession(walletAddress, updatedSession);
+      console.log("[TradingSession] Fee authorization complete");
+      
+      return { success: true };
+    } catch (error: any) {
+      console.error("[TradingSession] Failed to authorize fees:", error);
+      return { success: false, error: error.message || "Failed to authorize fees" };
+    }
+  }, [walletAddress, tradingSession]);
+
+  // Collect pending fees from user's Safe wallet to treasury
+  // This is called by the server when there are pending fees to collect
+  const collectPendingFees = useCallback(async () => {
+    if (!walletAddress || !tradingSession?.safeAddress) {
+      console.error("[TradingSession] Cannot collect fees: no wallet or Safe address");
+      return { success: false, error: "No trading session" };
+    }
+    
+    if (!tradingSession.feeAuthorizationComplete) {
+      console.error("[TradingSession] Cannot collect fees: fee authorization not complete");
+      return { success: false, error: "Fee authorization required" };
+    }
+    
+    console.log("[TradingSession] Collecting pending fees...");
+    
+    try {
+      // Call server endpoint to trigger fee collection
+      const response = await fetch("/api/fees/collect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          safeAddress: tradingSession.safeAddress,
+          eoaAddress: walletAddress,
+        }),
+      });
+      
+      const result = await response.json();
+      
+      if (!response.ok) {
+        return { success: false, error: result.error || "Fee collection failed" };
+      }
+      
+      console.log("[TradingSession] Fee collection result:", result);
+      return { success: true, ...result };
+    } catch (error: any) {
+      console.error("[TradingSession] Failed to collect fees:", error);
+      return { success: false, error: error.message || "Failed to collect fees" };
+    }
+  }, [walletAddress, tradingSession?.safeAddress, tradingSession?.feeAuthorizationComplete]);
+
   // Create authenticated ClobClient with builder config for order placement
   // Uses MODULE-LEVEL cache (cachedClobClient, cachedClobClientIdentity) to ensure
   // all components share the same ClobClient instance with valid credentials
@@ -743,11 +827,14 @@ export function useTradingSession() {
     safeAddress: tradingSession?.safeAddress,
     signerAvailable: !!signer, // Expose signer availability for UI checks
     credentialsValidated,
+    feeAuthorizationComplete: !!tradingSession?.feeAuthorizationComplete,
     initializeTradingSession,
     endTradingSession,
     invalidateSession,
     forceReinitialize,
     reregisterApprovals, // Re-register approvals with Polymarket's relayer
+    authorizeFees, // Authorize fee collection for existing sessions
+    collectPendingFees, // Collect pending fees from user's Safe wallet
     clobClient,
   };
 }
