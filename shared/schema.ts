@@ -795,30 +795,48 @@ export type PlatformConfig = typeof platformConfig.$inferSelect;
 // COLLECTED FEES - Tracks all platform fees collected
 // =====================================================
 
+// Fee expectations - records expected fees from orders (immutable records)
 export const collectedFees = pgTable("collected_fees", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   walletAddress: text("wallet_address").notNull(), // User who paid the fee
-  orderType: text("order_type").notNull(), // 'polymarket_buy', 'polymarket_sell', etc.
+  orderType: text("order_type").notNull(), // 'buy', 'sell'
   marketName: text("market_name"), // Human-readable market name
   tokenId: text("token_id"), // Polymarket token ID
-  polymarketOrderId: text("polymarket_order_id"), // For tracking limit order fills
+  polymarketOrderId: text("polymarket_order_id"), // Order ID for matching
   orderAmount: real("order_amount").notNull(), // Total order value in USDC
-  feePercentage: real("fee_percentage").notNull(), // Fee % at time of collection
-  feeAmount: real("fee_amount").notNull(), // Fee amount in USDC
-  txHash: text("tx_hash"), // Polygon transaction hash for fee transfer
-  status: text("status").notNull().default("pending"), // 'pending', 'confirmed', 'failed', 'pending_fill', 'cancelled'
+  feePercentage: real("fee_percentage").notNull(), // Fee % at time of order
+  feeAmount: real("fee_amount").notNull(), // Expected fee amount in USDC
+  txHash: text("tx_hash"), // Matched treasury transfer txHash (if matched)
   createdAt: timestamp("created_at").notNull().defaultNow(),
-  confirmedAt: timestamp("confirmed_at"),
+});
+
+// Treasury fee transfers - on-chain USDC.e transfers to treasury wallet
+export const treasuryFeeTransfers = pgTable("treasury_fee_transfers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  txHash: text("tx_hash").notNull().unique(), // Polygon transaction hash
+  logIndex: integer("log_index").notNull(), // Log index within transaction
+  blockNumber: integer("block_number").notNull(),
+  fromAddress: text("from_address").notNull(), // Safe wallet that sent the fee
+  amount: real("amount").notNull(), // Fee amount in USDC.e (6 decimals normalized)
+  matchedFeeId: varchar("matched_fee_id").references(() => collectedFees.id), // Matched expectation
+  observedAt: timestamp("observed_at").notNull().defaultNow(),
 });
 
 export const insertCollectedFeeSchema = createInsertSchema(collectedFees).omit({
   id: true,
   createdAt: true,
-  confirmedAt: true,
 });
 
 export type InsertCollectedFee = z.infer<typeof insertCollectedFeeSchema>;
 export type CollectedFee = typeof collectedFees.$inferSelect;
+
+export const insertTreasuryFeeTransferSchema = createInsertSchema(treasuryFeeTransfers).omit({
+  id: true,
+  observedAt: true,
+});
+
+export type InsertTreasuryFeeTransfer = z.infer<typeof insertTreasuryFeeTransferSchema>;
+export type TreasuryFeeTransfer = typeof treasuryFeeTransfers.$inferSelect;
 
 // Fee configuration request schema
 export const updateFeeConfigSchema = z.object({
@@ -828,7 +846,7 @@ export const updateFeeConfigSchema = z.object({
 
 export type UpdateFeeConfigRequest = z.infer<typeof updateFeeConfigSchema>;
 
-// Fee collection request schema
+// Fee collection request schema (simplified - no status field)
 export const recordFeeSchema = z.object({
   walletAddress: z.string(),
   orderType: z.string(),
@@ -839,7 +857,6 @@ export const recordFeeSchema = z.object({
   feePercentage: z.number(),
   feeAmount: z.number(),
   txHash: z.string().optional(),
-  status: z.enum(["pending", "confirmed", "failed", "pending_fill", "cancelled"]).optional(),
 });
 
 // =====================================================

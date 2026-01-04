@@ -1,7 +1,7 @@
 import { 
   users, teams, drivers, holdings, transactions, deposits, priceHistory, seasons, payouts, markets, orderFills,
   championshipPools, championshipOutcomes, poolTrades, poolPositions, poolPayouts, zkProofs, poolPriceHistory,
-  raceMarkets, raceMarketOutcomes, polymarketOrders, portfolioHistory, platformConfig, collectedFees, marketComments, articles,
+  raceMarkets, raceMarketOutcomes, polymarketOrders, portfolioHistory, platformConfig, collectedFees, treasuryFeeTransfers, marketComments, articles,
   type User, type InsertUser, 
   type Team, type InsertTeam,
   type Driver, type InsertDriver,
@@ -25,6 +25,7 @@ import {
   type PortfolioHistory, type InsertPortfolioHistory,
   type PlatformConfig, type InsertPlatformConfig,
   type CollectedFee, type InsertCollectedFee,
+  type TreasuryFeeTransfer, type InsertTreasuryFeeTransfer,
   type MarketComment,
   type BuySharesRequest,
   type SellSharesRequest,
@@ -185,14 +186,20 @@ export interface IStorage {
   getConfig(key: string): Promise<string | null>;
   setConfig(key: string, value: string, updatedBy?: string): Promise<void>;
   
-  // Collected Fees
+  // Collected Fees (fee expectations)
   recordCollectedFee(fee: InsertCollectedFee): Promise<CollectedFee>;
-  confirmCollectedFee(feeId: string, txHash: string): Promise<void>;
   getFeeByOrderId(polymarketOrderId: string): Promise<CollectedFee | undefined>;
-  updateFeeStatus(feeId: string, status: string, txHash?: string): Promise<void>;
-  getPendingFillFees(): Promise<CollectedFee[]>;
-  getFeeStats(): Promise<{ totalFees: number; totalVolume: number; feeCount: number; avgFeePercent: number }>;
   getRecentFees(limit: number): Promise<CollectedFee[]>;
+  getFeeExpectationStats(): Promise<{ totalExpectedFees: number; totalVolume: number; feeCount: number }>;
+  matchFeeToTransfer(feeId: string, txHash: string): Promise<void>;
+  
+  // Treasury Fee Transfers (on-chain records)
+  recordTreasuryTransfer(transfer: InsertTreasuryFeeTransfer): Promise<TreasuryFeeTransfer>;
+  getTreasuryTransfers(limit: number): Promise<TreasuryFeeTransfer[]>;
+  getTreasuryTransferByTxHash(txHash: string): Promise<TreasuryFeeTransfer | undefined>;
+  getTreasurySummary(): Promise<{ totalCollected: number; transferCount: number; lastBlockNumber: number | null }>;
+  getUnmatchedExpectations(): Promise<CollectedFee[]>;
+  getUnmatchedTransfers(): Promise<TreasuryFeeTransfer[]>;
   
   // User Profiles & Comments
   getUserProfile(walletAddress: string): Promise<{ walletAddress: string; displayName: string | null } | undefined>;
@@ -1352,37 +1359,11 @@ export class DatabaseStorage implements IStorage {
       });
   }
 
-  // ============ Collected Fees ============
+  // ============ Collected Fees (Fee Expectations) ============
 
   async recordCollectedFee(fee: InsertCollectedFee): Promise<CollectedFee> {
     const [created] = await db.insert(collectedFees).values(fee).returning();
     return created;
-  }
-
-  async confirmCollectedFee(feeId: string, txHash: string): Promise<void> {
-    await db
-      .update(collectedFees)
-      .set({ status: "confirmed", txHash, confirmedAt: new Date() })
-      .where(eq(collectedFees.id, feeId));
-  }
-
-  async getFeeStats(): Promise<{ totalFees: number; totalVolume: number; feeCount: number; avgFeePercent: number }> {
-    const result = await db
-      .select({
-        totalFees: sql<number>`COALESCE(SUM(${collectedFees.feeAmount}), 0)`,
-        totalVolume: sql<number>`COALESCE(SUM(${collectedFees.orderAmount}), 0)`,
-        feeCount: sql<number>`COUNT(*)`,
-        avgFeePercent: sql<number>`COALESCE(AVG(${collectedFees.feePercentage}), 0)`,
-      })
-      .from(collectedFees)
-      .where(eq(collectedFees.status, "confirmed"));
-    
-    return {
-      totalFees: Number(result[0]?.totalFees) || 0,
-      totalVolume: Number(result[0]?.totalVolume) || 0,
-      feeCount: Number(result[0]?.feeCount) || 0,
-      avgFeePercent: Number(result[0]?.avgFeePercent) || 0,
-    };
   }
 
   async getRecentFees(limit: number): Promise<CollectedFee[]> {
@@ -1401,27 +1382,82 @@ export class DatabaseStorage implements IStorage {
     return fee;
   }
 
-  async updateFeeStatus(feeId: string, status: string, txHash?: string): Promise<void> {
-    const updates: any = { status };
-    if (txHash) {
-      updates.txHash = txHash;
-    }
-    // Set confirmedAt when status is "confirmed"
-    if (status === "confirmed") {
-      updates.confirmedAt = new Date();
-    }
+  async getFeeExpectationStats(): Promise<{ totalExpectedFees: number; totalVolume: number; feeCount: number }> {
+    const result = await db
+      .select({
+        totalExpectedFees: sql<number>`COALESCE(SUM(${collectedFees.feeAmount}), 0)`,
+        totalVolume: sql<number>`COALESCE(SUM(${collectedFees.orderAmount}), 0)`,
+        feeCount: sql<number>`COUNT(*)`,
+      })
+      .from(collectedFees);
+    
+    return {
+      totalExpectedFees: Number(result[0]?.totalExpectedFees) || 0,
+      totalVolume: Number(result[0]?.totalVolume) || 0,
+      feeCount: Number(result[0]?.feeCount) || 0,
+    };
+  }
+
+  async matchFeeToTransfer(feeId: string, txHash: string): Promise<void> {
     await db
       .update(collectedFees)
-      .set(updates)
+      .set({ txHash })
       .where(eq(collectedFees.id, feeId));
   }
 
-  async getPendingFillFees(): Promise<CollectedFee[]> {
+  async getUnmatchedExpectations(): Promise<CollectedFee[]> {
     return await db
       .select()
       .from(collectedFees)
-      .where(eq(collectedFees.status, "pending_fill"))
+      .where(sql`${collectedFees.txHash} IS NULL`)
       .orderBy(asc(collectedFees.createdAt));
+  }
+
+  // ============ Treasury Fee Transfers ============
+
+  async recordTreasuryTransfer(transfer: InsertTreasuryFeeTransfer): Promise<TreasuryFeeTransfer> {
+    const [created] = await db.insert(treasuryFeeTransfers).values(transfer).returning();
+    return created;
+  }
+
+  async getTreasuryTransfers(limit: number): Promise<TreasuryFeeTransfer[]> {
+    return await db
+      .select()
+      .from(treasuryFeeTransfers)
+      .orderBy(desc(treasuryFeeTransfers.blockNumber))
+      .limit(limit);
+  }
+
+  async getTreasuryTransferByTxHash(txHash: string): Promise<TreasuryFeeTransfer | undefined> {
+    const [transfer] = await db
+      .select()
+      .from(treasuryFeeTransfers)
+      .where(eq(treasuryFeeTransfers.txHash, txHash));
+    return transfer;
+  }
+
+  async getTreasurySummary(): Promise<{ totalCollected: number; transferCount: number; lastBlockNumber: number | null }> {
+    const result = await db
+      .select({
+        totalCollected: sql<number>`COALESCE(SUM(${treasuryFeeTransfers.amount}), 0)`,
+        transferCount: sql<number>`COUNT(*)`,
+        lastBlockNumber: sql<number>`MAX(${treasuryFeeTransfers.blockNumber})`,
+      })
+      .from(treasuryFeeTransfers);
+    
+    return {
+      totalCollected: Number(result[0]?.totalCollected) || 0,
+      transferCount: Number(result[0]?.transferCount) || 0,
+      lastBlockNumber: result[0]?.lastBlockNumber ?? null,
+    };
+  }
+
+  async getUnmatchedTransfers(): Promise<TreasuryFeeTransfer[]> {
+    return await db
+      .select()
+      .from(treasuryFeeTransfers)
+      .where(sql`${treasuryFeeTransfers.matchedFeeId} IS NULL`)
+      .orderBy(asc(treasuryFeeTransfers.blockNumber));
   }
 
   // User Profiles & Comments
