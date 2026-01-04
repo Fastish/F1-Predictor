@@ -7,6 +7,10 @@ const GAMMA_API_URL = "https://gamma-api.polymarket.com";
 const CLOB_API_URL = "https://clob.polymarket.com";
 const POLYGON_CHAIN_ID = 137;
 
+// Contract addresses for Polygon
+const USDC_E_ADDRESS = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"; // USDC.e (bridged)
+const TREASURY_ADDRESS = "0xb600979a5EF3ebA5302DE667d47c9F9A73a983b8"; // Platform fee treasury
+
 // Signature types for Polymarket
 // 0: EOA (Externally Owned Account) - direct wallet
 // 1: Email/Magic Login wallet (PolyProxy)
@@ -1105,6 +1109,61 @@ export async function deployRelayerWallet(
       error: error instanceof Error ? error.message : "Unknown error" 
     };
   }
+}
+
+// Encode ERC20 transfer function call
+function encodeERC20Transfer(to: string, amount: bigint): string {
+  // Function selector for transfer(address,uint256) = 0xa9059cbb
+  const selector = "a9059cbb";
+  
+  // Pad address to 32 bytes (remove 0x prefix, pad left)
+  const toParam = to.toLowerCase().replace("0x", "").padStart(64, "0");
+  
+  // Convert amount to hex and pad to 32 bytes
+  const amountHex = amount.toString(16).padStart(64, "0");
+  
+  // Return with 0x prefix (required by relayer)
+  return "0x" + selector + toParam + amountHex;
+}
+
+// Collect fees from a Safe wallet to the treasury via Polymarket relayer
+// Returns the transaction result or an error if the relayer rejects the transfer
+export async function collectFeesViaRelayer(
+  safeAddress: string,
+  eoaAddress: string,
+  amountUSDC: number // Amount in USDC (not wei)
+): Promise<{ success: boolean; transactionHash?: string; error?: string }> {
+  // Convert USDC amount to 6 decimal places
+  const amountWei = BigInt(Math.floor(amountUSDC * 1_000_000));
+  
+  if (amountWei <= BigInt(0)) {
+    return { success: false, error: "Amount must be greater than 0" };
+  }
+  
+  const transaction = {
+    to: USDC_E_ADDRESS,
+    data: encodeERC20Transfer(TREASURY_ADDRESS, amountWei),
+    value: "0x0",
+  };
+  
+  console.log(`[FeeCollection] Attempting to collect ${amountUSDC} USDC from ${safeAddress} to treasury`);
+  console.log(`[FeeCollection] Transaction:`, JSON.stringify(transaction, null, 2));
+  
+  const result = await executeRelayerTransaction(
+    safeAddress,
+    "safe",
+    [transaction],
+    `Collect platform fee: ${amountUSDC} USDC`,
+    eoaAddress
+  );
+  
+  if (result.success) {
+    console.log(`[FeeCollection] Successfully collected ${amountUSDC} USDC, tx: ${result.transactionHash}`);
+  } else {
+    console.log(`[FeeCollection] Failed to collect fees: ${result.error}`);
+  }
+  
+  return result;
 }
 
 export interface PolymarketProfile {

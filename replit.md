@@ -143,26 +143,35 @@ Preferred communication style: Simple, everyday language.
 - **Fee Model**: 
   - Fees are recorded with status `pending_collection` when order is placed (no immediate on-chain transfer)
   - This eliminates the need for a second signature during order placement
-  - Actual fee collection from trade proceeds is pending implementation (TODO)
+  - Fee collection is executed via Polymarket relayer (USDC.e transfer from Safe to treasury)
 - **Fee Authorization System**:
   - `TradingSession` interface includes `feeAuthorizationComplete` flag to track authorization status
-  - Fee authorization is implicit during trading session initialization (after USDC/CTF approvals)
+  - Fee authorization is an explicit wizard step during trading session initialization (after USDC/CTF approvals)
+  - Users must click "Authorize 2% Platform Fee" button before session is complete
   - `useTradingSession` hook exposes:
     - `feeAuthorizationComplete`: Boolean indicating if user has authorized fee collection
     - `authorizeFees()`: Function to authorize fee collection for existing sessions
     - `collectPendingFees()`: Function to trigger server-side fee collection
   - Wallet modal displays "Fees Authorized" badge when authorization is complete
+- **Fee Collection via Relayer**:
+  - `server/polymarket.ts::collectFeesViaRelayer()`: Executes USDC.e transfer to treasury via Polymarket relayer
+  - Uses ERC20 transfer function encoding with proper ABI
+  - Minimum threshold: 0.01 USDC (skips collection for smaller amounts)
+  - After successful collection, fees are marked with transaction hash in database
+  - **Note**: Polymarket relayer may reject transfers to non-Polymarket addresses. If rejected, fallback options include: user signature for direct transfer, custom relayer, or collection during withdrawal/settlement.
 - **Key Files**:
   - `server/treasurySync.ts`: Service to fetch USDC.e Transfer events from Polygon blockchain
+  - `server/polymarket.ts`: Contains `collectFeesViaRelayer()` for relayer-based fee collection
   - `client/src/hooks/useTradingSession.ts`: Trading session management with fee authorization
   - `shared/schema.ts`: Contains `collectedFees` (fee expectations) and `treasuryFeeTransfers` (on-chain transfers) tables
 - **Data Flow**:
   1. When order is placed, a fee expectation is recorded in `collectedFees` table with status `pending_collection`
-  2. Fee collection from trade proceeds is TODO - currently fees are tracked but not enforced
-  3. Admin can sync blockchain to fetch Transfer events and reconcile
+  2. Client calls POST /api/fees/collect to trigger fee collection via relayer
+  3. If successful, fees are marked as collected with transaction hash
+  4. Admin can sync blockchain to fetch Transfer events and reconcile
 - **Reconciliation**: Compares expected fees vs actual collected to identify discrepancies
 - **API Routes**:
-  - POST /api/fees/collect - Collect pending fees for a user's Safe wallet (client-initiated)
+  - POST /api/fees/collect - Collect pending fees for a user's Safe wallet via Polymarket relayer
   - GET /api/fees/pending/:safeAddress - Get pending fees for a wallet
 - **Admin API Routes**:
   - GET /api/admin/fees/recent - Recent fee expectations (up to 50)
@@ -172,7 +181,6 @@ Preferred communication style: Simple, everyday language.
   - GET /api/admin/fees/reconciliation - Compare expected vs collected, show discrepancy
   - POST /api/admin/treasury/sync - Fetch USDC.e transfers from Polygon blockchain
 - **Block Sync**: Uses ethers.js getLogs to fetch ERC20 Transfer events in 2000-block batches, with cursor stored in platformConfig table
-- **TODO**: Actual fee collection via Polymarket relayer requires verification that relayer accepts non-Polymarket destination addresses. Fallback options include: user signature for direct transfer, custom relayer, or collection during withdrawal/settlement.
 
 ### Arbitrage Detection System
 - **Purpose**: Compare Polymarket prices against traditional sportsbook betting lines to identify value opportunities

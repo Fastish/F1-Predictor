@@ -192,6 +192,7 @@ export interface IStorage {
   getRecentFees(limit: number): Promise<CollectedFee[]>;
   getFeeExpectationStats(): Promise<{ totalExpectedFees: number; totalVolume: number; feeCount: number }>;
   matchFeeToTransfer(feeId: string, txHash: string): Promise<void>;
+  markFeesCollected(feeIds: string[], txHash: string): Promise<void>;
   getPendingFeesForWallet(walletAddress: string): Promise<CollectedFee[]>;
   
   // Treasury Fee Transfers (on-chain records)
@@ -1409,6 +1410,15 @@ export class DatabaseStorage implements IStorage {
       .update(treasuryFeeTransfers)
       .set({ matchedFeeId: feeId })
       .where(eq(treasuryFeeTransfers.txHash, txHash));
+  }
+
+  async markFeesCollected(feeIds: string[], txHash: string): Promise<void> {
+    if (feeIds.length === 0) return;
+    
+    await db
+      .update(collectedFees)
+      .set({ txHash })
+      .where(inArray(collectedFees.id, feeIds));
   }
 
   async getUnmatchedExpectations(): Promise<CollectedFee[]> {
