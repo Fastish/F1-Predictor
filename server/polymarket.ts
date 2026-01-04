@@ -1029,8 +1029,11 @@ export async function executeRelayerTransaction(
     // For proxy wallets, use the wallet address directly
     const owner = walletType === "safe" && ownerAddress ? ownerAddress : walletAddress;
     
+    // IMPORTANT: The Polymarket relayer requires a 'type' field to specify wallet type
+    // Valid values: "safe" for Gnosis Safe wallets, "proxy" for Magic Link proxy wallets
     const body = {
       owner,
+      type: walletType,  // Required by relayer - "safe" or "proxy"
       transactions: normalizedTransactions,
       description,
     };
@@ -1078,8 +1081,10 @@ export async function deployRelayerWallet(
     // For Safe wallets, use the EOA as owner (the Safe is derived from the EOA)
     const owner = walletType === "safe" && ownerAddress ? ownerAddress : walletAddress;
     
+    // IMPORTANT: The Polymarket relayer requires a 'type' field to specify wallet type
     const body = {
       owner,
+      type: walletType,  // Required by relayer - "safe" or "proxy"
     };
     
     const response = await executeRelayerHttpRequest("POST", path, body);
