@@ -229,6 +229,9 @@ function FeeConfigSection({ walletAddress, toast }: { walletAddress: string | nu
 }
 
 function FeeRecordsSection({ walletAddress }: { walletAddress: string | null }) {
+  const { toast } = useToast();
+  const [isSyncing, setIsSyncing] = useState(false);
+  
   const { data: feeRecords = [], refetch: refetchFees, isLoading, isFetching } = useQuery<FeeRecord[]>({
     queryKey: ["/api/admin/fees/recent"],
     queryFn: async () => {
@@ -240,6 +243,40 @@ function FeeRecordsSection({ walletAddress }: { walletAddress: string | null }) 
     },
     enabled: !!walletAddress,
   });
+
+  const handleSyncStatus = async () => {
+    if (!walletAddress) return;
+    setIsSyncing(true);
+    try {
+      const res = await fetch("/api/admin/fees/sync", {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "x-wallet-address": walletAddress 
+        },
+      });
+      if (!res.ok) throw new Error("Sync failed");
+      const result = await res.json();
+      const parts = [`Checked: ${result.checked}`, `Confirmed: ${result.confirmed}`];
+      if (result.cancelled > 0) parts.push(`Cancelled: ${result.cancelled}`);
+      if (result.stillPending > 0) parts.push(`Pending: ${result.stillPending}`);
+      if (result.noOrderId > 0) parts.push(`No Order ID: ${result.noOrderId}`);
+      if (result.errors > 0) parts.push(`Errors: ${result.errors}`);
+      toast({
+        title: "Sync Complete",
+        description: parts.join(", "),
+      });
+      refetchFees();
+    } catch (err: any) {
+      toast({
+        title: "Sync Failed",
+        description: err.message || "Failed to sync with Polymarket",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   const formatDate = (dateStr: string) => {
     const d = new Date(dateStr);
@@ -261,16 +298,28 @@ function FeeRecordsSection({ walletAddress }: { walletAddress: string | null }) 
             <p className="text-sm text-muted-foreground">View all platform fee transactions</p>
           </div>
         </div>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => refetchFees()}
-          disabled={isFetching}
-          data-testid="button-refresh-fees"
-        >
-          <RefreshCw className={`h-4 w-4 mr-1 ${isFetching ? "animate-spin" : ""}`} />
-          {isFetching ? "Refreshing..." : "Refresh"}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleSyncStatus}
+            disabled={isSyncing || !walletAddress}
+            data-testid="button-sync-fees"
+          >
+            <Link2 className={`h-4 w-4 mr-1 ${isSyncing ? "animate-spin" : ""}`} />
+            {isSyncing ? "Syncing..." : "Sync Status"}
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => refetchFees()}
+            disabled={isFetching}
+            data-testid="button-refresh-fees"
+          >
+            <RefreshCw className={`h-4 w-4 mr-1 ${isFetching ? "animate-spin" : ""}`} />
+            {isFetching ? "Refreshing..." : "Refresh"}
+          </Button>
+        </div>
       </div>
 
       {isLoading ? (

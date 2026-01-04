@@ -3477,12 +3477,23 @@ export async function registerRoutes(
         confirmed: 0,
         cancelled: 0,
         stillPending: 0,
+        noOrderId: 0,
         errors: 0,
-        details: [] as { id: string; orderId: string; oldStatus: string; newStatus: string; error?: string }[]
+        details: [] as { id: string; orderId: string | null; oldStatus: string; newStatus: string; error?: string }[]
       };
       
       for (const fee of pendingFees) {
-        if (!fee.polymarketOrderId) continue;
+        if (!fee.polymarketOrderId) {
+          results.noOrderId++;
+          results.details.push({
+            id: fee.id,
+            orderId: null,
+            oldStatus: fee.status,
+            newStatus: fee.status,
+            error: "No Polymarket order ID recorded"
+          });
+          continue;
+        }
         
         results.checked++;
         
@@ -3503,7 +3514,8 @@ export async function registerRoutes(
           
           const normalizedStatus = orderStatus.normalizedStatus;
           
-          if (normalizedStatus === "filled") {
+          // Treat filled and partial fills as confirmed - partial fills still represent executed trades
+          if (normalizedStatus === "filled" || normalizedStatus === "partial") {
             await storage.updateFeeStatus(fee.id, "confirmed");
             results.confirmed++;
             results.details.push({
