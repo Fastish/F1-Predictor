@@ -1151,7 +1151,8 @@ function encodeERC20Transfer(to: string, amount: bigint): string {
 export async function collectFeesViaRelayer(
   safeAddress: string,
   eoaAddress: string,
-  amountUSDC: number // Amount in USDC (not wei)
+  amountUSDC: number, // Amount in USDC (not wei)
+  treasuryAddress: string  // Treasury address from config
 ): Promise<{ success: boolean; transactionHash?: string; error?: string }> {
   // Convert USDC amount to 6 decimal places
   const amountWei = BigInt(Math.floor(amountUSDC * 1_000_000));
@@ -1162,11 +1163,11 @@ export async function collectFeesViaRelayer(
   
   const transaction = {
     to: USDC_E_ADDRESS.toLowerCase(),  // Relayer requires lowercase addresses
-    data: encodeERC20Transfer(TREASURY_ADDRESS, amountWei),
+    data: encodeERC20Transfer(treasuryAddress, amountWei),
     value: "0x0",
   };
   
-  console.log(`[FeeCollection] Attempting to collect ${amountUSDC} USDC from ${safeAddress} to treasury`);
+  console.log(`[FeeCollection] Attempting to collect ${amountUSDC} USDC from ${safeAddress} to treasury ${treasuryAddress}`);
   console.log(`[FeeCollection] Transaction:`, JSON.stringify(transaction, null, 2));
   
   const result = await executeRelayerTransaction(

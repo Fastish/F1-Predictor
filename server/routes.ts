@@ -3551,9 +3551,15 @@ export async function registerRoutes(
       
       console.log(`[FeeCollection] Attempting to collect ${totalPending.toFixed(6)} USDC from ${safeAddress} (${pendingFees.length} orders)`);
       
+      // Get treasury address from config
+      const treasuryAddress = await storage.getConfig("treasury_address");
+      if (!treasuryAddress) {
+        return res.status(400).json({ error: "Treasury address not configured" });
+      }
+      
       // Attempt to collect fees via Polymarket relayer
       const { collectFeesViaRelayer } = await import("./polymarket");
-      const result = await collectFeesViaRelayer(safeAddress, eoaAddress, totalPending);
+      const result = await collectFeesViaRelayer(safeAddress, eoaAddress, totalPending, treasuryAddress);
       
       if (result.success) {
         // Mark fees as collected
