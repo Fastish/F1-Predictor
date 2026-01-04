@@ -100,7 +100,7 @@ function FeeConfigSection({ walletAddress, toast }: { walletAddress: string | nu
     enabled: !!walletAddress,
   });
 
-  const { data: feeStats } = useQuery<{ totalFees: number; totalVolume: number; feeCount: number; avgFeePercent: number }>({
+  const { data: feeStats } = useQuery<{ totalExpectedFees: number; totalVolume: number; feeCount: number }>({
     queryKey: ["/api/admin/fees/stats"],
     queryFn: async () => {
       const res = await fetch("/api/admin/fees/stats", {
@@ -183,8 +183,8 @@ function FeeConfigSection({ walletAddress, toast }: { walletAddress: string | nu
             <p className="text-lg font-semibold">${feeStats.totalVolume.toFixed(2)}</p>
           </div>
           <div className="bg-muted/50 p-3 rounded-md">
-            <p className="text-xs text-muted-foreground">Fees Collected</p>
-            <p className="text-lg font-semibold text-green-600 dark:text-green-400">${feeStats.totalFees.toFixed(2)}</p>
+            <p className="text-xs text-muted-foreground">Expected Fees</p>
+            <p className="text-lg font-semibold text-green-600 dark:text-green-400">${feeStats.totalExpectedFees.toFixed(2)}</p>
           </div>
           <div className="bg-muted/50 p-3 rounded-md">
             <p className="text-xs text-muted-foreground">Total Transactions</p>
