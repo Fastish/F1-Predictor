@@ -219,6 +219,10 @@ export function usePlaceOrder(
         
         // Send credentials via headers (not body) for security
         // Send the full signedOrder unchanged - server will forward it to Polymarket
+        // Include orderType so server knows whether to submit as FOK, GTC, or GTD
+        const orderTypeString = isFOK ? "FOK" : (params.orderType || "GTC");
+        console.log(`Submitting order with type: ${orderTypeString}`);
+        
         const proxyResponse = await fetch("/api/polymarket/submit-order", {
           method: "POST",
           headers: { 
@@ -227,7 +231,7 @@ export function usePlaceOrder(
             "X-POLY-API-SECRET": apiCredentials.secret,
             "X-POLY-PASSPHRASE": apiCredentials.passphrase,
           },
-          body: JSON.stringify({ signedOrder }),
+          body: JSON.stringify({ signedOrder, orderType: orderTypeString }),
         });
         
         if (!proxyResponse.ok) {
