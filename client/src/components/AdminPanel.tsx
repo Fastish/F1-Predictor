@@ -82,6 +82,16 @@ interface ReconciliationData {
   unmatched: { expectationCount: number; transferCount: number };
 }
 
+interface TreasuryTransfer {
+  id: string;
+  txHash: string;
+  amount: number;
+  fromAddress: string;
+  blockNumber: number;
+  blockTimestamp: string;
+  matchedFeeId: string | null;
+}
+
 // Fee Configuration Sub-Component
 function FeeConfigSection({ walletAddress, toast }: { walletAddress: string | null; toast: ReturnType<typeof useToast>["toast"] }) {
   const [feePercent, setFeePercent] = useState<string | null>(null);
@@ -279,6 +289,18 @@ function FeeRecordsSection({ walletAddress }: { walletAddress: string | null }) 
     enabled: !!walletAddress,
   });
 
+  const { data: treasuryTransfers = [], refetch: refetchTransfers } = useQuery<TreasuryTransfer[]>({
+    queryKey: ["/api/admin/treasury/transfers"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/treasury/transfers?limit=50", {
+        headers: { "x-wallet-address": walletAddress || "" },
+      });
+      if (!res.ok) throw new Error("Failed to fetch treasury transfers");
+      return res.json();
+    },
+    enabled: !!walletAddress,
+  });
+
   const handleSyncTreasury = async () => {
     if (!walletAddress) return;
     setIsSyncing(true);
@@ -301,6 +323,7 @@ function FeeRecordsSection({ walletAddress }: { walletAddress: string | null }) 
       refetchTreasury();
       refetchReconciliation();
       refetchFees();
+      refetchTransfers();
     } catch (err: any) {
       toast({
         title: "Sync Failed",
@@ -346,7 +369,7 @@ function FeeRecordsSection({ walletAddress }: { walletAddress: string | null }) 
           <Button
             size="sm"
             variant="outline"
-            onClick={() => { refetchFees(); refetchTreasury(); refetchReconciliation(); }}
+            onClick={() => { refetchFees(); refetchTreasury(); refetchReconciliation(); refetchTransfers(); }}
             disabled={isFetching}
             data-testid="button-refresh-fees"
           >
@@ -440,6 +463,59 @@ function FeeRecordsSection({ walletAddress }: { walletAddress: string | null }) 
                       ) : (
                         <span className="text-muted-foreground text-xs">-</span>
                       )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </details>
+
+      <details className="mt-4">
+        <summary className="cursor-pointer text-sm font-medium text-muted-foreground hover:text-foreground" data-testid="summary-treasury-transfers">
+          View On-chain Treasury Transfers ({treasuryTransfers.length} records)
+        </summary>
+        
+        {treasuryTransfers.length === 0 ? (
+          <div className="text-sm text-muted-foreground mt-2">No on-chain transfers found. Click "Sync Blockchain" to fetch transfers.</div>
+        ) : (
+          <div className="max-h-80 overflow-y-auto mt-2">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-background border-b">
+                <tr>
+                  <th className="text-left p-2">Block</th>
+                  <th className="text-left p-2">Date</th>
+                  <th className="text-left p-2">From</th>
+                  <th className="text-right p-2">Amount</th>
+                  <th className="text-center p-2">Matched</th>
+                  <th className="text-center p-2">Tx</th>
+                </tr>
+              </thead>
+              <tbody>
+                {treasuryTransfers.map((transfer) => (
+                  <tr key={transfer.id} className="border-b hover:bg-muted/50">
+                    <td className="p-2 font-mono text-xs">{transfer.blockNumber}</td>
+                    <td className="p-2 whitespace-nowrap">{formatDate(transfer.blockTimestamp)}</td>
+                    <td className="p-2 font-mono text-xs">{truncateAddress(transfer.fromAddress)}</td>
+                    <td className="p-2 text-right text-green-600 dark:text-green-400">${transfer.amount.toFixed(4)}</td>
+                    <td className="p-2 text-center">
+                      {transfer.matchedFeeId ? (
+                        <Badge variant="default" className="text-xs">Yes</Badge>
+                      ) : (
+                        <Badge variant="secondary" className="text-xs">No</Badge>
+                      )}
+                    </td>
+                    <td className="p-2 text-center">
+                      <a 
+                        href={`https://polygonscan.com/tx/${transfer.txHash}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:underline text-xs"
+                        data-testid={`link-tx-${transfer.id}`}
+                      >
+                        View
+                      </a>
                     </td>
                   </tr>
                 ))}
