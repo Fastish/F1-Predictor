@@ -62,7 +62,50 @@ const ERC20_ABI = [
   "function approve(address spender, uint256 amount) returns (bool)",
   "function allowance(address owner, address spender) view returns (uint256)",
   "function balanceOf(address account) view returns (uint256)",
+  "function transfer(address to, uint256 amount) returns (bool)",
 ];
+
+// Helper to compute dynamic CTA text based on swap context
+function getCtaText(
+  direction: "deposit" | "withdraw",
+  walletSource: "eoa" | "safe",
+  destination: "same" | "safe" | "eoa"
+): string {
+  // Depositing (USDC -> USDC.e)
+  if (direction === "deposit") {
+    if (walletSource === "eoa" && destination === "safe") {
+      return "Deposit to Safe Trading Wallet";
+    }
+    return "Swap";
+  }
+  
+  // Withdrawing (USDC.e -> USDC)
+  if (direction === "withdraw") {
+    if (walletSource === "safe" && destination === "eoa") {
+      return "Withdraw to Connected Wallet";
+    }
+    return "Swap";
+  }
+  
+  return "Swap";
+}
+
+function getLoadingText(
+  direction: "deposit" | "withdraw",
+  walletSource: "eoa" | "safe",
+  destination: "same" | "safe" | "eoa",
+  isApproving: boolean
+): string {
+  if (isApproving) return "Approving...";
+  
+  if (direction === "deposit" && walletSource === "eoa" && destination === "safe") {
+    return "Depositing...";
+  }
+  if (direction === "withdraw" && walletSource === "safe" && destination === "eoa") {
+    return "Withdrawing...";
+  }
+  return "Swapping...";
+}
 
 export function SwapModal({ open, onOpenChange, initialDirection = "deposit" }: SwapModalProps) {
   const { walletAddress, provider, walletType } = useWallet();
@@ -71,6 +114,7 @@ export function SwapModal({ open, onOpenChange, initialDirection = "deposit" }: 
   
   const [direction, setDirection] = useState<"deposit" | "withdraw">(initialDirection);
   const [walletSource, setWalletSource] = useState<"eoa" | "safe">("eoa");
+  const [destination, setDestination] = useState<"same" | "safe" | "eoa">("same");
   
   const isExternalWallet = walletType === "external" || walletType === "walletconnect" || walletType === "phantom";
   const hasSafeWallet = isExternalWallet && safeAddress && isTradingSessionComplete;
@@ -79,6 +123,7 @@ export function SwapModal({ open, onOpenChange, initialDirection = "deposit" }: 
     if (open) {
       setDirection(initialDirection);
       setWalletSource("eoa");
+      setDestination("same");
     }
   }, [open, initialDirection]);
   const [amount, setAmount] = useState("");
@@ -289,7 +334,7 @@ export function SwapModal({ open, onOpenChange, initialDirection = "deposit" }: 
       
       if (walletSource === "safe" && safeAddress) {
         toast({
-          title: direction === "deposit" ? "Swapping..." : "Swapping...",
+          title: "Swapping...",
           description: "Please sign to execute swap from Safe",
         });
         
@@ -302,11 +347,31 @@ export function SwapModal({ open, onOpenChange, initialDirection = "deposit" }: 
         if (!result.success) {
           throw new Error(result.error || "Safe swap failed");
         }
+        
+        // If withdrawing from Safe to EOA, transfer the swapped USDC to EOA
+        if (destination === "eoa" && walletAddress && direction === "withdraw") {
+          toast({
+            title: "Transferring to Wallet...",
+            description: "Please sign to transfer USDC to your connected wallet",
+          });
+          
+          // Import and use transferTokenFromSafe for USDC native
+          const { transferTokenFromSafe } = await import("@/lib/polymarketGasless");
+          const transferResult = await transferTokenFromSafe(
+            USDC_NATIVE,
+            walletAddress,
+            ethers.parseUnits(priceData?.buyAmount?.toString() || parsedAmount.toString(), 6)
+          );
+          
+          if (!transferResult.success) {
+            throw new Error(transferResult.error || "Transfer to wallet failed");
+          }
+        }
       } else {
         const signer = await provider.getSigner();
         
         toast({
-          title: direction === "deposit" ? "Swapping..." : "Swapping...",
+          title: "Swapping...",
           description: "Please confirm the transaction in your wallet",
         });
         
@@ -336,14 +401,42 @@ export function SwapModal({ open, onOpenChange, initialDirection = "deposit" }: 
         });
         
         await tx.wait();
+        
+        // If depositing from EOA to Safe, transfer the swapped USDC.e to Safe
+        if (destination === "safe" && safeAddress && direction === "deposit") {
+          toast({
+            title: "Transferring to Safe...",
+            description: "Please sign to transfer USDC.e to your trading wallet",
+          });
+          
+          const usdceContract = new ethers.Contract(USDC_BRIDGED, ERC20_ABI, signer);
+          const transferAmount = ethers.parseUnits(priceData?.buyAmount?.toString() || parsedAmount.toString(), 6);
+          
+          const transferTx = await usdceContract.transfer(safeAddress, transferAmount);
+          
+          toast({
+            title: "Transfer Submitted",
+            description: "Waiting for confirmation...",
+          });
+          
+          await transferTx.wait();
+        }
       }
       
+      // Dynamic success message based on action
+      const actionText = destination === "safe" && direction === "deposit"
+        ? `Deposited ${parsedAmount.toFixed(2)} USDC.e to Safe Trading Wallet`
+        : destination === "eoa" && direction === "withdraw"
+          ? `Withdrew ${parsedAmount.toFixed(2)} USDC to Connected Wallet`
+          : `Swapped ${parsedAmount.toFixed(2)} ${direction === "deposit" ? "USDC" : "USDC.e"}`;
+      
       toast({
-        title: "Swap Complete",
-        description: `Successfully swapped ${parsedAmount.toFixed(2)} ${direction === "deposit" ? "USDC" : "USDC.e"}`,
+        title: destination === "same" ? "Swap Complete" : "Transfer Complete",
+        description: actionText,
       });
       
       setAmount("");
+      setDestination("same");
       await refreshBalances();
       
     } catch (error) {
@@ -422,28 +515,87 @@ export function SwapModal({ open, onOpenChange, initialDirection = "deposit" }: 
             </Tabs>
             
             {hasSafeWallet && (
-              <div className="rounded-md border p-3 space-y-2">
-                <Label className="text-xs text-muted-foreground">Swap from</Label>
-                <RadioGroup
-                  value={walletSource}
-                  onValueChange={(v) => { setWalletSource(v as "eoa" | "safe"); setAmount(""); }}
-                  className="flex gap-4"
-                >
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="eoa" id="eoa" data-testid="radio-eoa" />
-                    <Label htmlFor="eoa" className="flex items-center gap-1.5 cursor-pointer text-sm">
-                      <Wallet className="h-3.5 w-3.5" />
-                      Connected Wallet
-                    </Label>
+              <div className="rounded-md border p-3 space-y-3">
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Swap from</Label>
+                  <RadioGroup
+                    value={walletSource}
+                    onValueChange={(v) => { 
+                      setWalletSource(v as "eoa" | "safe"); 
+                      setAmount(""); 
+                      setDestination("same");
+                    }}
+                    className="flex gap-4"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="eoa" id="eoa" data-testid="radio-eoa" />
+                      <Label htmlFor="eoa" className="flex items-center gap-1.5 cursor-pointer text-sm">
+                        <Wallet className="h-3.5 w-3.5" />
+                        Connected Wallet
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="safe" id="safe" data-testid="radio-safe" />
+                      <Label htmlFor="safe" className="flex items-center gap-1.5 cursor-pointer text-sm">
+                        <Shield className="h-3.5 w-3.5" />
+                        Safe Trading Wallet
+                      </Label>
+                    </div>
+                  </RadioGroup>
+                </div>
+                
+                {/* Destination selector - only show when relevant */}
+                {((walletSource === "eoa" && direction === "deposit") || (walletSource === "safe" && direction === "withdraw")) && (
+                  <div className="space-y-2 pt-2 border-t">
+                    <Label className="text-xs text-muted-foreground">Send to</Label>
+                    <RadioGroup
+                      value={destination}
+                      onValueChange={(v) => setDestination(v as "same" | "safe" | "eoa")}
+                      className="flex gap-4"
+                    >
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem 
+                          value="same" 
+                          id="dest-same" 
+                          data-testid="radio-dest-same" 
+                        />
+                        <Label htmlFor="dest-same" className="flex items-center gap-1.5 cursor-pointer text-sm">
+                          {walletSource === "eoa" ? (
+                            <>
+                              <Wallet className="h-3.5 w-3.5" />
+                              Keep in Connected Wallet
+                            </>
+                          ) : (
+                            <>
+                              <Shield className="h-3.5 w-3.5" />
+                              Keep in Safe
+                            </>
+                          )}
+                        </Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem 
+                          value={walletSource === "eoa" ? "safe" : "eoa"} 
+                          id="dest-other" 
+                          data-testid="radio-dest-other" 
+                        />
+                        <Label htmlFor="dest-other" className="flex items-center gap-1.5 cursor-pointer text-sm">
+                          {walletSource === "eoa" ? (
+                            <>
+                              <Shield className="h-3.5 w-3.5" />
+                              Safe Trading Wallet
+                            </>
+                          ) : (
+                            <>
+                              <Wallet className="h-3.5 w-3.5" />
+                              Connected Wallet
+                            </>
+                          )}
+                        </Label>
+                      </div>
+                    </RadioGroup>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="safe" id="safe" data-testid="radio-safe" />
-                    <Label htmlFor="safe" className="flex items-center gap-1.5 cursor-pointer text-sm">
-                      <Shield className="h-3.5 w-3.5" />
-                      Safe Trading Wallet
-                    </Label>
-                  </div>
-                </RadioGroup>
+                )}
               </div>
             )}
             
@@ -527,10 +679,10 @@ export function SwapModal({ open, onOpenChange, initialDirection = "deposit" }: 
               {isSwapping || isApproving ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  {isApproving ? "Approving..." : direction === "deposit" ? "Depositing..." : "Withdrawing..."}
+                  {getLoadingText(direction, walletSource, destination, isApproving)}
                 </>
               ) : (
-                direction === "deposit" ? "Deposit to Polymarket" : "Withdraw from Polymarket"
+                getCtaText(direction, walletSource, destination)
               )}
             </Button>
             

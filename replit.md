@@ -1,8 +1,6 @@
-# F1 Predict - Predictive Market Platform
-
 ## Overview
 
-F1 Predict is a prediction market platform for the 2026 Formula 1 season. Users can buy shares in F1 teams, with prices adjusting based on market demand. When the season ends, shareholders of the winning team split the prize pool. The platform combines trading platform aesthetics (inspired by Robinhood/Coinbase) with Formula 1 racing energy. It utilizes LMSR (Logarithmic Market Scoring Rule) pools for automated market making, providing better liquidity and a simpler user experience compared to traditional order books.
+F1 Predict is a prediction market platform for the 2026 Formula 1 season. It allows users to trade shares in F1 teams, with prices dynamically adjusting based on market demand. The platform features a user-friendly trading interface inspired by popular financial apps and leverages Logarithmic Market Scoring Rule (LMSR) pools for enhanced liquidity and automated market making. Upon season conclusion, shareholders of the winning team share the prize pool. The project aims to combine the excitement of Formula 1 with innovative market mechanics.
 
 ## User Preferences
 
@@ -11,46 +9,59 @@ Preferred communication style: Simple, everyday language.
 ## System Architecture
 
 ### Frontend
-- **Framework**: React with TypeScript, bundled with Vite
+- **Framework**: React with TypeScript, Vite
 - **Routing**: Wouter
 - **State Management**: React Context, TanStack React Query
-- **UI Components**: shadcn/ui (built on Radix UI)
-- **Styling**: Tailwind CSS with custom design tokens for theming
-- **Design System**: DM Sans font, custom color palette supporting light/dark modes
+- **UI Components**: shadcn/ui (Radix UI)
+- **Styling**: Tailwind CSS with custom design tokens
 
 ### Backend
 - **Runtime**: Node.js with Express
-- **Language**: TypeScript (ESM modules)
-- **API Style**: RESTful JSON API
+- **Language**: TypeScript (ESM)
+- **API Style**: RESTful JSON
 - **Build Tool**: esbuild
 
 ### Data Storage
 - **Database**: PostgreSQL via Drizzle ORM
-- **Key Data Models**: Users, Teams, Drivers, ChampionshipPools (LMSR-based), PoolPositions, PoolTrades, PoolPayouts, Seasons.
+- **Key Models**: Users, Teams, Drivers, ChampionshipPools (LMSR), PoolPositions, PoolTrades, PoolPayouts, Seasons.
 
 ### Trading System (LMSR Pools)
-- **Mechanism**: Logarithmic Market Scoring Rule (LMSR) for automated market making.
-- **Pool Types**: Team Championship, Driver Championship.
-- **Pricing**: Automatically adjusted based on shares sold per outcome, with a liquidity parameter controlling sensitivity.
-- **Admin Flow**: Admins can create seasons, conclude them, declare winning teams, calculate, and distribute payouts.
+- **Mechanism**: LMSR for automated market making, supporting Team and Driver Championships.
+- **Pricing**: Automatically adjusts based on shares sold, controlled by a liquidity parameter.
+- **Admin Features**: Season creation, conclusion, winner declaration, payout calculation and distribution.
 
 ### Wallet and Trading Integration
-- **Dual-wallet System**: Magic Labs for email-based authentication (creating Polygon wallet) and external wallets (MetaMask, Rainbow).
-- **Trading Wallets**:
-  - **Magic Users**: Trades execute from a Proxy wallet derived from their EOA address
-  - **External Wallet Users**: Trades execute from a Gnosis Safe wallet derived from their EOA address. **Important**: Users must deposit USDC.e to their Safe wallet before trading - the EOA wallet balance is not used for trades.
-- **Polymarket Integration**: Utilizes Polymarket's Gamma API for market data and CLOB client for order execution, supporting gasless transactions via Polymarket Relayer and Gnosis Safe proxy for external wallets.
-- **Order Types**: GTC (Good Til Cancelled), FOK (Fill Or Kill), GTD (Good Til Date) with user-adjustable limit prices.
-- **Phantom Auto-Connect Prevention**: When Phantom is installed, wagmi's injected connector can auto-connect and hijack wallet selection. The WalletContext includes logic to:
-  - Detect unwanted auto-connections from injected connectors (not WalletConnect)
-  - Check if user had a saved external/phantom session in localStorage
-  - Auto-disconnect wagmi if no saved session exists and connection wasn't user-initiated
-  - Track user-initiated connections via `userInitiatedConnectionRef` to allow explicit connections
-- **WalletConnect**: Requires `VITE_WALLETCONNECT_PROJECT_ID` environment variable. The app uses a lazy-loading pattern with runtime config fallback:
-  - `client/src/lib/wagmi.ts` exports `getWagmiConfig()` - an async function that fetches from `/api/config` if build-time value is missing
-  - `App.tsx` awaits the config before rendering `WagmiProvider`, showing a loading spinner during initialization
-  - The WalletConnect connector is only added if a project ID is available
-  - Changes to this variable in production require republishing since Vite bakes env vars at build time, but the runtime fallback via `/api/config` ensures the server-side value is used if build-time value is missing
+- **Dual-wallet System**: Magic Labs for email-based authentication (Polygon wallet) and external wallets (MetaMask, Rainbow).
+- **Trading Wallets**: Proxy wallet for Magic users; Gnosis Safe for external wallet users (requires USDC.e deposit to Safe).
+- **Polymarket Integration**: Utilizes Polymarket's Gamma API for market data and CLOB client for gasless order execution via Polymarket Relayer and Gnosis Safe proxy.
+- **Order Types**: GTC, FOK, GTD with user-adjustable limit prices.
+- **Phantom Auto-Connect Prevention**: Logic to prevent unwanted auto-connections from injected connectors while allowing user-initiated connections.
+- **WalletConnect**: Lazy-loaded with runtime config fallback for `VITE_WALLETCONNECT_PROJECT_ID`.
+
+### Comments and Display Names
+- **Comments System**: Users can post comments on market pages.
+- **Display Names**: Vanity usernames (1-30 alphanumeric + underscores) displayed instead of wallet addresses, with real-time availability checking and Polymarket profile integration.
+
+### SEO and Open Graph
+- **Meta Tags**: Open Graph and Twitter Card support, with dynamic titles and descriptions using `useSEO` hook.
+- **OG Image**: Default F1 racing image.
+
+### AI Article Generation System
+- **Purpose**: Generate F1-related news articles using OpenAI for SEO and content.
+- **Integration**: Replit AI Integrations (OpenAI API).
+- **Workflow**: Generate draft articles via admin UI, review, then publish to a `/news` page.
+
+### Fee Tracking System (Deferred Collection Model)
+- **Purpose**: Track and collect platform fees (2%) on all Polymarket trades.
+- **Mechanism**: Fees are recorded as `pending_collection` upon order placement, requiring only one user signature.
+- **Fee Authorization**: Explicit user authorization step during trading session initialization for fee collection.
+- **Collection**: Fees are collected via Polymarket relayer (USDC.e transfer from Safe to treasury) and automatically triggered after each successful order.
+- **Reconciliation**: System compares expected fees against actual collected fees.
+
+### Arbitrage Detection System
+- **Purpose**: Identify value opportunities by comparing Polymarket prices against traditional sportsbook betting lines.
+- **Data Source**: TheOddsAPI for live odds.
+- **Recommendation**: Flags opportunities (BUY_YES, BUY_NO) when price deltas exceed 5 percentage points, suggesting underpriced or overpriced outcomes on Polymarket.
 
 ## External Dependencies
 
@@ -71,7 +82,7 @@ Preferred communication style: Simple, everyday language.
 - Polygon mainnet (Chain ID: 137)
 
 ### 0x Swap API Integration
-- 0x Protocol's Swap API for USDC ↔ USDC.e conversion.
+- 0x Protocol's Swap API (for USDC ↔ USDC.e conversion).
 
 ### Polymarket Integration
 - Polymarket Gamma API
@@ -79,123 +90,8 @@ Preferred communication style: Simple, everyday language.
 - Polymarket Relayer (`https://relayer-v2.polymarket.com/`)
 - Polymarket Builder Signing SDK
 - Specific contract addresses for USDC, CTF, CTF Exchange, NegRisk CTF Exchange on Polygon.
-- **API Key Binding (Critical)**: For signatureType=2 (Safe wallets), API keys are bound to the **EOA** (signer), NOT the Safe address. The `owner` and `POLY_ADDRESS` fields in order submission must use the EOA to match the API key binding. The order `maker` field uses the Safe address (where funds are held).
-- **Approval Registration (Critical)**: Polymarket's relayer requires token approvals to be registered through their `/v2/safe/execute` endpoint, not just set on-chain. The system:
-  - Automatically registers USDC and CTF approvals during trading session initialization (after Safe deployment)
-  - Exposes `reregisterApprovals()` in useTradingSession hook for manual re-registration
-  - Auto-detects "not enough balance / allowance" errors during sell orders and attempts to re-register approvals
-  - Uses EOA address as `owner` in relayer transactions (required by Polymarket's Safe endpoint)
+- Treasury Address: 0xb600979a5EF3ebA5302DE667d47c9F9A73a983b8
+- TheOddsAPI (for arbitrage detection)
 
-### Development Tools
-- Replit-specific Vite plugins (runtime-error-modal, cartographer, dev-banner)
-- connect-pg-simple (for session storage, not currently implemented)
-
-### User Comments and Display Names
-- **Comments System**: Users can post comments on market pages (constructor championship, driver championship, individual races)
-- **Display Names**: Users can set vanity usernames (1-30 alphanumeric characters + underscores) that appear on their comments instead of wallet addresses
-- **Username Availability**: Real-time availability checking with debounced validation (500ms delay) and Polymarket profile integration
-- **Data Model**: Comments stored in `marketComments` table with denormalized displayName for history preservation
-- **API Routes**: 
-  - GET /api/comments?marketType=X&marketId=Y - Fetch comments for a market
-  - POST /api/comments - Create a comment (validates wallet format, market type, content length)
-  - GET /api/user/profile/:walletAddress - Get user profile with displayName
-  - GET /api/user/check-username/:username - Check username availability
-  - GET /api/polymarket/profile/:walletAddress - Fetch Polymarket public profile
-  - PATCH /api/user/display-name - Update user's display name (validates availability on server)
-- **Security Note**: Comments and profile updates rely on client-provided wallet addresses without server-side cryptographic verification, consistent with the app's client-side wallet architecture where cryptographic verification occurs on the blockchain/Polymarket side
-
-### SEO and Open Graph
-- **OG Image**: Default F1 racing image at `/og-image.jpg` for social sharing
-- **Meta Tags**: Open Graph and Twitter Card meta tags in index.html
-- **Page SEO**: Each page uses `useSEO` hook for dynamic title and description updates
-- **Pages with SEO**:
-  - Home: "F1 Prediction Market 2026"
-  - Constructors Championship: "2026 Constructors Championship"
-  - Drivers Championship: "2026 Drivers Championship"
-  - Markets: "All F1 Markets"
-  - Races: "2026 F1 Race Calendar"
-  - Race Detail: Dynamic based on race name
-  - Positions: "My Positions - F1 Trading Portfolio"
-  - How to Use: "How to Trade F1 Predictions"
-  - Admin: "Admin Panel"
-
-### AI Article Generation System
-- **Purpose**: Generate F1-related news articles using OpenAI to drive organic traffic
-- **Integration**: Replit AI Integrations (uses AI_INTEGRATIONS_OPENAI_BASE_URL, AI_INTEGRATIONS_OPENAI_API_KEY)
-- **Key Files**:
-  - `server/articleGenerator.ts`: AI generation service with topic-based prompting
-  - `client/src/components/ArticleAdmin.tsx`: Admin UI for article management
-  - `shared/schema.ts`: Articles table with slug, content, SEO fields, publication status
-- **Admin API Routes**:
-  - POST /api/admin/articles/generate - Generate single AI article (optional topic parameter)
-  - POST /api/admin/articles/generate-batch - Generate multiple articles (max 5)
-  - GET /api/admin/articles/topics - Get available F1 topic list
-- **Public API Routes**:
-  - GET /api/articles - Published articles list
-  - GET /api/articles/slug/:slug - Single article by slug
-- **Workflow**: Generate draft -> Admin review in ArticleAdmin component -> Publish -> Visible on /news page
-- **Topics**: 2026 predictions, team comparisons, driver championship analysis, betting insights, regulations impact
-
-### Fee Tracking System (Deferred Collection Model)
-- **Purpose**: Track platform fees (2%) on all trades through Polymarket
-- **Architecture**: Deferred fee collection model - fees are recorded as pending when orders are placed, requiring only ONE signature per order
-- **Treasury Address**: 0xb600979a5EF3ebA5302DE667d47c9F9A73a983b8
-- **Fee Model**: 
-  - Fees are recorded with status `pending_collection` when order is placed (no immediate on-chain transfer)
-  - This eliminates the need for a second signature during order placement
-  - Fee collection is executed via Polymarket relayer (USDC.e transfer from Safe to treasury)
-- **Fee Authorization System**:
-  - `TradingSession` interface includes `feeAuthorizationComplete` flag to track authorization status
-  - Fee authorization is an explicit wizard step during trading session initialization (after USDC/CTF approvals)
-  - Users must click "Authorize 2% Platform Fee" button before session is complete
-  - `useTradingSession` hook exposes:
-    - `feeAuthorizationComplete`: Boolean indicating if user has authorized fee collection
-    - `authorizeFees()`: Function to authorize fee collection for existing sessions
-    - `collectPendingFees()`: Function to trigger server-side fee collection
-  - Wallet modal displays "Fees Authorized" badge when authorization is complete
-- **Fee Collection via Relayer**:
-  - `server/polymarket.ts::collectFeesViaRelayer()`: Executes USDC.e transfer to treasury via Polymarket relayer
-  - Uses ERC20 transfer function encoding with proper ABI
-  - Minimum threshold: 0.01 USDC (skips collection for smaller amounts)
-  - After successful collection, fees are marked with transaction hash in database
-  - **Note**: Polymarket relayer may reject transfers to non-Polymarket addresses. If rejected, fallback options include: user signature for direct transfer, custom relayer, or collection during withdrawal/settlement.
-- **Key Files**:
-  - `server/treasurySync.ts`: Service to fetch USDC.e Transfer events from Polygon blockchain
-  - `server/polymarket.ts`: Contains `collectFeesViaRelayer()` for relayer-based fee collection
-  - `client/src/hooks/useTradingSession.ts`: Trading session management with fee authorization
-  - `shared/schema.ts`: Contains `collectedFees` (fee expectations) and `treasuryFeeTransfers` (on-chain transfers) tables
-- **Data Flow**:
-  1. When order is placed, a fee expectation is recorded in `collectedFees` table with status `pending_collection`
-  2. **Automatic collection**: Immediately after recording the fee, `collectPendingFees()` is called (fire-and-forget) to transfer fees to treasury
-  3. If successful, fees are marked as collected with transaction hash
-  4. Admin can sync blockchain to fetch Transfer events and reconcile
-- **Automatic Fee Collection**: Fee collection is triggered automatically after each successful order (both BUY and SELL) in `PolymarketBetModal.tsx`. This ensures fees are collected promptly without requiring manual intervention.
-- **Reconciliation**: Compares expected fees vs actual collected to identify discrepancies
-- **API Routes**:
-  - POST /api/fees/collect - Collect pending fees for a user's Safe wallet via Polymarket relayer
-  - GET /api/fees/pending/:safeAddress - Get pending fees for a wallet
-- **Admin API Routes**:
-  - GET /api/admin/fees/recent - Recent fee expectations (up to 50)
-  - GET /api/admin/fees/stats - Fee expectation statistics
-  - GET /api/admin/treasury/summary - Total collected, transfer count from on-chain data
-  - GET /api/admin/treasury/transfers - Recent on-chain transfers to treasury
-  - GET /api/admin/fees/reconciliation - Compare expected vs collected, show discrepancy
-  - POST /api/admin/treasury/sync - Fetch USDC.e transfers from Polygon blockchain
-- **Block Sync**: Uses ethers.js getLogs to fetch ERC20 Transfer events in 2000-block batches, with cursor stored in platformConfig table
-
-### Arbitrage Detection System
-- **Purpose**: Compare Polymarket prices against traditional sportsbook betting lines to identify value opportunities
-- **Data Source**: TheOddsAPI for live odds (requires THEODDSAPI_KEY env var) with mock bet365 estimates as fallback
-- **Threshold**: Flags opportunities when delta exceeds 5 percentage points between sources
-- **Recommendations**:
-  - **BUY_YES**: Sportsbook values outcome higher than Polymarket (underpriced on Polymarket)
-  - **BUY_NO**: Sportsbook values outcome lower than Polymarket (overpriced on Polymarket)
-  - **NEUTRAL**: Prices are closely aligned (within 5% threshold)
-- **Key Files**:
-  - `server/oddsSync.ts`: Odds sync service with conversion utilities and comparison engine
-  - `client/src/components/ArbitrageValueBadge.tsx`: Frontend badge and summary components
-- **API Routes**:
-  - GET /api/arbitrage/opportunities - Returns value opportunities for constructors and drivers
-  - GET /api/arbitrage/odds - Returns cached sportsbook odds for debugging
-- **Cache**: 5-minute TTL on sportsbook odds
-- **UX**: ArbitrageValueBadge with tooltip explains delta and recommends action; ArbitrageSummary shows count of opportunities
+### Development Tools (Replit-specific)
+- Vite plugins (runtime-error-modal, cartographer, dev-banner)

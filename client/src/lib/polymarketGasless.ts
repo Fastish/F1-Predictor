@@ -585,6 +585,56 @@ export async function withdrawFromSafe(recipientAddress: string, amountInWei: bi
   }
 }
 
+export async function transferTokenFromSafe(tokenAddress: string, recipientAddress: string, amountInWei: bigint): Promise<GaslessResult> {
+  console.log(`[TransferToken] Transferring ${amountInWei} of ${tokenAddress} to ${recipientAddress}`);
+  
+  const ERC20_TRANSFER_ABI = [
+    {
+      name: "transfer",
+      type: "function",
+      inputs: [
+        { name: "to", type: "address" },
+        { name: "amount", type: "uint256" },
+      ],
+      outputs: [{ type: "bool" }],
+    },
+  ] as const;
+
+  try {
+    const transferData = encodeFunctionData({
+      abi: ERC20_TRANSFER_ABI,
+      functionName: "transfer",
+      args: [recipientAddress as `0x${string}`, amountInWei],
+    });
+    
+    console.log(`[TransferToken] Transfer data encoded: ${transferData.slice(0, 20)}...`);
+
+    const transactions: Transaction[] = [
+      {
+        to: tokenAddress,
+        data: transferData,
+        value: "0",
+      },
+    ];
+    
+    const result = await executeGaslessTransactions(transactions);
+    
+    if (result.success) {
+      console.log(`[TransferToken] Success! TX: ${result.transactionHash}`);
+    } else {
+      console.error(`[TransferToken] Failed: ${result.error}`);
+    }
+    
+    return result;
+  } catch (error) {
+    console.error("[TransferToken] Error during token transfer:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown token transfer error",
+    };
+  }
+}
+
 export async function swapFromSafe(swapTransaction: { to: string; data: string; value?: string }): Promise<GaslessResult> {
   console.log(`[SwapFromSafe] Initiating swap via Safe`);
   
