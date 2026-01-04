@@ -199,7 +199,8 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
     initializeTradingSession,
     isInitializing,
     signerAvailable,
-    tradingSession
+    tradingSession,
+    collectPendingFees
   } = useTradingSession();
   
   // Pass API credentials and signer to usePlaceOrder for server-side proxy submission (avoids CORS)
@@ -439,6 +440,16 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
             status: "pending_collection", // Will be collected when order fills
             polymarketOrderId: result.orderId,
           }).catch((err) => console.error("Failed to record pending fee:", err));
+          
+          // Immediately trigger fee collection (fire-and-forget)
+          // This transfers pending fees from Safe wallet to treasury
+          collectPendingFees().then((feeResult) => {
+            if (feeResult.success) {
+              console.log("[PolymarketBetModal] Fees collected successfully after BUY order");
+            } else {
+              console.warn("[PolymarketBetModal] Fee collection failed:", feeResult.error);
+            }
+          }).catch((err) => console.error("[PolymarketBetModal] Fee collection error:", err));
         }
 
         toast({
@@ -685,6 +696,16 @@ export function PolymarketBetModal({ open, onClose, outcome, userBalance, mode =
             status: "pending_collection", // Will be collected when order fills
             polymarketOrderId: result.orderId,
           }).catch((err) => console.error("Failed to record pending sell fee:", err));
+          
+          // Immediately trigger fee collection (fire-and-forget)
+          // This transfers pending fees from Safe wallet to treasury
+          collectPendingFees().then((feeResult) => {
+            if (feeResult.success) {
+              console.log("[PolymarketBetModal] Fees collected successfully after SELL order");
+            } else {
+              console.warn("[PolymarketBetModal] Fee collection failed:", feeResult.error);
+            }
+          }).catch((err) => console.error("[PolymarketBetModal] Fee collection error:", err));
         }
 
         toast({

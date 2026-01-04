@@ -166,9 +166,10 @@ Preferred communication style: Simple, everyday language.
   - `shared/schema.ts`: Contains `collectedFees` (fee expectations) and `treasuryFeeTransfers` (on-chain transfers) tables
 - **Data Flow**:
   1. When order is placed, a fee expectation is recorded in `collectedFees` table with status `pending_collection`
-  2. Client calls POST /api/fees/collect to trigger fee collection via relayer
+  2. **Automatic collection**: Immediately after recording the fee, `collectPendingFees()` is called (fire-and-forget) to transfer fees to treasury
   3. If successful, fees are marked as collected with transaction hash
   4. Admin can sync blockchain to fetch Transfer events and reconcile
+- **Automatic Fee Collection**: Fee collection is triggered automatically after each successful order (both BUY and SELL) in `PolymarketBetModal.tsx`. This ensures fees are collected promptly without requiring manual intervention.
 - **Reconciliation**: Compares expected fees vs actual collected to identify discrepancies
 - **API Routes**:
   - POST /api/fees/collect - Collect pending fees for a user's Safe wallet via Polymarket relayer
