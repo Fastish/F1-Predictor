@@ -55,6 +55,22 @@ interface PolymarketF1Market {
   active: boolean;
 }
 
+interface FeeRecord {
+  id: string;
+  walletAddress: string;
+  orderType: string;
+  marketName: string;
+  tokenId: string;
+  orderAmount: number;
+  feePercentage: number;
+  feeAmount: number;
+  txHash: string | null;
+  status: string;
+  createdAt: string;
+  confirmedAt: string | null;
+  polymarketOrderId: string | null;
+}
+
 // Fee Configuration Sub-Component
 function FeeConfigSection({ walletAddress, toast }: { walletAddress: string | null; toast: ReturnType<typeof useToast>["toast"] }) {
   const [feePercent, setFeePercent] = useState<string | null>(null);
@@ -208,6 +224,104 @@ function FeeConfigSection({ walletAddress, toast }: { walletAddress: string | nu
           {isSaving ? "Saving..." : "Save Fee Settings"}
         </Button>
       </div>
+    </div>
+  );
+}
+
+function FeeRecordsSection({ walletAddress }: { walletAddress: string | null }) {
+  const { data: feeRecords = [], refetch: refetchFees, isLoading, isFetching } = useQuery<FeeRecord[]>({
+    queryKey: ["/api/admin/fees/recent"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/fees/recent?limit=50", {
+        headers: { "x-wallet-address": walletAddress || "" },
+      });
+      if (!res.ok) throw new Error("Failed to fetch fee records");
+      return res.json();
+    },
+    enabled: !!walletAddress,
+  });
+
+  const formatDate = (dateStr: string) => {
+    const d = new Date(dateStr);
+    return d.toLocaleString();
+  };
+
+  const truncateAddress = (addr: string) => {
+    if (!addr) return "";
+    return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+  };
+
+  return (
+    <div className="border rounded-md p-4 space-y-4 mt-4">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <DollarSign className="h-5 w-5 text-muted-foreground" />
+          <div>
+            <p className="font-medium">Recent Fee Records</p>
+            <p className="text-sm text-muted-foreground">View all platform fee transactions</p>
+          </div>
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => refetchFees()}
+          disabled={isFetching}
+          data-testid="button-refresh-fees"
+        >
+          <RefreshCw className={`h-4 w-4 mr-1 ${isFetching ? "animate-spin" : ""}`} />
+          {isFetching ? "Refreshing..." : "Refresh"}
+        </Button>
+      </div>
+
+      {isLoading ? (
+        <div className="text-sm text-muted-foreground animate-pulse">Loading fee records...</div>
+      ) : feeRecords.length === 0 ? (
+        <div className="text-sm text-muted-foreground">No fee records found.</div>
+      ) : (
+        <div className="max-h-96 overflow-y-auto">
+          <table className="w-full text-sm">
+            <thead className="sticky top-0 bg-background border-b">
+              <tr>
+                <th className="text-left p-2">Date</th>
+                <th className="text-left p-2">Wallet</th>
+                <th className="text-left p-2">Type</th>
+                <th className="text-left p-2">Market</th>
+                <th className="text-right p-2">Amount</th>
+                <th className="text-right p-2">Fee</th>
+                <th className="text-center p-2">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {feeRecords.map((fee) => (
+                <tr key={fee.id} className="border-b hover:bg-muted/50">
+                  <td className="p-2 whitespace-nowrap">{formatDate(fee.createdAt)}</td>
+                  <td className="p-2 font-mono text-xs">{truncateAddress(fee.walletAddress)}</td>
+                  <td className="p-2">
+                    <Badge variant={fee.orderType === "buy" ? "default" : "secondary"} className="text-xs">
+                      {fee.orderType.toUpperCase()}
+                    </Badge>
+                  </td>
+                  <td className="p-2 max-w-32 truncate" title={fee.marketName}>{fee.marketName}</td>
+                  <td className="p-2 text-right">${fee.orderAmount.toFixed(2)}</td>
+                  <td className="p-2 text-right text-green-600 dark:text-green-400">${fee.feeAmount.toFixed(4)}</td>
+                  <td className="p-2 text-center">
+                    <Badge 
+                      variant={
+                        fee.status === "confirmed" ? "default" : 
+                        fee.status === "pending_fill" ? "secondary" : 
+                        fee.status === "failed" ? "destructive" : "outline"
+                      }
+                      className="text-xs"
+                    >
+                      {fee.status}
+                    </Badge>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
@@ -477,6 +591,7 @@ export function AdminPanel() {
             <p className="text-muted-foreground">No active season.</p>
             {/* Fee Configuration is always accessible for admins */}
             <FeeConfigSection walletAddress={walletAddress} toast={toast} />
+            <FeeRecordsSection walletAddress={walletAddress} />
           </div>
         )}
 
@@ -741,6 +856,7 @@ export function AdminPanel() {
             
             {/* Fee Configuration Section */}
             <FeeConfigSection walletAddress={walletAddress} toast={toast} />
+            <FeeRecordsSection walletAddress={walletAddress} />
             
             <div className="border rounded-md p-4 space-y-3">
               <p className="font-medium">End Season & Declare Winner</p>
