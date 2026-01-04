@@ -1029,8 +1029,15 @@ export async function executeRelayerTransaction(
     // - 'owner' = the EOA that controls the Safe (used for authentication/signing)
     // - 'from' = the Safe address itself (where transactions execute from)
     // For proxy wallets, both are the wallet address directly
-    const owner = walletType === "safe" && ownerAddress ? ownerAddress : walletAddress;
-    const from = walletAddress;  // Always the wallet that transactions execute from
+    // NOTE: Polymarket relayer requires lowercase addresses
+    const owner = (walletType === "safe" && ownerAddress ? ownerAddress : walletAddress).toLowerCase();
+    const from = walletAddress.toLowerCase();  // Always the wallet that transactions execute from
+    
+    // Normalize all transaction addresses to lowercase
+    const lowercaseTransactions = normalizedTransactions.map(tx => ({
+      ...tx,
+      to: tx.to.toLowerCase(),
+    }));
     
     // IMPORTANT: The Polymarket relayer requires:
     // - 'type' field to specify wallet type ("safe" or "proxy")
@@ -1040,7 +1047,7 @@ export async function executeRelayerTransaction(
       owner,
       from,  // Required by relayer - the wallet executing the transactions
       type: walletType,  // Required by relayer - "safe" or "proxy"
-      transactions: normalizedTransactions,
+      transactions: lowercaseTransactions,
       description,
     };
     
@@ -1085,12 +1092,13 @@ export async function deployRelayerWallet(
     const path = "/submit";
     
     // For Safe wallets, use the EOA as owner (the Safe is derived from the EOA)
-    const owner = walletType === "safe" && ownerAddress ? ownerAddress : walletAddress;
+    // NOTE: Polymarket relayer requires lowercase addresses
+    const owner = (walletType === "safe" && ownerAddress ? ownerAddress : walletAddress).toLowerCase();
     
     // IMPORTANT: The Polymarket relayer requires type and from fields
     const body = {
       owner,
-      from: walletAddress,  // Required by relayer - the wallet to deploy/execute from
+      from: walletAddress.toLowerCase(),  // Required by relayer - the wallet to deploy/execute from
       type: walletType,  // Required by relayer - "safe" or "proxy"
     };
     
@@ -1153,7 +1161,7 @@ export async function collectFeesViaRelayer(
   }
   
   const transaction = {
-    to: USDC_E_ADDRESS,
+    to: USDC_E_ADDRESS.toLowerCase(),  // Relayer requires lowercase addresses
     data: encodeERC20Transfer(TREASURY_ADDRESS, amountWei),
     value: "0x0",
   };
