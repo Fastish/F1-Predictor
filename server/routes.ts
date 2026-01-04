@@ -3471,6 +3471,7 @@ export async function registerRoutes(
       
       // Get all pending_fill fees with polymarketOrderId
       const pendingFees = await storage.getPendingFillFees();
+      console.log(`[Fee Sync] Found ${pendingFees.length} pending fees to check`);
       
       const results = {
         checked: 0,
@@ -3499,6 +3500,7 @@ export async function registerRoutes(
         
         try {
           const orderStatus = await getOrderStatus(fee.polymarketOrderId);
+          console.log(`[Fee Sync] Order ${fee.polymarketOrderId}: raw status=${orderStatus?.status}, normalized=${orderStatus?.normalizedStatus}`);
           
           if (!orderStatus) {
             results.errors++;
@@ -3558,6 +3560,26 @@ export async function registerRoutes(
     } catch (error: any) {
       console.error("Failed to sync fee statuses:", error);
       res.status(500).json({ error: error.message || "Failed to sync fee statuses" });
+    }
+  });
+
+  // Manually update a single fee record status (admin)
+  app.patch("/api/admin/fees/:id/status", requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { status } = req.body;
+      
+      if (!status || !["confirmed", "cancelled", "pending_fill", "pending", "failed"].includes(status)) {
+        return res.status(400).json({ error: "Invalid status. Must be: confirmed, cancelled, pending_fill, pending, or failed" });
+      }
+      
+      await storage.updateFeeStatus(id, status);
+      console.log(`[Fee Manual Update] Fee ${id} status updated to ${status}`);
+      
+      res.json({ success: true, id, newStatus: status });
+    } catch (error: any) {
+      console.error("Failed to update fee status:", error);
+      res.status(500).json({ error: error.message || "Failed to update fee status" });
     }
   });
 

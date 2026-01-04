@@ -231,6 +231,7 @@ function FeeConfigSection({ walletAddress, toast }: { walletAddress: string | nu
 function FeeRecordsSection({ walletAddress }: { walletAddress: string | null }) {
   const { toast } = useToast();
   const [isSyncing, setIsSyncing] = useState(false);
+  const [updatingFeeId, setUpdatingFeeId] = useState<string | null>(null);
   
   const { data: feeRecords = [], refetch: refetchFees, isLoading, isFetching } = useQuery<FeeRecord[]>({
     queryKey: ["/api/admin/fees/recent"],
@@ -278,6 +279,35 @@ function FeeRecordsSection({ walletAddress }: { walletAddress: string | null }) 
     }
   };
 
+  const handleManualStatusUpdate = async (feeId: string, newStatus: "confirmed" | "cancelled") => {
+    if (!walletAddress) return;
+    setUpdatingFeeId(feeId);
+    try {
+      const res = await fetch(`/api/admin/fees/${feeId}/status`, {
+        method: "PATCH",
+        headers: { 
+          "Content-Type": "application/json",
+          "x-wallet-address": walletAddress 
+        },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      if (!res.ok) throw new Error("Update failed");
+      toast({
+        title: "Status Updated",
+        description: `Fee record marked as ${newStatus}`,
+      });
+      refetchFees();
+    } catch (err: any) {
+      toast({
+        title: "Update Failed",
+        description: err.message || "Failed to update fee status",
+        variant: "destructive",
+      });
+    } finally {
+      setUpdatingFeeId(null);
+    }
+  };
+
   const formatDate = (dateStr: string) => {
     const d = new Date(dateStr);
     return d.toLocaleString();
@@ -322,6 +352,10 @@ function FeeRecordsSection({ walletAddress }: { walletAddress: string | null }) 
         </div>
       </div>
 
+      <div className="text-xs text-muted-foreground bg-muted/50 rounded p-2 mb-2">
+        <strong>Note:</strong> Limit orders (GTC/GTD) show as "pending_fill" until filled. The API cannot automatically check user order status, so admins can manually confirm or cancel these records using the action buttons.
+      </div>
+
       {isLoading ? (
         <div className="text-sm text-muted-foreground animate-pulse">Loading fee records...</div>
       ) : feeRecords.length === 0 ? (
@@ -338,6 +372,7 @@ function FeeRecordsSection({ walletAddress }: { walletAddress: string | null }) 
                 <th className="text-right p-2">Amount</th>
                 <th className="text-right p-2">Fee</th>
                 <th className="text-center p-2">Status</th>
+                <th className="text-center p-2">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -364,6 +399,34 @@ function FeeRecordsSection({ walletAddress }: { walletAddress: string | null }) 
                     >
                       {fee.status}
                     </Badge>
+                  </td>
+                  <td className="p-2 text-center">
+                    {fee.status === "pending_fill" && (
+                      <div className="flex items-center justify-center gap-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-6 px-2 text-xs text-green-600 hover:text-green-700"
+                          onClick={() => handleManualStatusUpdate(fee.id, "confirmed")}
+                          disabled={updatingFeeId === fee.id}
+                          data-testid={`button-confirm-fee-${fee.id}`}
+                        >
+                          <CheckCircle className="h-3 w-3 mr-1" />
+                          {updatingFeeId === fee.id ? "..." : "Confirm"}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-6 px-2 text-xs text-red-600 hover:text-red-700"
+                          onClick={() => handleManualStatusUpdate(fee.id, "cancelled")}
+                          disabled={updatingFeeId === fee.id}
+                          data-testid={`button-cancel-fee-${fee.id}`}
+                        >
+                          <Trash2 className="h-3 w-3 mr-1" />
+                          {updatingFeeId === fee.id ? "..." : "Cancel"}
+                        </Button>
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))}

@@ -136,6 +136,21 @@ Preferred communication style: Simple, everyday language.
 - **Workflow**: Generate draft -> Admin review in ArticleAdmin component -> Publish -> Visible on /news page
 - **Topics**: 2026 predictions, team comparisons, driver championship analysis, betting insights, regulations impact
 
+### Fee Tracking System
+- **Purpose**: Track platform fees (2%) on all trades through Polymarket
+- **Fee Collection**:
+  - **FOK Orders**: Fees are collected immediately upon successful order execution via USDC transfer
+  - **GTC/GTD Limit Orders**: Fees are recorded as "pending_fill" and need manual confirmation when filled
+- **Fee Statuses**: confirmed, pending_fill, pending, failed, cancelled
+- **API Limitation**: The Polymarket CLOB API only shows orders to the authenticated API key holder. Since user orders are placed through Safe wallets (not the builder), automatic status sync cannot check user order status.
+- **Manual Controls**: Admins can manually confirm or cancel pending_fill fees via the admin panel
+- **Admin API Routes**:
+  - GET /api/admin/fees/recent - Recent fee records (up to 50)
+  - GET /api/admin/fees/stats - Fee statistics
+  - GET /api/admin/fees/pending-fill - Pending fill fees only
+  - POST /api/admin/fees/sync - Attempt automatic sync (limited due to API constraints)
+  - PATCH /api/admin/fees/:id/status - Manual status update (confirmed, cancelled, etc.)
+
 ### Arbitrage Detection System
 - **Purpose**: Compare Polymarket prices against traditional sportsbook betting lines to identify value opportunities
 - **Data Source**: TheOddsAPI for live odds (requires THEODDSAPI_KEY env var) with mock bet365 estimates as fallback
