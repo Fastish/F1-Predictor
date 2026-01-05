@@ -4026,7 +4026,7 @@ export async function registerRoutes(
   });
 
   // Admin: Publish article
-  app.post("/api/admin/articles/:id/publish", async (req, res) => {
+  app.post("/api/admin/articles/:id/publish", requireAdmin, async (req, res) => {
     try {
       const { id } = req.params;
       const article = await storage.publishArticle(id);
@@ -4038,6 +4038,60 @@ export async function registerRoutes(
       res.json(article);
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Failed to publish article" });
+    }
+  });
+
+  // Admin: Post article to X.com (Twitter)
+  app.post("/api/admin/articles/:id/post-to-twitter", requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const article = await storage.getArticle(id);
+      
+      if (!article) {
+        return res.status(404).json({ error: "Article not found" });
+      }
+      
+      if (article.status !== "published") {
+        return res.status(400).json({ error: "Article must be published before posting to X" });
+      }
+      
+      const { postTweet, generateArticleTweet, isTwitterConfigured } = await import("./twitterClient");
+      
+      if (!isTwitterConfigured()) {
+        return res.status(400).json({ 
+          error: "Twitter API not configured. Please add TWITTER_API_KEY, TWITTER_API_SECRET, TWITTER_ACCESS_TOKEN, and TWITTER_ACCESS_TOKEN_SECRET." 
+        });
+      }
+      
+      const baseUrl = process.env.PUBLIC_URL || `https://${req.headers.host}`;
+      const articleUrl = `${baseUrl}/news/${article.slug}`;
+      const tweetText = generateArticleTweet(article.title, article.summary, articleUrl);
+      
+      const result = await postTweet(tweetText);
+      
+      if (result.success) {
+        res.json({ 
+          success: true, 
+          tweetId: result.tweetId,
+          tweetUrl: result.tweetUrl,
+          message: "Article posted to X successfully" 
+        });
+      } else {
+        res.status(500).json({ error: result.error || "Failed to post to X" });
+      }
+    } catch (error: any) {
+      console.error("Failed to post article to Twitter:", error);
+      res.status(500).json({ error: error.message || "Failed to post to X" });
+    }
+  });
+
+  // Admin: Check Twitter configuration status
+  app.get("/api/admin/twitter/status", requireAdmin, async (req, res) => {
+    try {
+      const { isTwitterConfigured } = await import("./twitterClient");
+      res.json({ configured: isTwitterConfigured() });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
     }
   });
 

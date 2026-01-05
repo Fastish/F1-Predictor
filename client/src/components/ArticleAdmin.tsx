@@ -38,7 +38,8 @@ import {
   Edit,
   Settings,
   Save,
-  Image
+  Image,
+  Twitter
 } from "lucide-react";
 import type { Article, ArticleContextRules } from "@shared/schema";
 
@@ -229,6 +230,36 @@ export function ArticleAdmin() {
     onError: (error: any) => {
       toast({
         title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const postToTwitterMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/admin/articles/${id}/post-to-twitter`, {
+        method: "POST",
+        headers: { "x-wallet-address": walletAddress || "" },
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || "Failed to post to X");
+      }
+      return res.json();
+    },
+    onSuccess: (data: { tweetUrl?: string }) => {
+      toast({ 
+        title: "Posted to X",
+        description: data.tweetUrl ? "Click to view tweet" : "Article shared successfully",
+      });
+      if (data.tweetUrl) {
+        window.open(data.tweetUrl, "_blank");
+      }
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to Post to X",
         description: error.message,
         variant: "destructive",
       });
@@ -471,6 +502,20 @@ export function ArticleAdmin() {
                           size="icon"
                           variant="ghost"
                           onClick={() => {
+                            if (confirm("Post this article to X.com?")) {
+                              postToTwitterMutation.mutate(article.id);
+                            }
+                          }}
+                          disabled={postToTwitterMutation.isPending}
+                          title="Post to X.com"
+                          data-testid={`button-tweet-${article.id}`}
+                        >
+                          <Twitter className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => {
                             if (confirm("Delete this published article?")) {
                               deleteMutation.mutate(article.id);
                             }
@@ -600,25 +645,50 @@ function EditArticleForm({
         />
       </div>
       <div className="space-y-4 p-4 rounded-md bg-muted/50">
-        <div className="flex items-center gap-2 text-sm font-medium">
-          <Image className="h-4 w-4" />
-          Images
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-sm font-medium">
+            <Image className="h-4 w-4" />
+            Images
+          </div>
+          <div className="text-xs text-muted-foreground">
+            Optimal: 1200x628px or 16:9 ratio for social sharing
+          </div>
         </div>
         <div className="space-y-2">
-          <Label htmlFor="thumbnailUrl">Thumbnail Image URL</Label>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="heroImageUrl">Hero / OG Image URL</Label>
+            {heroImageUrl && thumbnailUrl !== heroImageUrl && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setThumbnailUrl(heroImageUrl)}
+                data-testid="button-sync-thumbnail"
+              >
+                <RefreshCw className="h-3 w-3 mr-1" />
+                Use as Thumbnail
+              </Button>
+            )}
+          </div>
           <Input
-            id="thumbnailUrl"
-            value={thumbnailUrl}
-            onChange={(e) => setThumbnailUrl(e.target.value)}
-            placeholder="https://example.com/image.png"
-            data-testid="input-edit-thumbnail-url"
+            id="heroImageUrl"
+            value={heroImageUrl}
+            onChange={(e) => {
+              setHeroImageUrl(e.target.value);
+              if (!thumbnailUrl) {
+                setThumbnailUrl(e.target.value);
+              }
+            }}
+            placeholder="https://example.com/hero.png (1200x628 recommended)"
+            data-testid="input-edit-hero-url"
           />
-          {thumbnailUrl && (
+          {heroImageUrl && (
             <div className="mt-2">
               <img 
-                src={thumbnailUrl} 
-                alt="Thumbnail preview" 
-                className="h-20 w-auto rounded-md object-cover"
+                src={heroImageUrl} 
+                alt="Hero preview" 
+                className="h-24 w-auto rounded-md object-cover"
+                style={{ aspectRatio: "16/9" }}
                 onError={(e) => {
                   (e.target as HTMLImageElement).style.display = 'none';
                 }}
@@ -627,19 +697,33 @@ function EditArticleForm({
           )}
         </div>
         <div className="space-y-2">
-          <Label htmlFor="heroImageUrl">Hero Image URL</Label>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="thumbnailUrl">Thumbnail Image URL</Label>
+            {thumbnailUrl && heroImageUrl !== thumbnailUrl && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setHeroImageUrl(thumbnailUrl)}
+                data-testid="button-sync-hero"
+              >
+                <RefreshCw className="h-3 w-3 mr-1" />
+                Use as Hero
+              </Button>
+            )}
+          </div>
           <Input
-            id="heroImageUrl"
-            value={heroImageUrl}
-            onChange={(e) => setHeroImageUrl(e.target.value)}
-            placeholder="https://example.com/hero.png"
-            data-testid="input-edit-hero-url"
+            id="thumbnailUrl"
+            value={thumbnailUrl}
+            onChange={(e) => setThumbnailUrl(e.target.value)}
+            placeholder="https://example.com/thumbnail.png"
+            data-testid="input-edit-thumbnail-url"
           />
-          {heroImageUrl && (
+          {thumbnailUrl && (
             <div className="mt-2">
               <img 
-                src={heroImageUrl} 
-                alt="Hero preview" 
+                src={thumbnailUrl} 
+                alt="Thumbnail preview" 
                 className="h-20 w-auto rounded-md object-cover"
                 onError={(e) => {
                   (e.target as HTMLImageElement).style.display = 'none';

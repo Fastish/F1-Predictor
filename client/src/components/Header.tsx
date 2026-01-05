@@ -1,4 +1,4 @@
-import { Wallet, TrendingUp, Menu, Plus, Loader2, Briefcase, Flag, DollarSign, PieChart, LogOut, Check, ArrowRightLeft, Settings, ArrowUpRight, ArrowDownLeft, Car, User, HelpCircle, RefreshCw, Pencil, Newspaper, CreditCard } from "lucide-react";
+import { Wallet, TrendingUp, Menu, Plus, Loader2, Briefcase, Flag, DollarSign, PieChart, LogOut, Check, ArrowRightLeft, Settings, ArrowUpRight, ArrowDownLeft, Car, User, HelpCircle, RefreshCw, Pencil, Newspaper, CreditCard, ChevronDown, Calendar, Trophy } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -68,34 +68,66 @@ export function Header() {
           </Link>
           
           <nav className="hidden items-center gap-1 md:flex">
-            <Link href="/constructors">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant={["/constructors", "/drivers", "/races", "/how-to-use"].some(p => 
+                    location === p || (p === "/races" && location.startsWith("/races/"))
+                  ) ? "secondary" : "ghost"}
+                  size="sm"
+                  data-testid="button-nav-markets"
+                >
+                  <TrendingUp className="mr-1 h-4 w-4" />
+                  Predictive Markets
+                  <ChevronDown className="ml-1 h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <Link href="/constructors">
+                  <DropdownMenuItem className="cursor-pointer" data-testid="menu-item-constructors">
+                    <Car className="mr-2 h-4 w-4" />
+                    Constructors
+                  </DropdownMenuItem>
+                </Link>
+                <Link href="/drivers">
+                  <DropdownMenuItem className="cursor-pointer" data-testid="menu-item-drivers">
+                    <User className="mr-2 h-4 w-4" />
+                    Drivers
+                  </DropdownMenuItem>
+                </Link>
+                <Link href="/races">
+                  <DropdownMenuItem className="cursor-pointer" data-testid="menu-item-races">
+                    <Flag className="mr-2 h-4 w-4" />
+                    Races
+                  </DropdownMenuItem>
+                </Link>
+                <DropdownMenuSeparator />
+                <Link href="/how-to-use">
+                  <DropdownMenuItem className="cursor-pointer" data-testid="menu-item-guide">
+                    <HelpCircle className="mr-2 h-4 w-4" />
+                    Guide
+                  </DropdownMenuItem>
+                </Link>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Link href="/schedule">
               <Button
-                variant={location === "/constructors" ? "secondary" : "ghost"}
+                variant={location === "/schedule" ? "secondary" : "ghost"}
                 size="sm"
-                data-testid="button-nav-constructors"
+                data-testid="button-nav-schedule"
               >
-                <Car className="mr-1 h-4 w-4" />
-                Constructors
+                <Calendar className="mr-1 h-4 w-4" />
+                Schedule
               </Button>
             </Link>
-            <Link href="/drivers">
+            <Link href="/standings">
               <Button
-                variant={location === "/drivers" ? "secondary" : "ghost"}
+                variant={location === "/standings" ? "secondary" : "ghost"}
                 size="sm"
-                data-testid="button-nav-drivers"
+                data-testid="button-nav-standings"
               >
-                <User className="mr-1 h-4 w-4" />
-                Drivers
-              </Button>
-            </Link>
-            <Link href="/races">
-              <Button
-                variant={location === "/races" || location.startsWith("/races/") ? "secondary" : "ghost"}
-                size="sm"
-                data-testid="button-nav-races"
-              >
-                <Flag className="mr-1 h-4 w-4" />
-                Races
+                <Trophy className="mr-1 h-4 w-4" />
+                Standings
               </Button>
             </Link>
             <Link href="/news">
@@ -106,16 +138,6 @@ export function Header() {
               >
                 <Newspaper className="mr-1 h-4 w-4" />
                 News
-              </Button>
-            </Link>
-            <Link href="/how-to-use">
-              <Button
-                variant={location === "/how-to-use" ? "secondary" : "ghost"}
-                size="sm"
-                data-testid="button-nav-guide"
-              >
-                <HelpCircle className="mr-1 h-4 w-4" />
-                Guide
               </Button>
             </Link>
           </nav>
@@ -344,6 +366,7 @@ export function Header() {
               )}
               
               <nav className="flex flex-col gap-2">
+                <div className="text-xs font-medium text-muted-foreground px-3 pt-2">Predictive Markets</div>
                 <Link href="/constructors">
                   <Button
                     variant={location === "/constructors" ? "secondary" : "ghost"}
@@ -377,6 +400,42 @@ export function Header() {
                     Races
                   </Button>
                 </Link>
+                <Link href="/how-to-use">
+                  <Button
+                    variant={location === "/how-to-use" ? "secondary" : "ghost"}
+                    className="justify-start w-full"
+                    onClick={() => setMobileMenuOpen(false)}
+                    data-testid="button-mobile-nav-guide"
+                  >
+                    <HelpCircle className="mr-2 h-4 w-4" />
+                    Guide
+                  </Button>
+                </Link>
+                
+                <div className="h-px bg-border my-2" />
+                
+                <Link href="/schedule">
+                  <Button
+                    variant={location === "/schedule" ? "secondary" : "ghost"}
+                    className="justify-start w-full"
+                    onClick={() => setMobileMenuOpen(false)}
+                    data-testid="button-mobile-nav-schedule"
+                  >
+                    <Calendar className="mr-2 h-4 w-4" />
+                    F1 Schedule
+                  </Button>
+                </Link>
+                <Link href="/standings">
+                  <Button
+                    variant={location === "/standings" ? "secondary" : "ghost"}
+                    className="justify-start w-full"
+                    onClick={() => setMobileMenuOpen(false)}
+                    data-testid="button-mobile-nav-standings"
+                  >
+                    <Trophy className="mr-2 h-4 w-4" />
+                    F1 Standings
+                  </Button>
+                </Link>
                 <Link href="/news">
                   <Button
                     variant={location === "/news" || location.startsWith("/news/") ? "secondary" : "ghost"}
@@ -397,17 +456,6 @@ export function Header() {
                   >
                     <PieChart className="mr-2 h-4 w-4" />
                     Portfolio
-                  </Button>
-                </Link>
-                <Link href="/how-to-use">
-                  <Button
-                    variant={location === "/how-to-use" ? "secondary" : "ghost"}
-                    className="justify-start w-full"
-                    onClick={() => setMobileMenuOpen(false)}
-                    data-testid="button-mobile-nav-guide"
-                  >
-                    <HelpCircle className="mr-2 h-4 w-4" />
-                    Guide
                   </Button>
                 </Link>
               </nav>

@@ -50,6 +50,15 @@ Preferred communication style: Simple, everyday language.
 - **Purpose**: Generate F1-related news articles using OpenAI for SEO and content.
 - **Integration**: Replit AI Integrations (OpenAI API).
 - **Workflow**: Generate draft articles via admin UI, review, then publish to a `/news` page.
+- **Image Generation**: Articles automatically get AI-generated 1024x1024 images used for both thumbnail and hero/OG.
+- **X.com Publishing**: Admin can post published articles to X.com with auto-generated teaser tweets. Requires `TWITTER_API_KEY`, `TWITTER_API_SECRET`, `TWITTER_ACCESS_TOKEN`, `TWITTER_ACCESS_TOKEN_SECRET`.
+
+### Navigation Structure
+- **Predictive Markets** (dropdown): Constructors, Drivers, Races, Guide
+- **F1 Schedule**: 2026 race calendar with all 24 races
+- **F1 Standings**: 2025 constructor/driver standings with 2026 season countdown
+- **News**: AI-generated F1 articles
+- **Portfolio**: User positions and balances
 
 ### Fee Tracking System (Deferred Collection Model)
 - **Purpose**: Track and collect platform fees (2%) on all Polymarket trades.

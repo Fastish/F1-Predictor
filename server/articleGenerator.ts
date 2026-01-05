@@ -188,9 +188,12 @@ export async function generateAndSaveArticle(options?: GenerateAndSaveOptions): 
 
   console.log(`[ArticleGenerator] Created draft article: ${savedArticle.title} (${savedArticle.id})`);
   
-  const thumbnailUrl = await generateArticleThumbnail(article.title, article.category, savedArticle.id);
-  if (thumbnailUrl) {
-    await storage.updateArticle(savedArticle.id, { thumbnailUrl });
+  const generatedImageUrl = await generateArticleImage(article.title, article.category, savedArticle.id);
+  if (generatedImageUrl) {
+    await storage.updateArticle(savedArticle.id, { 
+      thumbnailUrl: generatedImageUrl,
+      heroImageUrl: generatedImageUrl
+    });
   }
   
   return {
@@ -219,23 +222,24 @@ export async function generateMultipleArticles(count: number = 3): Promise<{ id:
   return results;
 }
 
-async function generateArticleThumbnail(title: string, category: string, articleId: string): Promise<string | null> {
+async function generateArticleImage(title: string, category: string, articleId: string): Promise<string | null> {
   try {
     const imageDir = join(process.cwd(), "public", "article-images");
     if (!existsSync(imageDir)) {
       mkdirSync(imageDir, { recursive: true });
     }
     
-    const prompt = `Create a professional, eye-catching thumbnail image for an F1 Formula 1 racing article titled "${title}". The image should be:
+    const prompt = `Create a professional, eye-catching image for an F1 Formula 1 racing article titled "${title}". The image should be:
 - Dramatic and dynamic, capturing the excitement of F1 racing
 - Using red, black, and carbon fiber aesthetic common in F1 branding
 - Include subtle racing elements like a track, car silhouette, or checkered patterns
-- Modern, clean design suitable for a news article thumbnail
+- Modern, clean design suitable for a news article hero and Open Graph preview
 - Category: ${category}
 - No text or logos in the image
-- Photorealistic style with dramatic lighting`;
+- Photorealistic style with dramatic lighting
+- Landscape orientation (16:9 aspect ratio) optimized for social media sharing`;
     
-    console.log(`[ArticleGenerator] Generating thumbnail for article: ${articleId}`);
+    console.log(`[ArticleGenerator] Generating OG-compatible image for article: ${articleId}`);
     const imageBuffer = await generateImageBuffer(prompt, "1024x1024");
     
     const filename = `article-${articleId}.png`;
@@ -243,11 +247,11 @@ async function generateArticleThumbnail(title: string, category: string, article
     writeFileSync(filepath, imageBuffer);
     
     const imageUrl = `/article-images/${filename}`;
-    console.log(`[ArticleGenerator] Thumbnail saved: ${imageUrl}`);
+    console.log(`[ArticleGenerator] Article image saved: ${imageUrl}`);
     
     return imageUrl;
   } catch (error) {
-    console.error(`[ArticleGenerator] Failed to generate thumbnail:`, error);
+    console.error(`[ArticleGenerator] Failed to generate article image:`, error);
     return null;
   }
 }

@@ -21,6 +21,8 @@ import NotFound from "@/pages/not-found";
 import HowToUse from "@/pages/HowToUse";
 import News from "@/pages/News";
 import NewsArticle from "@/pages/NewsArticle";
+import Schedule from "@/pages/Schedule";
+import Standings from "@/pages/Standings";
 
 function Router() {
   return (
@@ -34,6 +36,8 @@ function Router() {
       <Route path="/portfolio" component={Positions} />
       <Route path="/news" component={News} />
       <Route path="/news/:slug" component={NewsArticle} />
+      <Route path="/schedule" component={Schedule} />
+      <Route path="/standings" component={Standings} />
       <Route path="/admin" component={Admin} />
       <Route path="/how-to-use" component={HowToUse} />
       <Route component={NotFound} />
