@@ -192,13 +192,15 @@ export function Header() {
                   Set Username
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem 
-                  onClick={() => setWalletManagementOpen(true)}
-                  data-testid="button-manage-wallet"
-                >
-                  <Wallet className="h-4 w-4 mr-2" />
-                  {walletType === "magic" ? "Send / Receive" : "Wallet Management"}
-                </DropdownMenuItem>
+                {walletType === "magic" && (
+                  <DropdownMenuItem 
+                    onClick={() => setWalletManagementOpen(true)}
+                    data-testid="button-manage-wallet"
+                  >
+                    <Wallet className="h-4 w-4 mr-2" />
+                    Send / Receive
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem 
                   onClick={() => setDepositOpen(true)}
                   data-testid="button-wallet-settings"
@@ -255,55 +257,57 @@ export function Header() {
                     )}
                   </div>
                   <div className="flex gap-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      className="flex-1"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setMobileMenuOpen(false);
-                        setTimeout(() => setWalletManagementOpen(true), 100);
-                      }}
-                      data-testid="button-mobile-wallet"
-                    >
-                      <Wallet className="h-3.5 w-3.5 mr-1" />
-                      {walletType === "magic" ? "Send/Receive" : "Manage"}
-                    </Button>
                     {walletType === "magic" ? (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className="flex-1"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          setMobileMenuOpen(false);
-                          setTimeout(() => setSwapOpen(true), 100);
-                        }}
-                        data-testid="button-mobile-swap"
-                      >
-                        <RefreshCw className="h-3.5 w-3.5 mr-1" />
-                        Swap
-                      </Button>
+                      <>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="flex-1"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setMobileMenuOpen(false);
+                            setTimeout(() => setWalletManagementOpen(true), 100);
+                          }}
+                          data-testid="button-mobile-wallet"
+                        >
+                          <Wallet className="h-3.5 w-3.5 mr-1" />
+                          Send/Receive
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="flex-1"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setMobileMenuOpen(false);
+                            setTimeout(() => setSwapOpen(true), 100);
+                          }}
+                          data-testid="button-mobile-swap"
+                        >
+                          <RefreshCw className="h-3.5 w-3.5 mr-1" />
+                          Swap
+                        </Button>
+                      </>
                     ) : (
                       <Button
                         type="button"
                         size="sm"
                         variant="outline"
-                        className="flex-1"
+                        className="w-full"
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
                           setMobileMenuOpen(false);
-                          setTimeout(() => setSwapOpen(true), 100);
+                          setTimeout(() => setDepositOpen(true), 100);
                         }}
-                        data-testid="button-mobile-deposit-withdraw"
+                        data-testid="button-mobile-wallet-settings"
                       >
-                        <DollarSign className="h-3.5 w-3.5 mr-1" />
-                        Deposit
+                        <Settings className="h-3.5 w-3.5 mr-1" />
+                        Wallet Settings
                       </Button>
                     )}
                   </div>

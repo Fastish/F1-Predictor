@@ -964,39 +964,41 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
                 </div>
               )}
 
-              <div className="pt-2 border-t space-y-2">
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    className="flex-1"
-                    onClick={() => setShowSwapModal(true)}
-                    data-testid="button-swap"
-                  >
-                    <ArrowRightLeft className="h-4 w-4 mr-2" />
-                    Swap
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="flex-1"
-                    onClick={() => {
-                      setWalletManagementConfig({
-                        initialTab: "receive",
-                        prefilledAddress: "",
-                        title: "Send / Receive USDC"
-                      });
-                      setShowWalletManagement(true);
-                    }}
-                    data-testid="button-send-receive"
-                  >
-                    <Send className="h-4 w-4 mr-2" />
-                    Send / Receive
-                  </Button>
+              {walletType === "magic" && (
+                <div className="pt-2 border-t space-y-2">
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      className="flex-1"
+                      onClick={() => setShowSwapModal(true)}
+                      data-testid="button-swap"
+                    >
+                      <ArrowRightLeft className="h-4 w-4 mr-2" />
+                      Swap
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="flex-1"
+                      onClick={() => {
+                        setWalletManagementConfig({
+                          initialTab: "receive",
+                          prefilledAddress: "",
+                          title: "Send / Receive USDC"
+                        });
+                        setShowWalletManagement(true);
+                      }}
+                      data-testid="button-send-receive"
+                    >
+                      <Send className="h-4 w-4 mr-2" />
+                      Send / Receive
+                    </Button>
+                  </div>
+                  
+                  <p className="text-xs text-muted-foreground text-center">
+                    Swap converts USDC to USDC.e (1:1 ratio)
+                  </p>
                 </div>
-                
-                <p className="text-xs text-muted-foreground text-center">
-                  Swap converts USDC to USDC.e (1:1 ratio)
-                </p>
-              </div>
+              )}
             </div>
           ) : (
             <Tabs defaultValue="magic" className="w-full">
