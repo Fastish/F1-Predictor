@@ -197,7 +197,7 @@ export function Header() {
                   data-testid="button-manage-wallet"
                 >
                   <Wallet className="h-4 w-4 mr-2" />
-                  Send / Receive
+                  {walletType === "magic" ? "Send / Receive" : "Wallet Management"}
                 </DropdownMenuItem>
                 <DropdownMenuItem 
                   onClick={() => setDepositOpen(true)}
@@ -264,29 +264,48 @@ export function Header() {
                         e.preventDefault();
                         e.stopPropagation();
                         setMobileMenuOpen(false);
-                        setTimeout(() => setDepositOpen(true), 100);
+                        setTimeout(() => setWalletManagementOpen(true), 100);
                       }}
-                      data-testid="button-mobile-deposit"
+                      data-testid="button-mobile-wallet"
                     >
                       <Wallet className="h-3.5 w-3.5 mr-1" />
-                      Wallet
+                      {walletType === "magic" ? "Send/Receive" : "Manage"}
                     </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      className="flex-1"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setMobileMenuOpen(false);
-                        setTimeout(() => setSwapOpen(true), 100);
-                      }}
-                      data-testid="button-mobile-swap"
-                    >
-                      <RefreshCw className="h-3.5 w-3.5 mr-1" />
-                      Swap
-                    </Button>
+                    {walletType === "magic" ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="flex-1"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setMobileMenuOpen(false);
+                          setTimeout(() => setSwapOpen(true), 100);
+                        }}
+                        data-testid="button-mobile-swap"
+                      >
+                        <RefreshCw className="h-3.5 w-3.5 mr-1" />
+                        Swap
+                      </Button>
+                    ) : (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="flex-1"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setMobileMenuOpen(false);
+                          setTimeout(() => setSwapOpen(true), 100);
+                        }}
+                        data-testid="button-mobile-deposit-withdraw"
+                      >
+                        <DollarSign className="h-3.5 w-3.5 mr-1" />
+                        Deposit
+                      </Button>
+                    )}
                   </div>
                 </div>
               )}
