@@ -4,14 +4,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useWallet } from "@/context/WalletContext";
 import { useTradingSession } from "@/hooks/useTradingSession";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowDown, Loader2, AlertCircle, CheckCircle2, ArrowUpRight, ArrowDownLeft, Wallet, Shield } from "lucide-react";
+import { ArrowDown, Loader2, AlertCircle, CheckCircle2, ArrowDownLeft, ArrowUpRight, Wallet, Shield } from "lucide-react";
 import { ethers } from "ethers";
-import { swapFromSafe, approveTokenFromSafe } from "@/lib/polymarketGasless";
+import { swapFromSafe, approveTokenFromSafe, transferTokenFromSafe } from "@/lib/polymarketGasless";
 import { getReadOnlyPolygonProvider } from "@/lib/polymarketDeposit";
 
 interface SwapModalProps {
@@ -65,56 +64,12 @@ const ERC20_ABI = [
   "function transfer(address to, uint256 amount) returns (bool)",
 ];
 
-// Helper to compute dynamic CTA text based on swap context
-function getCtaText(
-  direction: "deposit" | "withdraw",
-  walletSource: "eoa" | "safe",
-  destination: "same" | "safe" | "eoa"
-): string {
-  // Depositing (USDC -> USDC.e)
-  if (direction === "deposit") {
-    if (walletSource === "eoa" && destination === "safe") {
-      return "Deposit to Safe Trading Wallet";
-    }
-    return "Swap";
-  }
-  
-  // Withdrawing (USDC.e -> USDC)
-  if (direction === "withdraw") {
-    if (walletSource === "safe" && destination === "eoa") {
-      return "Withdraw to Connected Wallet";
-    }
-    return "Swap";
-  }
-  
-  return "Swap";
-}
-
-function getLoadingText(
-  direction: "deposit" | "withdraw",
-  walletSource: "eoa" | "safe",
-  destination: "same" | "safe" | "eoa",
-  isApproving: boolean
-): string {
-  if (isApproving) return "Approving...";
-  
-  if (direction === "deposit" && walletSource === "eoa" && destination === "safe") {
-    return "Depositing...";
-  }
-  if (direction === "withdraw" && walletSource === "safe" && destination === "eoa") {
-    return "Withdrawing...";
-  }
-  return "Swapping...";
-}
-
 export function SwapModal({ open, onOpenChange, initialDirection = "deposit" }: SwapModalProps) {
   const { walletAddress, provider, walletType } = useWallet();
   const { safeAddress, isTradingSessionComplete } = useTradingSession();
   const { toast } = useToast();
   
   const [direction, setDirection] = useState<"deposit" | "withdraw">(initialDirection);
-  const [walletSource, setWalletSource] = useState<"eoa" | "safe">("eoa");
-  const [destination, setDestination] = useState<"same" | "safe" | "eoa">("same");
   
   const isExternalWallet = walletType === "external" || walletType === "walletconnect" || walletType === "phantom";
   const hasSafeWallet = isExternalWallet && safeAddress && isTradingSessionComplete;
@@ -122,10 +77,10 @@ export function SwapModal({ open, onOpenChange, initialDirection = "deposit" }: 
   useEffect(() => {
     if (open) {
       setDirection(initialDirection);
-      setWalletSource("eoa");
-      setDestination("same");
+      setAmount("");
     }
   }, [open, initialDirection]);
+  
   const [amount, setAmount] = useState("");
   const [isSwapping, setIsSwapping] = useState(false);
   const [isApproving, setIsApproving] = useState(false);
@@ -136,19 +91,25 @@ export function SwapModal({ open, onOpenChange, initialDirection = "deposit" }: 
   const [safeUsdcBalance, setSafeUsdcBalance] = useState<number>(0);
   const [safeUsdceBalance, setSafeUsdceBalance] = useState<number>(0);
   
-  const usdcBalance = walletSource === "safe" ? safeUsdcBalance : eoaUsdcBalance;
-  const usdceBalance = walletSource === "safe" ? safeUsdceBalance : eoaUsdceBalance;
-  
   const parsedAmount = parseFloat(amount) || 0;
+  
+  // For simplified flow:
+  // Deposit: source is always EOA (USDC balance), destination is Safe
+  // Withdraw: source is always Safe (USDC.e balance), destination is EOA
+  const sourceBalance = direction === "deposit" ? eoaUsdcBalance : safeUsdceBalance;
+  const destinationBalance = direction === "deposit" ? safeUsdceBalance : eoaUsdcBalance;
+  
+  // The active address for the swap depends on direction
+  // Deposit: swap happens from EOA, then transfer to Safe
+  // Withdraw: swap happens from Safe, then transfer to EOA
+  const currentActiveAddress = direction === "deposit" ? walletAddress : safeAddress;
   
   const { data: swapStatus } = useQuery<{ available: boolean; tokens: { usdc: string; usdce: string } }>({
     queryKey: ["/api/swap/status"],
     enabled: open,
   });
   
-  const currentActiveAddress = walletSource === "safe" && safeAddress ? safeAddress : walletAddress;
-  
-  const { data: priceData, isLoading: priceLoading, refetch: refetchPrice } = useQuery<SwapPrice>({
+  const { data: priceData, isLoading: priceLoading } = useQuery<SwapPrice>({
     queryKey: ["/api/swap/price", direction, amount, currentActiveAddress],
     queryFn: async () => {
       if (!currentActiveAddress || parsedAmount <= 0) return null;
@@ -165,7 +126,6 @@ export function SwapModal({ open, onOpenChange, initialDirection = "deposit" }: 
       if (!walletAddress) return;
       
       try {
-        // Use read-only Polygon provider to avoid triggering WalletConnect/MetaMask
         const readOnlyProvider = getReadOnlyPolygonProvider();
         const usdcContract = new ethers.Contract(USDC_NATIVE, ERC20_ABI, readOnlyProvider);
         const usdceContract = new ethers.Contract(USDC_BRIDGED, ERC20_ABI, readOnlyProvider);
@@ -197,16 +157,45 @@ export function SwapModal({ open, onOpenChange, initialDirection = "deposit" }: 
     }
   }, [open, walletAddress, safeAddress]);
   
-  const checkAllowance = async (allowanceTarget: string) => {
-    if (!currentActiveAddress) return false;
+  const refreshBalances = async () => {
+    if (!walletAddress) return;
+    
+    try {
+      const readOnlyProvider = getReadOnlyPolygonProvider();
+      const usdcContract = new ethers.Contract(USDC_NATIVE, ERC20_ABI, readOnlyProvider);
+      const usdceContract = new ethers.Contract(USDC_BRIDGED, ERC20_ABI, readOnlyProvider);
+      
+      const [eoaUsdcBal, eoaUsdceBal] = await Promise.all([
+        usdcContract.balanceOf(walletAddress),
+        usdceContract.balanceOf(walletAddress),
+      ]);
+      
+      setEoaUsdcBalance(parseFloat(ethers.formatUnits(eoaUsdcBal, 6)));
+      setEoaUsdceBalance(parseFloat(ethers.formatUnits(eoaUsdceBal, 6)));
+      
+      if (safeAddress) {
+        const [safeUsdcBal, safeUsdceBal] = await Promise.all([
+          usdcContract.balanceOf(safeAddress),
+          usdceContract.balanceOf(safeAddress),
+        ]);
+        
+        setSafeUsdcBalance(parseFloat(ethers.formatUnits(safeUsdcBal, 6)));
+        setSafeUsdceBalance(parseFloat(ethers.formatUnits(safeUsdceBal, 6)));
+      }
+    } catch (error) {
+      console.error("Failed to refresh balances:", error);
+    }
+  };
+  
+  const checkAllowance = async (allowanceTarget: string, fromAddress: string) => {
+    if (!fromAddress) return false;
     
     const tokenAddress = direction === "deposit" ? USDC_NATIVE : USDC_BRIDGED;
-    // Use read-only provider to avoid triggering WalletConnect/MetaMask
     const readOnlyProvider = getReadOnlyPolygonProvider();
     const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, readOnlyProvider);
     
     try {
-      const allowance = await tokenContract.allowance(currentActiveAddress, allowanceTarget);
+      const allowance = await tokenContract.allowance(fromAddress, allowanceTarget);
       const requiredAmount = ethers.parseUnits(parsedAmount.toString(), 6);
       return allowance < requiredAmount;
     } catch (error) {
@@ -215,40 +204,32 @@ export function SwapModal({ open, onOpenChange, initialDirection = "deposit" }: 
     }
   };
   
-  const handleApprove = async (allowanceTarget: string) => {
-    if (!provider) return;
+  const handleApproveFromEOA = async (allowanceTarget: string) => {
+    if (!provider || !walletAddress) return;
     
     setIsApproving(true);
     try {
       const tokenAddress = direction === "deposit" ? USDC_NATIVE : USDC_BRIDGED;
-      
-      if (walletSource === "safe" && safeAddress) {
-        toast({
-          title: "Approving...",
-          description: "Please sign to approve tokens from Safe",
-        });
-        
-        const result = await approveTokenFromSafe(tokenAddress, allowanceTarget);
-        if (!result.success) {
-          throw new Error(result.error || "Safe approval failed");
-        }
-      } else {
-        const signer = await provider.getSigner();
-        const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, signer);
-        
-        const tx = await tokenContract.approve(allowanceTarget, ethers.MaxUint256);
-        
-        toast({
-          title: "Approving...",
-          description: "Waiting for transaction confirmation",
-        });
-        
-        await tx.wait();
-      }
+      const signer = await provider.getSigner();
+      const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, signer);
       
       toast({
-        title: "Approved",
-        description: "Token approval successful",
+        title: "Approval Required",
+        description: "Please confirm the approval in your wallet",
+      });
+      
+      const tx = await tokenContract.approve(allowanceTarget, ethers.MaxUint256);
+      
+      toast({
+        title: "Approval Submitted",
+        description: "Waiting for confirmation...",
+      });
+      
+      await tx.wait();
+      
+      toast({
+        title: "Approval Complete",
+        description: "You can now proceed with the swap",
       });
       
       setNeedsApproval(false);
@@ -256,45 +237,58 @@ export function SwapModal({ open, onOpenChange, initialDirection = "deposit" }: 
       console.error("Approval error:", error);
       toast({
         title: "Approval Failed",
-        description: error instanceof Error ? error.message : "Failed to approve tokens",
+        description: error instanceof Error ? error.message : "Failed to approve token",
         variant: "destructive",
       });
+      throw error;
     } finally {
       setIsApproving(false);
     }
   };
   
-  const refreshBalances = async () => {
-    if (!provider || !walletAddress) return;
-    
-    const usdcContract = new ethers.Contract(USDC_NATIVE, ERC20_ABI, provider);
-    const usdceContract = new ethers.Contract(USDC_BRIDGED, ERC20_ABI, provider);
-    
-    const [eoaUsdcBal, eoaUsdceBal] = await Promise.all([
-      usdcContract.balanceOf(walletAddress),
-      usdceContract.balanceOf(walletAddress),
-    ]);
-    
-    setEoaUsdcBalance(parseFloat(ethers.formatUnits(eoaUsdcBal, 6)));
-    setEoaUsdceBalance(parseFloat(ethers.formatUnits(eoaUsdceBal, 6)));
-    
-    if (safeAddress) {
-      const [safeUsdcBal, safeUsdceBal] = await Promise.all([
-        usdcContract.balanceOf(safeAddress),
-        usdceContract.balanceOf(safeAddress),
-      ]);
+  const handleApproveFromSafe = async (allowanceTarget: string) => {
+    setIsApproving(true);
+    try {
+      const tokenAddress = direction === "deposit" ? USDC_NATIVE : USDC_BRIDGED;
       
-      setSafeUsdcBalance(parseFloat(ethers.formatUnits(safeUsdcBal, 6)));
-      setSafeUsdceBalance(parseFloat(ethers.formatUnits(safeUsdceBal, 6)));
+      toast({
+        title: "Approval Required",
+        description: "Please sign to approve token spending from Safe",
+      });
+      
+      const result = await approveTokenFromSafe(tokenAddress, allowanceTarget);
+      
+      if (!result.success) {
+        throw new Error(result.error || "Safe approval failed");
+      }
+      
+      toast({
+        title: "Approval Complete",
+        description: "You can now proceed with the swap",
+      });
+      
+      setNeedsApproval(false);
+    } catch (error) {
+      console.error("Safe approval error:", error);
+      toast({
+        title: "Approval Failed",
+        description: error instanceof Error ? error.message : "Failed to approve token",
+        variant: "destructive",
+      });
+      throw error;
+    } finally {
+      setIsApproving(false);
     }
   };
   
-  const handleSwap = async () => {
-    if (!currentActiveAddress || !provider || parsedAmount <= 0) return;
+  // Simplified deposit flow: EOA USDC -> swap to USDC.e -> transfer to Safe
+  const handleDeposit = async () => {
+    if (!walletAddress || !provider || !safeAddress || parsedAmount <= 0) return;
     
     setIsSwapping(true);
     try {
-      const response = await fetch(`/api/swap/quote?direction=${direction}&amount=${parsedAmount}&taker=${currentActiveAddress}`);
+      // Get quote for swapping USDC to USDC.e (from EOA perspective)
+      const response = await fetch(`/api/swap/quote?direction=deposit&amount=${parsedAmount}&taker=${walletAddress}`);
       
       if (!response.ok) {
         const error = await response.json();
@@ -304,15 +298,11 @@ export function SwapModal({ open, onOpenChange, initialDirection = "deposit" }: 
       const quote: SwapQuote = await response.json();
       
       if (!quote.liquidityAvailable) {
-        throw new Error("No liquidity available for this swap. Try a smaller amount.");
+        throw new Error("No liquidity available. Try a smaller amount.");
       }
       
       if (!quote.transaction || !quote.transaction.to || !quote.transaction.data) {
-        throw new Error("Invalid quote response from 0x API");
-      }
-      
-      if (!quote.allowanceTarget) {
-        throw new Error("Missing allowance target from quote");
+        throw new Error("Invalid quote response");
       }
       
       if (quote.issues?.balance) {
@@ -321,122 +311,253 @@ export function SwapModal({ open, onOpenChange, initialDirection = "deposit" }: 
         throw new Error(`Insufficient balance: you have ${actual.toFixed(2)} but need ${expected.toFixed(2)}`);
       }
       
-      const needsApprovalCheck = await checkAllowance(quote.allowanceTarget);
+      // Check and handle approval if needed
+      const needsApprovalCheck = await checkAllowance(quote.allowanceTarget, walletAddress);
       if (needsApprovalCheck) {
         setNeedsApproval(true);
-        await handleApprove(quote.allowanceTarget);
+        await handleApproveFromEOA(quote.allowanceTarget);
         
-        const needs = await checkAllowance(quote.allowanceTarget);
-        if (needs) {
+        const stillNeeds = await checkAllowance(quote.allowanceTarget, walletAddress);
+        if (stillNeeds) {
           throw new Error("Approval failed");
         }
       }
       
-      if (walletSource === "safe" && safeAddress) {
-        toast({
-          title: "Swapping...",
-          description: "Please sign to execute swap from Safe",
-        });
-        
-        const result = await swapFromSafe({
-          to: quote.transaction.to,
-          data: quote.transaction.data,
-          value: quote.transaction.value,
-        });
-        
-        if (!result.success) {
-          throw new Error(result.error || "Safe swap failed");
-        }
-        
-        // If withdrawing from Safe to EOA, transfer the swapped USDC to EOA
-        if (destination === "eoa" && walletAddress && direction === "withdraw") {
-          toast({
-            title: "Transferring to Wallet...",
-            description: "Please sign to transfer USDC to your connected wallet",
-          });
-          
-          // Import and use transferTokenFromSafe for USDC native
-          const { transferTokenFromSafe } = await import("@/lib/polymarketGasless");
-          const transferResult = await transferTokenFromSafe(
-            USDC_NATIVE,
-            walletAddress,
-            ethers.parseUnits(priceData?.buyAmount?.toString() || parsedAmount.toString(), 6)
-          );
-          
-          if (!transferResult.success) {
-            throw new Error(transferResult.error || "Transfer to wallet failed");
-          }
-        }
-      } else {
-        const signer = await provider.getSigner();
-        
-        toast({
-          title: "Swapping...",
-          description: "Please confirm the transaction in your wallet",
-        });
-        
-        const txParams: { to: string; data: string; value?: string; gasLimit?: bigint } = {
-          to: quote.transaction.to,
-          data: quote.transaction.data,
-        };
-        
-        if (quote.transaction.value) {
-          txParams.value = quote.transaction.value;
-        }
-        
-        if (quote.transaction.gas) {
-          try {
-            const gasEstimate = BigInt(quote.transaction.gas);
-            txParams.gasLimit = gasEstimate + (gasEstimate / BigInt(2));
-          } catch (e) {
-            console.warn("Could not parse gas estimate, using auto gas");
-          }
-        }
-        
-        const tx = await signer.sendTransaction(txParams);
-        
-        toast({
-          title: "Transaction Submitted",
-          description: "Waiting for confirmation...",
-        });
-        
-        await tx.wait();
-        
-        // If depositing from EOA to Safe, transfer the swapped USDC.e to Safe
-        if (destination === "safe" && safeAddress && direction === "deposit") {
-          toast({
-            title: "Transferring to Safe...",
-            description: "Please sign to transfer USDC.e to your trading wallet",
-          });
-          
-          const usdceContract = new ethers.Contract(USDC_BRIDGED, ERC20_ABI, signer);
-          const transferAmount = ethers.parseUnits(priceData?.buyAmount?.toString() || parsedAmount.toString(), 6);
-          
-          const transferTx = await usdceContract.transfer(safeAddress, transferAmount);
-          
-          toast({
-            title: "Transfer Submitted",
-            description: "Waiting for confirmation...",
-          });
-          
-          await transferTx.wait();
+      // Step 1: Execute the swap (USDC -> USDC.e in EOA)
+      toast({
+        title: "Swapping USDC to USDC.e...",
+        description: "Please confirm the transaction in your wallet",
+      });
+      
+      const signer = await provider.getSigner();
+      
+      const txParams: { to: string; data: string; value?: string; gasLimit?: bigint } = {
+        to: quote.transaction.to,
+        data: quote.transaction.data,
+      };
+      
+      if (quote.transaction.value) {
+        txParams.value = quote.transaction.value;
+      }
+      
+      if (quote.transaction.gas) {
+        try {
+          const gasEstimate = BigInt(quote.transaction.gas);
+          txParams.gasLimit = gasEstimate + (gasEstimate / BigInt(2));
+        } catch (e) {
+          console.warn("Could not parse gas estimate");
         }
       }
       
-      // Dynamic success message based on action
-      const actionText = destination === "safe" && direction === "deposit"
-        ? `Deposited ${parsedAmount.toFixed(2)} USDC.e to Safe Trading Wallet`
-        : destination === "eoa" && direction === "withdraw"
-          ? `Withdrew ${parsedAmount.toFixed(2)} USDC to Connected Wallet`
-          : `Swapped ${parsedAmount.toFixed(2)} ${direction === "deposit" ? "USDC" : "USDC.e"}`;
+      const tx = await signer.sendTransaction(txParams);
       
       toast({
-        title: destination === "same" ? "Swap Complete" : "Transfer Complete",
-        description: actionText,
+        title: "Swap Submitted",
+        description: "Waiting for confirmation...",
+      });
+      
+      await tx.wait();
+      
+      // Step 2: Transfer the USDC.e to Safe
+      toast({
+        title: "Transferring to Safe...",
+        description: "Please sign to deposit USDC.e to your trading wallet",
+      });
+      
+      const usdceContract = new ethers.Contract(USDC_BRIDGED, ERC20_ABI, signer);
+      // Use the buyAmount from the quote (not priceData) since we have the exact amount from the swap
+      const receivedAmount = quote.buyAmount || parsedAmount;
+      const transferAmount = ethers.parseUnits(receivedAmount.toString(), 6);
+      
+      const transferTx = await usdceContract.transfer(safeAddress, transferAmount);
+      
+      toast({
+        title: "Transfer Submitted",
+        description: "Waiting for confirmation...",
+      });
+      
+      await transferTx.wait();
+      
+      toast({
+        title: "Deposit Complete",
+        description: `Deposited ${receivedAmount.toFixed(2)} USDC.e to your Safe Trading Wallet`,
       });
       
       setAmount("");
-      setDestination("same");
+      await refreshBalances();
+      
+    } catch (error) {
+      console.error("Deposit error:", error);
+      toast({
+        title: "Deposit Failed",
+        description: error instanceof Error ? error.message : "Transaction failed",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSwapping(false);
+    }
+  };
+  
+  // Simplified withdrawal flow: Safe USDC.e -> swap to USDC -> transfer to EOA
+  const handleWithdraw = async () => {
+    if (!walletAddress || !safeAddress || parsedAmount <= 0) return;
+    
+    setIsSwapping(true);
+    try {
+      // Get quote for swapping USDC.e to USDC (from Safe perspective)
+      const response = await fetch(`/api/swap/quote?direction=withdraw&amount=${parsedAmount}&taker=${safeAddress}`);
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to get quote");
+      }
+      
+      const quote: SwapQuote = await response.json();
+      
+      if (!quote.liquidityAvailable) {
+        throw new Error("No liquidity available. Try a smaller amount.");
+      }
+      
+      if (!quote.transaction || !quote.transaction.to || !quote.transaction.data) {
+        throw new Error("Invalid quote response");
+      }
+      
+      if (quote.issues?.balance) {
+        const expected = parseFloat(quote.issues.balance.expected) / 1e6;
+        const actual = parseFloat(quote.issues.balance.actual) / 1e6;
+        throw new Error(`Insufficient balance: you have ${actual.toFixed(2)} but need ${expected.toFixed(2)}`);
+      }
+      
+      // Check and handle approval if needed
+      const needsApprovalCheck = await checkAllowance(quote.allowanceTarget, safeAddress);
+      if (needsApprovalCheck) {
+        setNeedsApproval(true);
+        await handleApproveFromSafe(quote.allowanceTarget);
+        
+        const stillNeeds = await checkAllowance(quote.allowanceTarget, safeAddress);
+        if (stillNeeds) {
+          throw new Error("Approval failed");
+        }
+      }
+      
+      // Step 1: Execute the swap from Safe (USDC.e -> USDC)
+      toast({
+        title: "Swapping USDC.e to USDC...",
+        description: "Please sign to execute the swap from your Safe",
+      });
+      
+      const swapResult = await swapFromSafe({
+        to: quote.transaction.to,
+        data: quote.transaction.data,
+        value: quote.transaction.value,
+      });
+      
+      if (!swapResult.success) {
+        throw new Error(swapResult.error || "Swap failed");
+      }
+      
+      // Step 2: Transfer the swapped USDC to EOA
+      toast({
+        title: "Transferring to Wallet...",
+        description: "Please sign to transfer USDC to your connected wallet",
+      });
+      
+      // Use the buyAmount from the quote (not priceData) since we have the exact amount from the swap
+      const receivedAmount = quote.buyAmount || parsedAmount;
+      const transferAmount = ethers.parseUnits(receivedAmount.toString(), 6);
+      const transferResult = await transferTokenFromSafe(
+        USDC_NATIVE,
+        walletAddress,
+        transferAmount
+      );
+      
+      if (!transferResult.success) {
+        throw new Error(transferResult.error || "Transfer failed");
+      }
+      
+      toast({
+        title: "Withdrawal Complete",
+        description: `Withdrew ${receivedAmount.toFixed(2)} USDC to your connected wallet`,
+      });
+      
+      setAmount("");
+      await refreshBalances();
+      
+    } catch (error) {
+      console.error("Withdrawal error:", error);
+      toast({
+        title: "Withdrawal Failed",
+        description: error instanceof Error ? error.message : "Transaction failed",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSwapping(false);
+    }
+  };
+  
+  // For non-Safe wallets (Magic), use original swap logic
+  const handleSimpleSwap = async () => {
+    if (!walletAddress || !provider || parsedAmount <= 0) return;
+    
+    setIsSwapping(true);
+    try {
+      const response = await fetch(`/api/swap/quote?direction=${direction}&amount=${parsedAmount}&taker=${walletAddress}`);
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to get quote");
+      }
+      
+      const quote: SwapQuote = await response.json();
+      
+      if (!quote.liquidityAvailable) {
+        throw new Error("No liquidity available. Try a smaller amount.");
+      }
+      
+      if (!quote.transaction || !quote.transaction.to || !quote.transaction.data) {
+        throw new Error("Invalid quote response");
+      }
+      
+      const needsApprovalCheck = await checkAllowance(quote.allowanceTarget, walletAddress);
+      if (needsApprovalCheck) {
+        setNeedsApproval(true);
+        await handleApproveFromEOA(quote.allowanceTarget);
+      }
+      
+      toast({
+        title: "Swapping...",
+        description: "Please confirm the transaction in your wallet",
+      });
+      
+      const signer = await provider.getSigner();
+      
+      const txParams: { to: string; data: string; value?: string; gasLimit?: bigint } = {
+        to: quote.transaction.to,
+        data: quote.transaction.data,
+      };
+      
+      if (quote.transaction.value) {
+        txParams.value = quote.transaction.value;
+      }
+      
+      if (quote.transaction.gas) {
+        try {
+          const gasEstimate = BigInt(quote.transaction.gas);
+          txParams.gasLimit = gasEstimate + (gasEstimate / BigInt(2));
+        } catch (e) {
+          console.warn("Could not parse gas estimate");
+        }
+      }
+      
+      const tx = await signer.sendTransaction(txParams);
+      await tx.wait();
+      
+      toast({
+        title: "Swap Complete",
+        description: `Swapped ${parsedAmount.toFixed(2)} ${direction === "deposit" ? "USDC to USDC.e" : "USDC.e to USDC"}`,
+      });
+      
+      setAmount("");
       await refreshBalances();
       
     } catch (error) {
@@ -451,7 +572,19 @@ export function SwapModal({ open, onOpenChange, initialDirection = "deposit" }: 
     }
   };
   
-  const maxAmount = direction === "deposit" ? usdcBalance : usdceBalance;
+  const handleAction = () => {
+    if (hasSafeWallet) {
+      if (direction === "deposit") {
+        handleDeposit();
+      } else {
+        handleWithdraw();
+      }
+    } else {
+      handleSimpleSwap();
+    }
+  };
+  
+  const maxAmount = sourceBalance;
   const hasInsufficientBalance = parsedAmount > maxAmount;
   
   const canSwap = 
@@ -459,15 +592,37 @@ export function SwapModal({ open, onOpenChange, initialDirection = "deposit" }: 
     walletAddress && 
     parsedAmount > 0 && 
     !hasInsufficientBalance && 
-    priceData?.liquidityAvailable;
+    priceData?.liquidityAvailable &&
+    (hasSafeWallet ? !!safeAddress : true);
+  
+  const getButtonText = () => {
+    if (isApproving) return "Approving...";
+    if (isSwapping) {
+      if (hasSafeWallet) {
+        return direction === "deposit" ? "Depositing..." : "Withdrawing...";
+      }
+      return "Swapping...";
+    }
+    if (hasSafeWallet) {
+      return direction === "deposit" ? "Deposit to Safe" : "Withdraw to Wallet";
+    }
+    return "Swap";
+  };
   
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Swap USDC</DialogTitle>
+          <DialogTitle>
+            {hasSafeWallet ? (direction === "deposit" ? "Deposit" : "Withdraw") : "Swap USDC"}
+          </DialogTitle>
           <DialogDescription>
-            Convert between USDC and USDC.e for trading on Polymarket
+            {hasSafeWallet 
+              ? (direction === "deposit" 
+                  ? "Convert USDC and deposit to your Safe Trading Wallet" 
+                  : "Withdraw from your Safe Trading Wallet to your connected wallet")
+              : "Convert between USDC and USDC.e for trading"
+            }
           </DialogDescription>
         </DialogHeader>
         
@@ -479,7 +634,7 @@ export function SwapModal({ open, onOpenChange, initialDirection = "deposit" }: 
         ) : !walletAddress ? (
           <div className="flex items-center gap-2 rounded-md bg-orange-500/10 p-3 text-sm">
             <AlertCircle className="h-4 w-4 text-orange-500 flex-shrink-0" />
-            <span className="text-orange-600 dark:text-orange-400">Connect your wallet to swap tokens</span>
+            <span className="text-orange-600 dark:text-orange-400">Connect your wallet to continue</span>
           </div>
         ) : (
           <div className="space-y-4">
@@ -487,115 +642,95 @@ export function SwapModal({ open, onOpenChange, initialDirection = "deposit" }: 
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="deposit" data-testid="tab-deposit">
                   <ArrowDownLeft className="h-4 w-4 mr-2" />
-                  Swap USDC to Trade
+                  {hasSafeWallet ? "Deposit" : "USDC to USDC.e"}
                 </TabsTrigger>
                 <TabsTrigger value="withdraw" data-testid="tab-withdraw">
                   <ArrowUpRight className="h-4 w-4 mr-2" />
-                  Swap USDC.e for Withdrawal
+                  {hasSafeWallet ? "Withdraw" : "USDC.e to USDC"}
                 </TabsTrigger>
               </TabsList>
               
               <TabsContent value="deposit" className="space-y-4 mt-4">
                 <div className="rounded-md bg-muted p-3 text-sm">
-                  <p className="font-medium">Deposit to Trade</p>
-                  <p className="text-muted-foreground text-xs mt-1">
-                    Convert your USDC to USDC.e, the token used for Polymarket trading.
-                  </p>
+                  {hasSafeWallet ? (
+                    <>
+                      <div className="flex items-center gap-2 mb-1">
+                        <Wallet className="h-4 w-4" />
+                        <ArrowDown className="h-3 w-3" />
+                        <Shield className="h-4 w-4" />
+                      </div>
+                      <p className="font-medium">Deposit to Safe Trading Wallet</p>
+                      <p className="text-muted-foreground text-xs mt-1">
+                        Your USDC will be converted to USDC.e and deposited to your Safe for trading.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="font-medium">Convert to USDC.e</p>
+                      <p className="text-muted-foreground text-xs mt-1">
+                        Convert your USDC to USDC.e, the token used for Polymarket trading.
+                      </p>
+                    </>
+                  )}
                 </div>
               </TabsContent>
               
               <TabsContent value="withdraw" className="space-y-4 mt-4">
                 <div className="rounded-md bg-muted p-3 text-sm">
-                  <p className="font-medium">Withdraw Funds</p>
-                  <p className="text-muted-foreground text-xs mt-1">
-                    Convert your USDC.e back to USDC for easy transfers to exchanges.
-                  </p>
+                  {hasSafeWallet ? (
+                    <>
+                      <div className="flex items-center gap-2 mb-1">
+                        <Shield className="h-4 w-4" />
+                        <ArrowDown className="h-3 w-3" />
+                        <Wallet className="h-4 w-4" />
+                      </div>
+                      <p className="font-medium">Withdraw to Connected Wallet</p>
+                      <p className="text-muted-foreground text-xs mt-1">
+                        Your USDC.e will be converted to USDC and sent to your connected wallet.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="font-medium">Convert to USDC</p>
+                      <p className="text-muted-foreground text-xs mt-1">
+                        Convert your USDC.e back to USDC for easy transfers to exchanges.
+                      </p>
+                    </>
+                  )}
                 </div>
               </TabsContent>
             </Tabs>
             
+            {/* Wallet info display for Safe users */}
             {hasSafeWallet && (
-              <div className="rounded-md border p-3 space-y-3">
-                <div className="space-y-2">
-                  <Label className="text-xs text-muted-foreground">Swap from</Label>
-                  <RadioGroup
-                    value={walletSource}
-                    onValueChange={(v) => { 
-                      setWalletSource(v as "eoa" | "safe"); 
-                      setAmount(""); 
-                      setDestination("same");
-                    }}
-                    className="flex gap-4"
-                  >
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="eoa" id="eoa" data-testid="radio-eoa" />
-                      <Label htmlFor="eoa" className="flex items-center gap-1.5 cursor-pointer text-sm">
-                        <Wallet className="h-3.5 w-3.5" />
-                        Connected Wallet
-                      </Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="safe" id="safe" data-testid="radio-safe" />
-                      <Label htmlFor="safe" className="flex items-center gap-1.5 cursor-pointer text-sm">
-                        <Shield className="h-3.5 w-3.5" />
-                        Safe Trading Wallet
-                      </Label>
-                    </div>
-                  </RadioGroup>
+              <div className="flex items-center justify-between rounded-md border p-3 text-xs">
+                <div className="flex items-center gap-2">
+                  {direction === "deposit" ? (
+                    <>
+                      <Wallet className="h-4 w-4 text-muted-foreground" />
+                      <span>From: Connected Wallet</span>
+                    </>
+                  ) : (
+                    <>
+                      <Shield className="h-4 w-4 text-muted-foreground" />
+                      <span>From: Safe Trading Wallet</span>
+                    </>
+                  )}
                 </div>
-                
-                {/* Destination selector - only show when relevant */}
-                {((walletSource === "eoa" && direction === "deposit") || (walletSource === "safe" && direction === "withdraw")) && (
-                  <div className="space-y-2 pt-2 border-t">
-                    <Label className="text-xs text-muted-foreground">Send to</Label>
-                    <RadioGroup
-                      value={destination}
-                      onValueChange={(v) => setDestination(v as "same" | "safe" | "eoa")}
-                      className="flex gap-4"
-                    >
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem 
-                          value="same" 
-                          id="dest-same" 
-                          data-testid="radio-dest-same" 
-                        />
-                        <Label htmlFor="dest-same" className="flex items-center gap-1.5 cursor-pointer text-sm">
-                          {walletSource === "eoa" ? (
-                            <>
-                              <Wallet className="h-3.5 w-3.5" />
-                              Keep in Connected Wallet
-                            </>
-                          ) : (
-                            <>
-                              <Shield className="h-3.5 w-3.5" />
-                              Keep in Safe
-                            </>
-                          )}
-                        </Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem 
-                          value={walletSource === "eoa" ? "safe" : "eoa"} 
-                          id="dest-other" 
-                          data-testid="radio-dest-other" 
-                        />
-                        <Label htmlFor="dest-other" className="flex items-center gap-1.5 cursor-pointer text-sm">
-                          {walletSource === "eoa" ? (
-                            <>
-                              <Shield className="h-3.5 w-3.5" />
-                              Safe Trading Wallet
-                            </>
-                          ) : (
-                            <>
-                              <Wallet className="h-3.5 w-3.5" />
-                              Connected Wallet
-                            </>
-                          )}
-                        </Label>
-                      </div>
-                    </RadioGroup>
-                  </div>
-                )}
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <ArrowDown className="h-3 w-3" />
+                  {direction === "deposit" ? (
+                    <>
+                      <Shield className="h-4 w-4" />
+                      <span>To: Safe</span>
+                    </>
+                  ) : (
+                    <>
+                      <Wallet className="h-4 w-4" />
+                      <span>To: Wallet</span>
+                    </>
+                  )}
+                </div>
               </div>
             )}
             
@@ -604,7 +739,7 @@ export function SwapModal({ open, onOpenChange, initialDirection = "deposit" }: 
                 <div className="flex items-center justify-between">
                   <Label className="text-xs text-muted-foreground">You pay</Label>
                   <span className="text-xs text-muted-foreground">
-                    Balance: {(direction === "deposit" ? usdcBalance : usdceBalance).toFixed(2)} {direction === "deposit" ? "USDC" : "USDC.e"}
+                    Balance: {sourceBalance.toFixed(2)} {direction === "deposit" ? "USDC" : "USDC.e"}
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
@@ -652,7 +787,12 @@ export function SwapModal({ open, onOpenChange, initialDirection = "deposit" }: 
                   <span className="font-medium">{direction === "deposit" ? "USDC.e" : "USDC"}</span>
                 </div>
                 <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span>Balance: {(direction === "deposit" ? usdceBalance : usdcBalance).toFixed(2)}</span>
+                  <span>
+                    {hasSafeWallet 
+                      ? `${direction === "deposit" ? "Safe" : "Wallet"} balance: ${destinationBalance.toFixed(2)}`
+                      : `Balance: ${destinationBalance.toFixed(2)}`
+                    }
+                  </span>
                   {priceData?.liquidityAvailable && parsedAmount > 0 && (
                     <span className="flex items-center gap-1 text-green-600 dark:text-green-400">
                       <CheckCircle2 className="h-3 w-3" />
@@ -671,7 +811,7 @@ export function SwapModal({ open, onOpenChange, initialDirection = "deposit" }: 
             )}
             
             <Button
-              onClick={handleSwap}
+              onClick={handleAction}
               disabled={!canSwap || isSwapping || isApproving}
               className="w-full"
               data-testid="button-swap"
@@ -679,10 +819,10 @@ export function SwapModal({ open, onOpenChange, initialDirection = "deposit" }: 
               {isSwapping || isApproving ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  {getLoadingText(direction, walletSource, destination, isApproving)}
+                  {getButtonText()}
                 </>
               ) : (
-                getCtaText(direction, walletSource, destination)
+                getButtonText()
               )}
             </Button>
             
