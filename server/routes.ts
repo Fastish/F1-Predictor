@@ -2191,15 +2191,17 @@ export async function registerRoutes(
       const positions = (rawPositions || []).map((pos: any) => {
         const size = parseFloat(pos.size || "0");
         const avgPrice = parseFloat(pos.avgPrice || "0");
-        let currentPrice = parseFloat(pos.curPrice || avgPrice);
+        // Use curPrice if it exists (including 0), otherwise fall back to avgPrice
+        const rawCurPrice = pos.curPrice !== undefined && pos.curPrice !== null ? parseFloat(pos.curPrice) : avgPrice;
+        let currentPrice = rawCurPrice;
         
         // Check if market is resolved - Polymarket API may include 'resolved', 'closed', or 'settled' fields
-        // For resolved markets, losing positions should be valued at $0
-        const isResolved = pos.resolved === true || pos.closed === true || pos.settled === true;
+        // Also check 'redeemable' flag which indicates market is finalized
+        const isResolved = pos.resolved === true || pos.closed === true || pos.settled === true || pos.redeemable === true;
         
         // Also detect resolution by checking if curPrice is exactly 0 or 1 (binary outcomes)
         // A price of exactly 0 means the outcome lost, price of exactly 1 means it won
-        const isPriceFinal = currentPrice === 0 || currentPrice === 1;
+        const isPriceFinal = rawCurPrice === 0 || rawCurPrice === 1;
         
         // For resolved losing positions (price = 0 or resolved flag with losing outcome), value = 0
         // Also check if endDate has passed (market ended but shares not redeemed)
@@ -2209,7 +2211,7 @@ export async function registerRoutes(
         // If market is resolved/ended and currentPrice is very close to 0, treat as worthless
         if ((isResolved || marketEnded || isPriceFinal) && currentPrice < 0.01) {
           currentPrice = 0;
-          console.log(`[Positions] Resolved losing position: ${pos.title} - ${pos.outcome}, price=${pos.curPrice}, value=0`);
+          console.log(`[Positions] Resolved losing position: ${pos.title} - ${pos.outcome}, rawCurPrice=${rawCurPrice}, redeemable=${pos.redeemable}, value=0`);
         }
         
         // Calculate value based on potentially adjusted price
