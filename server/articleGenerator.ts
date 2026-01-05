@@ -1,7 +1,10 @@
 import OpenAI from "openai";
 import { storage } from "./storage";
 import { randomBytes } from "crypto";
+import { writeFileSync, mkdirSync, existsSync } from "fs";
+import { join } from "path";
 import type { ArticleContextRules } from "@shared/schema";
+import { generateImageBuffer } from "./replit_integrations/image/client";
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
@@ -185,6 +188,11 @@ export async function generateAndSaveArticle(options?: GenerateAndSaveOptions): 
 
   console.log(`[ArticleGenerator] Created draft article: ${savedArticle.title} (${savedArticle.id})`);
   
+  const thumbnailUrl = await generateArticleThumbnail(article.title, article.category, savedArticle.id);
+  if (thumbnailUrl) {
+    await storage.updateArticle(savedArticle.id, { thumbnailUrl });
+  }
+  
   return {
     id: savedArticle.id,
     title: savedArticle.title,
@@ -209,6 +217,39 @@ export async function generateMultipleArticles(count: number = 3): Promise<{ id:
   }
   
   return results;
+}
+
+async function generateArticleThumbnail(title: string, category: string, articleId: string): Promise<string | null> {
+  try {
+    const imageDir = join(process.cwd(), "public", "article-images");
+    if (!existsSync(imageDir)) {
+      mkdirSync(imageDir, { recursive: true });
+    }
+    
+    const prompt = `Create a professional, eye-catching thumbnail image for an F1 Formula 1 racing article titled "${title}". The image should be:
+- Dramatic and dynamic, capturing the excitement of F1 racing
+- Using red, black, and carbon fiber aesthetic common in F1 branding
+- Include subtle racing elements like a track, car silhouette, or checkered patterns
+- Modern, clean design suitable for a news article thumbnail
+- Category: ${category}
+- No text or logos in the image
+- Photorealistic style with dramatic lighting`;
+    
+    console.log(`[ArticleGenerator] Generating thumbnail for article: ${articleId}`);
+    const imageBuffer = await generateImageBuffer(prompt, "1024x1024");
+    
+    const filename = `article-${articleId}.png`;
+    const filepath = join(imageDir, filename);
+    writeFileSync(filepath, imageBuffer);
+    
+    const imageUrl = `/article-images/${filename}`;
+    console.log(`[ArticleGenerator] Thumbnail saved: ${imageUrl}`);
+    
+    return imageUrl;
+  } catch (error) {
+    console.error(`[ArticleGenerator] Failed to generate thumbnail:`, error);
+    return null;
+  }
 }
 
 export { F1_TOPICS };

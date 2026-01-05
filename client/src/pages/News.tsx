@@ -66,10 +66,10 @@ export default function News() {
             {articles.map((article) => (
               <Link key={article.id} href={`/news/${article.slug}`}>
                 <Card className="h-full hover-elevate cursor-pointer transition-all" data-testid={`card-article-${article.id}`}>
-                  {article.heroImageUrl && (
+                  {(article.thumbnailUrl || article.heroImageUrl) && (
                     <div className="relative w-full h-48 overflow-hidden rounded-t-md">
                       <img
-                        src={article.heroImageUrl}
+                        src={article.thumbnailUrl || article.heroImageUrl || ""}
                         alt={article.title}
                         className="w-full h-full object-cover"
                       />

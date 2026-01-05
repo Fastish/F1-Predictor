@@ -459,6 +459,17 @@ export function ArticleAdmin() {
                           size="icon"
                           variant="ghost"
                           onClick={() => {
+                            setEditingArticle(article);
+                            setShowEditDialog(true);
+                          }}
+                          data-testid={`button-edit-published-${article.id}`}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => {
                             if (confirm("Delete this published article?")) {
                               deleteMutation.mutate(article.id);
                             }
@@ -536,13 +547,17 @@ function EditArticleForm({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSave({
-      title,
+    const updates: Partial<Article> = {
       summary,
       content,
       metaTitle: metaTitle || undefined,
       metaDescription: metaDescription || undefined,
-    });
+    };
+    // Only include title if it actually changed to avoid slug regeneration
+    if (title !== article.title) {
+      updates.title = title;
+    }
+    onSave(updates);
   };
 
   return (

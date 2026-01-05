@@ -23,10 +23,15 @@ export default function NewsArticle() {
     enabled: !!slug,
   });
 
+  const imageUrl = article?.thumbnailUrl || article?.heroImageUrl;
+  const fullImageUrl = imageUrl && typeof window !== "undefined" 
+    ? `${window.location.origin}${imageUrl}` 
+    : undefined;
+  
   useSEO({
     title: article?.metaTitle || article?.title || "Article",
     description: article?.metaDescription || article?.summary || "F1 news and analysis",
-    image: article?.heroImageUrl || undefined,
+    image: fullImageUrl,
     url: typeof window !== "undefined" ? window.location.href : undefined
   });
 
@@ -140,10 +145,10 @@ export default function NewsArticle() {
             </div>
           </header>
 
-          {article.heroImageUrl && (
+          {(article.thumbnailUrl || article.heroImageUrl) && (
             <figure className="not-prose mb-8">
               <img
-                src={article.heroImageUrl}
+                src={article.thumbnailUrl || article.heroImageUrl || ""}
                 alt={article.title}
                 className="w-full h-auto rounded-lg object-cover max-h-96"
               />

@@ -1607,10 +1607,21 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateArticle(id: string, updates: Partial<Article>): Promise<Article | undefined> {
-    const updateData = { ...updates, updatedAt: new Date() };
-    if (updates.title) {
+    // Only include defined fields to avoid corrupting data
+    const cleanedUpdates: Partial<Article> = {};
+    for (const [key, value] of Object.entries(updates)) {
+      if (value !== undefined) {
+        (cleanedUpdates as any)[key] = value;
+      }
+    }
+    
+    const updateData = { ...cleanedUpdates, updatedAt: new Date(), lastEditedAt: new Date() };
+    
+    // Only regenerate slug if a new title is explicitly provided
+    if (typeof updates.title === "string" && updates.title.trim()) {
       (updateData as any).slug = this.generateSlug(updates.title);
     }
+    
     const [updated] = await db
       .update(articles)
       .set(updateData)

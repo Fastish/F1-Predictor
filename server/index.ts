@@ -3,6 +3,7 @@ import { registerRoutes, initializeAfterListen } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import { storage } from "./storage";
+import path from "path";
 
 const app = express();
 const httpServer = createServer(app);
@@ -22,6 +23,8 @@ app.use(
 );
 
 app.use(express.urlencoded({ extended: false }));
+
+app.use("/article-images", express.static(path.join(process.cwd(), "public", "article-images")));
 
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
