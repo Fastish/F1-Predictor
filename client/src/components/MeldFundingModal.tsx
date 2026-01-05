@@ -1,7 +1,7 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { useTradingSession } from "@/hooks/useTradingSession";
-import { Loader2, ExternalLink, X } from "lucide-react";
+import { Loader2, ExternalLink } from "lucide-react";
 import { useState, useEffect } from "react";
 
 interface MeldFundingModalProps {
@@ -63,24 +63,12 @@ export function MeldFundingModal({ open, onOpenChange }: MeldFundingModalProps) 
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl h-[80vh] flex flex-col p-0">
         <DialogHeader className="px-6 pt-6 pb-4 border-b flex-shrink-0">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <DialogTitle className="flex items-center gap-2">
-                Add External Funds
-              </DialogTitle>
-              <DialogDescription>
-                Buy USDC with card or bank transfer via Meld
-              </DialogDescription>
-            </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => onOpenChange(false)}
-              data-testid="button-close-meld"
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
+          <DialogTitle className="flex items-center gap-2">
+            Add External Funds
+          </DialogTitle>
+          <DialogDescription>
+            Buy USDC with card or bank transfer via Meld
+          </DialogDescription>
         </DialogHeader>
 
         <div className="flex-1 relative overflow-hidden">
