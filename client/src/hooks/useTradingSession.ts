@@ -23,6 +23,10 @@ const SIGNATURE_TYPE_BROWSER_WALLET = 2;
 // v4: Force re-derive after fixing API key binding (v2/v3 keys may be bound to wrong address)
 const CREDENTIAL_VERSION = 4;
 
+// Feature flag: Fee collection authorization
+// Set to false to disable fee authorization step (relayer doesn't support fees yet)
+const FEE_AUTHORIZATION_ENABLED = false;
+
 // MODULE-LEVEL ClobClient cache - shared across ALL components using useTradingSession
 // This prevents the issue where each component (header, bet modal) gets its own ClobClient
 // and the bet modal would submit orders with missing credentials
@@ -181,10 +185,10 @@ export function useTradingSession() {
     
     setTradingSession(stored);
     setCredentialsValidated(false); // Need to validate on each session load
-    // Mark as complete if we have credentials AND a Safe address AND fee authorization
+    // Mark as complete if we have credentials AND a Safe address AND (fee authorization OR feature disabled)
     // proxyDeployed status is informational - we'll let the server reject if not deployed
     if (stored?.hasApiCredentials && stored?.safeAddress) {
-      if (!stored.feeAuthorizationComplete) {
+      if (FEE_AUTHORIZATION_ENABLED && !stored.feeAuthorizationComplete) {
         // Has credentials but fee authorization pending
         setCurrentStep("fee_authorization");
       } else {
@@ -463,8 +467,8 @@ export function useTradingSession() {
           const isValid = await validateApiCredentials(existingSession.apiCredentials);
           
           if (isValid) {
-            // Check if fee authorization is complete
-            if (!existingSession.feeAuthorizationComplete) {
+            // Check if fee authorization is complete (only if feature enabled)
+            if (FEE_AUTHORIZATION_ENABLED && !existingSession.feeAuthorizationComplete) {
               console.log("[TradingSession] Session valid but fee authorization pending - showing fee step");
               setTradingSession(existingSession);
               setCurrentStep("fee_authorization");
@@ -582,7 +586,7 @@ export function useTradingSession() {
       const apiCreds = await deriveApiCredentials(safeAddress || undefined);
       console.log("[TradingSession] Got API credentials:", apiCreds ? "success" : "failed");
 
-      // Create session with Safe address (fee authorization pending)
+      // Create session with Safe address
       // Even if proxyDeployed check returned false, we'll try to proceed
       // The Polymarket server will reject if proxy truly isn't deployed
       const newSession: TradingSession = {
@@ -594,20 +598,26 @@ export function useTradingSession() {
         apiCredentials: apiCreds,
         lastChecked: Date.now(),
         credentialVersion: CREDENTIAL_VERSION, // Track credential derivation format version
-        feeAuthorizationComplete: false, // Fee authorization pending - user must confirm
+        feeAuthorizationComplete: !FEE_AUTHORIZATION_ENABLED, // Auto-complete if feature disabled
       };
 
       setTradingSession(newSession);
       saveSession(walletAddress, newSession);
       
-      // STEP 4: Fee Authorization
-      // Pause at fee_authorization step - user must explicitly authorize
-      // The UI will show a button to authorize fee collection
-      console.log("[TradingSession] Fee authorization required - pausing for user confirmation");
-      setCurrentStep("fee_authorization");
+      // STEP 4: Fee Authorization (only if feature enabled)
+      if (FEE_AUTHORIZATION_ENABLED) {
+        // Pause at fee_authorization step - user must explicitly authorize
+        // The UI will show a button to authorize fee collection
+        console.log("[TradingSession] Fee authorization required - pausing for user confirmation");
+        setCurrentStep("fee_authorization");
+      } else {
+        // Skip fee authorization - go straight to complete
+        console.log("[TradingSession] Fee authorization disabled - session complete");
+        setCurrentStep("complete");
+      }
       setCredentialsValidated(true);
       setIsInitializing(false);
-      console.log("Trading session initialized with Safe (fee auth pending):", safeAddress);
+      console.log("Trading session initialized with Safe:", safeAddress);
       return newSession;
     } catch (err: any) {
       console.error("Session initialization error:", err);

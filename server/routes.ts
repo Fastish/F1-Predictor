@@ -2187,11 +2187,39 @@ export async function registerRoutes(
 
       // Transform positions from Data API format to our format
       // Data API returns: asset, size, avgPrice, curPrice, cashPnl, percentPnl, currentValue, title, outcome, slug, conditionId
+      // Also may return: resolved (boolean), endDate (timestamp)
       const positions = (rawPositions || []).map((pos: any) => {
         const size = parseFloat(pos.size || "0");
         const avgPrice = parseFloat(pos.avgPrice || "0");
-        const currentPrice = parseFloat(pos.curPrice || avgPrice);
-        const value = parseFloat(pos.currentValue || (size * currentPrice).toString());
+        let currentPrice = parseFloat(pos.curPrice || avgPrice);
+        
+        // Check if market is resolved - Polymarket API may include 'resolved', 'closed', or 'settled' fields
+        // For resolved markets, losing positions should be valued at $0
+        const isResolved = pos.resolved === true || pos.closed === true || pos.settled === true;
+        
+        // Also detect resolution by checking if curPrice is exactly 0 or 1 (binary outcomes)
+        // A price of exactly 0 means the outcome lost, price of exactly 1 means it won
+        const isPriceFinal = currentPrice === 0 || currentPrice === 1;
+        
+        // For resolved losing positions (price = 0 or resolved flag with losing outcome), value = 0
+        // Also check if endDate has passed (market ended but shares not redeemed)
+        const endDate = pos.endDate ? new Date(pos.endDate) : null;
+        const marketEnded = endDate && endDate < new Date();
+        
+        // If market is resolved/ended and currentPrice is very close to 0, treat as worthless
+        if ((isResolved || marketEnded || isPriceFinal) && currentPrice < 0.01) {
+          currentPrice = 0;
+          console.log(`[Positions] Resolved losing position: ${pos.title} - ${pos.outcome}, price=${pos.curPrice}, value=0`);
+        }
+        
+        // Calculate value based on potentially adjusted price
+        let value = size * currentPrice;
+        
+        // If API provides currentValue, only use it if our calculation isn't zeroing a resolved position
+        if (pos.currentValue && currentPrice > 0) {
+          value = parseFloat(pos.currentValue);
+        }
+        
         const pnl = parseFloat(pos.cashPnl || "0");
         const pnlPercent = parseFloat(pos.percentPnl || "0");
 
@@ -2209,6 +2237,7 @@ export async function registerRoutes(
           title: pos.title || "Unknown Market",
           icon: pos.icon || "",
           eventSlug: pos.eventSlug || "",
+          isResolved: isResolved || (marketEnded && isPriceFinal),
         };
       }).filter((p: any) => p.size > 0);
 

@@ -37,7 +37,8 @@ import {
   Loader2,
   Edit,
   Settings,
-  Save
+  Save,
+  Image
 } from "lucide-react";
 import type { Article, ArticleContextRules } from "@shared/schema";
 
@@ -542,6 +543,8 @@ function EditArticleForm({
   const [title, setTitle] = useState(article.title);
   const [summary, setSummary] = useState(article.summary);
   const [content, setContent] = useState(article.content);
+  const [thumbnailUrl, setThumbnailUrl] = useState(article.thumbnailUrl || "");
+  const [heroImageUrl, setHeroImageUrl] = useState(article.heroImageUrl || "");
   const [metaTitle, setMetaTitle] = useState(article.metaTitle || "");
   const [metaDescription, setMetaDescription] = useState(article.metaDescription || "");
 
@@ -550,6 +553,8 @@ function EditArticleForm({
     const updates: Partial<Article> = {
       summary,
       content,
+      thumbnailUrl: thumbnailUrl || null,
+      heroImageUrl: heroImageUrl || null,
       metaTitle: metaTitle || undefined,
       metaDescription: metaDescription || undefined,
     };
@@ -593,6 +598,56 @@ function EditArticleForm({
           required
           data-testid="input-edit-content"
         />
+      </div>
+      <div className="space-y-4 p-4 rounded-md bg-muted/50">
+        <div className="flex items-center gap-2 text-sm font-medium">
+          <Image className="h-4 w-4" />
+          Images
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="thumbnailUrl">Thumbnail Image URL</Label>
+          <Input
+            id="thumbnailUrl"
+            value={thumbnailUrl}
+            onChange={(e) => setThumbnailUrl(e.target.value)}
+            placeholder="https://example.com/image.png"
+            data-testid="input-edit-thumbnail-url"
+          />
+          {thumbnailUrl && (
+            <div className="mt-2">
+              <img 
+                src={thumbnailUrl} 
+                alt="Thumbnail preview" 
+                className="h-20 w-auto rounded-md object-cover"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = 'none';
+                }}
+              />
+            </div>
+          )}
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="heroImageUrl">Hero Image URL</Label>
+          <Input
+            id="heroImageUrl"
+            value={heroImageUrl}
+            onChange={(e) => setHeroImageUrl(e.target.value)}
+            placeholder="https://example.com/hero.png"
+            data-testid="input-edit-hero-url"
+          />
+          {heroImageUrl && (
+            <div className="mt-2">
+              <img 
+                src={heroImageUrl} 
+                alt="Hero preview" 
+                className="h-20 w-auto rounded-md object-cover"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = 'none';
+                }}
+              />
+            </div>
+          )}
+        </div>
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
