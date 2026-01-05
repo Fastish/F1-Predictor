@@ -1,4 +1,4 @@
-import { Wallet, TrendingUp, Menu, Plus, Loader2, Briefcase, Flag, DollarSign, PieChart, LogOut, Check, ArrowRightLeft, Settings, ArrowUpRight, ArrowDownLeft, Car, User, HelpCircle, RefreshCw, Pencil, Newspaper } from "lucide-react";
+import { Wallet, TrendingUp, Menu, Plus, Loader2, Briefcase, Flag, DollarSign, PieChart, LogOut, Check, ArrowRightLeft, Settings, ArrowUpRight, ArrowDownLeft, Car, User, HelpCircle, RefreshCw, Pencil, Newspaper, CreditCard } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +29,7 @@ import {
 import { usePolymarketPositions } from "@/hooks/usePolymarketPositions";
 import { useTradingWalletBalance } from "@/hooks/useTradingWalletBalance";
 import { UsernameModal } from "./UsernameModal";
+import { MeldFundingModal } from "./MeldFundingModal";
 
 export function Header() {
   const { walletAddress, walletType, disconnectWallet } = useWallet();
@@ -38,6 +39,7 @@ export function Header() {
   const [swapDirection, setSwapDirection] = useState<"deposit" | "withdraw">("deposit");
   const [walletManagementOpen, setWalletManagementOpen] = useState(false);
   const [usernameOpen, setUsernameOpen] = useState(false);
+  const [meldOpen, setMeldOpen] = useState(false);
   const { tradingSession, isTradingSessionComplete } = useTradingSession();
   const { data: positionsData } = usePolymarketPositions();
   
@@ -140,7 +142,7 @@ export function Header() {
                     </Badge>
                   </button>
                 </PopoverTrigger>
-                <PopoverContent className="w-48 p-2" align="center">
+                <PopoverContent className="w-52 p-2" align="center">
                   <div className="flex flex-col gap-1">
                     <Button 
                       variant="ghost" 
@@ -151,6 +153,16 @@ export function Header() {
                     >
                       <ArrowDownLeft className="h-4 w-4 mr-2" />
                       Deposit / Withdraw
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="justify-start"
+                      onClick={() => setMeldOpen(true)}
+                      data-testid="button-header-add-funds"
+                    >
+                      <CreditCard className="h-4 w-4 mr-2" />
+                      Add External Funds
                     </Button>
                   </div>
                 </PopoverContent>
@@ -235,6 +247,7 @@ export function Header() {
           <SwapModal open={swapOpen} onOpenChange={setSwapOpen} initialDirection={swapDirection} />
           <WalletManagementModal open={walletManagementOpen} onOpenChange={setWalletManagementOpen} />
           <UsernameModal open={usernameOpen} onOpenChange={setUsernameOpen} />
+          <MeldFundingModal open={meldOpen} onOpenChange={setMeldOpen} />
 
           <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
             <SheetTrigger asChild>

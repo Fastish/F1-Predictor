@@ -9,11 +9,12 @@ import { useMarket } from "@/context/MarketContext";
 import { useWallet } from "@/context/WalletContext";
 import { useTradingSession } from "@/hooks/useTradingSession";
 import { useToast } from "@/hooks/use-toast";
-import { Copy, Wallet, AlertCircle, Loader2, LogOut, Mail, ExternalLink, RotateCcw, Key, CheckCircle2, ArrowRightLeft, ArrowUpRight, ArrowDownLeft, Send } from "lucide-react";
+import { Copy, Wallet, AlertCircle, Loader2, LogOut, Mail, ExternalLink, RotateCcw, Key, CheckCircle2, ArrowRightLeft, ArrowUpRight, ArrowDownLeft, Send, CreditCard } from "lucide-react";
 import { SiPolygon } from "react-icons/si";
 import { PolymarketDepositWizard } from "./PolymarketDepositWizard";
 import { SwapModal } from "./SwapModal";
 import { WalletManagementModal } from "./WalletManagementModal";
+import { MeldFundingModal } from "./MeldFundingModal";
 import { checkDepositRequirements } from "@/lib/polymarketDeposit";
 import { useTradingWalletBalance } from "@/hooks/useTradingWalletBalance";
 import { withdrawFromSafe, deriveSafeAddressFromEoa } from "@/lib/polymarketGasless";
@@ -145,6 +146,7 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
   const [email, setEmail] = useState("");
   const [showDepositWizard, setShowDepositWizard] = useState(false);
   const [showSwapModal, setShowSwapModal] = useState(false);
+  const [showMeldModal, setShowMeldModal] = useState(false);
   const [showWalletManagement, setShowWalletManagement] = useState(false);
   const [walletManagementConfig, setWalletManagementConfig] = useState<{
     initialTab: "receive" | "send";
@@ -999,6 +1001,18 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
                   </p>
                 </div>
               )}
+
+              <div className="pt-2 border-t">
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => setShowMeldModal(true)}
+                  data-testid="button-add-external-funds"
+                >
+                  <CreditCard className="h-4 w-4 mr-2" />
+                  Add External Funds (Bank/Card)
+                </Button>
+              </div>
             </div>
           ) : (
             <Tabs defaultValue="magic" className="w-full">
@@ -1266,6 +1280,11 @@ export function DepositModal({ open, onOpenChange }: DepositModalProps) {
         prefilledAddress={walletManagementConfig.prefilledAddress}
         title={walletManagementConfig.title}
         sendLabel={walletManagementConfig.sendLabel}
+      />
+
+      <MeldFundingModal
+        open={showMeldModal}
+        onOpenChange={setShowMeldModal}
       />
     </Dialog>
   );
