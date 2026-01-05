@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -33,9 +35,11 @@ import {
   RefreshCw, 
   ExternalLink,
   Loader2,
-  Edit
+  Edit,
+  Settings,
+  Save
 } from "lucide-react";
-import type { Article } from "@shared/schema";
+import type { Article, ArticleContextRules } from "@shared/schema";
 
 const ARTICLES_QUERY_KEY = "/api/admin/articles";
 
@@ -43,9 +47,11 @@ export function ArticleAdmin() {
   const { walletAddress } = useWallet();
   const { toast } = useToast();
   const [selectedTopic, setSelectedTopic] = useState<string>("");
+  const [customPrompt, setCustomPrompt] = useState<string>("");
   const [showGenerateDialog, setShowGenerateDialog] = useState(false);
   const [editingArticle, setEditingArticle] = useState<Article | null>(null);
   const [showEditDialog, setShowEditDialog] = useState(false);
+  const [activeTab, setActiveTab] = useState<string>("articles");
 
   const { data: articles = [], isLoading } = useQuery<Article[]>({
     queryKey: [ARTICLES_QUERY_KEY],
@@ -68,20 +74,37 @@ export function ArticleAdmin() {
       return data.topics;
     },
   });
+
+  const { data: contextRules } = useQuery<ArticleContextRules | null>({
+    queryKey: ["/api/admin/context-rules/active"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/context-rules/active", {
+        headers: { "x-wallet-address": walletAddress || "" },
+      });
+      if (!res.ok) throw new Error("Failed to fetch context rules");
+      return res.json();
+    },
+    enabled: !!walletAddress,
+  });
   
   const invalidateArticles = () => {
     queryClient.invalidateQueries({ queryKey: [ARTICLES_QUERY_KEY] });
   };
+  
+  const invalidateContextRules = () => {
+    queryClient.invalidateQueries({ queryKey: ["/api/admin/context-rules/active"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/admin/context-rules"] });
+  };
 
   const generateMutation = useMutation({
-    mutationFn: async (topic?: string) => {
+    mutationFn: async ({ topic, customPrompt }: { topic?: string; customPrompt?: string }) => {
       const res = await fetch("/api/admin/articles/generate", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "x-wallet-address": walletAddress || "",
         },
-        body: JSON.stringify({ topic }),
+        body: JSON.stringify({ topic, customPrompt }),
       });
       if (!res.ok) {
         const error = await res.json();
@@ -96,12 +119,44 @@ export function ArticleAdmin() {
       });
       setShowGenerateDialog(false);
       setSelectedTopic("");
+      setCustomPrompt("");
       invalidateArticles();
     },
     onError: (error: any) => {
       toast({
         title: "Generation Failed",
         description: error.message || "Failed to generate article",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const saveContextRulesMutation = useMutation({
+    mutationFn: async (rules: Partial<ArticleContextRules>) => {
+      const method = contextRules?.id ? "PATCH" : "POST";
+      const url = contextRules?.id 
+        ? `/api/admin/context-rules/${contextRules.id}` 
+        : "/api/admin/context-rules";
+      
+      const res = await fetch(url, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+          "x-wallet-address": walletAddress || "",
+        },
+        body: JSON.stringify(rules),
+      });
+      if (!res.ok) throw new Error("Failed to save context rules");
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Writing Rules Saved" });
+      invalidateContextRules();
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message,
         variant: "destructive",
       });
     },
@@ -230,9 +285,28 @@ export function ArticleAdmin() {
                     </SelectContent>
                   </Select>
                 </div>
+                <div className="space-y-2">
+                  <Label>Custom Instructions (optional)</Label>
+                  <Textarea
+                    value={customPrompt}
+                    onChange={(e) => setCustomPrompt(e.target.value)}
+                    placeholder="Add specific instructions for this article, e.g., 'Focus on betting strategies for the Monaco GP' or 'Include recent driver stats'"
+                    rows={3}
+                    data-testid="input-custom-prompt"
+                  />
+                </div>
+                {contextRules && (
+                  <div className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Settings className="h-3 w-3" />
+                    Using writing rules: {contextRules.name || "default"}
+                  </div>
+                )}
                 <Button
                   className="w-full"
-                  onClick={() => generateMutation.mutate(selectedTopic === "random" ? undefined : selectedTopic)}
+                  onClick={() => generateMutation.mutate({ 
+                    topic: selectedTopic === "random" ? undefined : selectedTopic,
+                    customPrompt: customPrompt || undefined 
+                  })}
                   disabled={generateMutation.isPending}
                   data-testid="button-confirm-generate"
                 >
@@ -254,157 +328,174 @@ export function ArticleAdmin() {
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
-        <div className="grid grid-cols-3 gap-4">
-          <div className="p-4 rounded-md bg-muted/50">
-            <p className="text-2xl font-bold">{articles.length}</p>
-            <p className="text-sm text-muted-foreground">Total Articles</p>
-          </div>
-          <div className="p-4 rounded-md bg-muted/50">
-            <p className="text-2xl font-bold">{draftArticles.length}</p>
-            <p className="text-sm text-muted-foreground">Drafts</p>
-          </div>
-          <div className="p-4 rounded-md bg-muted/50">
-            <p className="text-2xl font-bold">{publishedArticles.length}</p>
-            <p className="text-sm text-muted-foreground">Published</p>
-          </div>
-        </div>
-
-        {draftArticles.length > 0 && (
-          <div className="space-y-3">
-            <h3 className="font-medium flex items-center gap-2">
-              <Badge variant="secondary">{draftArticles.length}</Badge>
-              Draft Articles
-            </h3>
-            <div className="space-y-2">
-              {draftArticles.map((article) => (
-                <div
-                  key={article.id}
-                  className="flex items-center justify-between gap-3 p-3 rounded bg-muted/50"
-                  data-testid={`article-row-${article.id}`}
-                >
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium truncate">{article.title}</p>
-                    <p className="text-sm text-muted-foreground truncate">{article.summary}</p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <Badge variant="outline" className="text-xs">{article.category}</Badge>
-                      <span className="text-xs text-muted-foreground">
-                        {new Date(article.createdAt).toLocaleDateString()}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => window.open(`/news/${article.slug}`, "_blank")}
-                      data-testid={`button-preview-${article.id}`}
-                    >
-                      <Eye className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => {
-                        setEditingArticle(article);
-                        setShowEditDialog(true);
-                      }}
-                      data-testid={`button-edit-${article.id}`}
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => publishMutation.mutate(article.id)}
-                      disabled={publishMutation.isPending}
-                      data-testid={`button-publish-${article.id}`}
-                    >
-                      <Send className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => {
-                        if (confirm("Delete this article?")) {
-                          deleteMutation.mutate(article.id);
-                        }
-                      }}
-                      disabled={deleteMutation.isPending}
-                      data-testid={`button-delete-${article.id}`}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="mb-4">
+            <TabsTrigger value="articles" data-testid="tab-articles">Articles</TabsTrigger>
+            <TabsTrigger value="settings" data-testid="tab-settings">Writing Rules</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="articles" className="space-y-6">
+            <div className="grid grid-cols-3 gap-4">
+              <div className="p-4 rounded-md bg-muted/50">
+                <p className="text-2xl font-bold">{articles.length}</p>
+                <p className="text-sm text-muted-foreground">Total Articles</p>
+              </div>
+              <div className="p-4 rounded-md bg-muted/50">
+                <p className="text-2xl font-bold">{draftArticles.length}</p>
+                <p className="text-sm text-muted-foreground">Drafts</p>
+              </div>
+              <div className="p-4 rounded-md bg-muted/50">
+                <p className="text-2xl font-bold">{publishedArticles.length}</p>
+                <p className="text-sm text-muted-foreground">Published</p>
+              </div>
             </div>
-          </div>
-        )}
 
-        {publishedArticles.length > 0 && (
-          <div className="space-y-3">
-            <h3 className="font-medium flex items-center gap-2">
-              <Badge>{publishedArticles.length}</Badge>
-              Published Articles
-            </h3>
-            <div className="space-y-2">
-              {publishedArticles.slice(0, 5).map((article) => (
-                <div
-                  key={article.id}
-                  className="flex items-center justify-between gap-3 p-3 rounded bg-muted/50"
-                  data-testid={`article-published-${article.id}`}
-                >
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium truncate">{article.title}</p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <Badge variant="outline" className="text-xs">{article.category}</Badge>
-                      {article.publishedAt && (
-                        <span className="text-xs text-muted-foreground">
-                          Published {new Date(article.publishedAt).toLocaleDateString()}
-                        </span>
-                      )}
+            {draftArticles.length > 0 && (
+              <div className="space-y-3">
+                <h3 className="font-medium flex items-center gap-2">
+                  <Badge variant="secondary">{draftArticles.length}</Badge>
+                  Draft Articles
+                </h3>
+                <div className="space-y-2">
+                  {draftArticles.map((article) => (
+                    <div
+                      key={article.id}
+                      className="flex items-center justify-between gap-3 p-3 rounded bg-muted/50"
+                      data-testid={`article-row-${article.id}`}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate">{article.title}</p>
+                        <p className="text-sm text-muted-foreground truncate">{article.summary}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <Badge variant="outline" className="text-xs">{article.category}</Badge>
+                          <span className="text-xs text-muted-foreground">
+                            {new Date(article.createdAt).toLocaleDateString()}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => window.open(`/news/${article.slug}`, "_blank")}
+                          data-testid={`button-preview-${article.id}`}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => {
+                            setEditingArticle(article);
+                            setShowEditDialog(true);
+                          }}
+                          data-testid={`button-edit-${article.id}`}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => publishMutation.mutate(article.id)}
+                          disabled={publishMutation.isPending}
+                          data-testid={`button-publish-${article.id}`}
+                        >
+                          <Send className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => {
+                            if (confirm("Delete this article?")) {
+                              deleteMutation.mutate(article.id);
+                            }
+                          }}
+                          disabled={deleteMutation.isPending}
+                          data-testid={`button-delete-${article.id}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => window.open(`/news/${article.slug}`, "_blank")}
-                      data-testid={`button-view-${article.id}`}
-                    >
-                      <ExternalLink className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => {
-                        if (confirm("Delete this published article?")) {
-                          deleteMutation.mutate(article.id);
-                        }
-                      }}
-                      disabled={deleteMutation.isPending}
-                      data-testid={`button-delete-published-${article.id}`}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
+                  ))}
                 </div>
-              ))}
-              {publishedArticles.length > 5 && (
-                <p className="text-sm text-muted-foreground text-center">
-                  ...and {publishedArticles.length - 5} more articles
-                </p>
-              )}
-            </div>
-          </div>
-        )}
+              </div>
+            )}
 
-        {articles.length === 0 && !isLoading && (
-          <div className="text-center py-8">
-            <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <p className="text-muted-foreground">No articles yet. Generate your first article!</p>
-          </div>
-        )}
+            {publishedArticles.length > 0 && (
+              <div className="space-y-3">
+                <h3 className="font-medium flex items-center gap-2">
+                  <Badge>{publishedArticles.length}</Badge>
+                  Published Articles
+                </h3>
+                <div className="space-y-2">
+                  {publishedArticles.slice(0, 5).map((article) => (
+                    <div
+                      key={article.id}
+                      className="flex items-center justify-between gap-3 p-3 rounded bg-muted/50"
+                      data-testid={`article-published-${article.id}`}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate">{article.title}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <Badge variant="outline" className="text-xs">{article.category}</Badge>
+                          {article.publishedAt && (
+                            <span className="text-xs text-muted-foreground">
+                              Published {new Date(article.publishedAt).toLocaleDateString()}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => window.open(`/news/${article.slug}`, "_blank")}
+                          data-testid={`button-view-${article.id}`}
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => {
+                            if (confirm("Delete this published article?")) {
+                              deleteMutation.mutate(article.id);
+                            }
+                          }}
+                          disabled={deleteMutation.isPending}
+                          data-testid={`button-delete-published-${article.id}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                  {publishedArticles.length > 5 && (
+                    <p className="text-sm text-muted-foreground text-center">
+                      ...and {publishedArticles.length - 5} more articles
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {articles.length === 0 && !isLoading && (
+              <div className="text-center py-8">
+                <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <p className="text-muted-foreground">No articles yet. Generate your first article!</p>
+              </div>
+            )}
+          </TabsContent>
+          
+          <TabsContent value="settings">
+            <ContextRulesForm
+              contextRules={contextRules}
+              onSave={(rules) => saveContextRulesMutation.mutate(rules)}
+              isPending={saveContextRulesMutation.isPending}
+            />
+          </TabsContent>
+        </Tabs>
       </CardContent>
 
       <Dialog open={showEditDialog} onOpenChange={(open) => {
@@ -518,6 +609,101 @@ function EditArticleForm({
           </>
         ) : (
           "Save Changes"
+        )}
+      </Button>
+    </form>
+  );
+}
+
+function ContextRulesForm({
+  contextRules,
+  onSave,
+  isPending,
+}: {
+  contextRules: ArticleContextRules | null | undefined;
+  onSave: (rules: Partial<ArticleContextRules>) => void;
+  isPending: boolean;
+}) {
+  const [toneOfVoice, setToneOfVoice] = useState(contextRules?.toneOfVoice || "");
+  const [writingStyle, setWritingStyle] = useState(contextRules?.writingStyle || "");
+  const [targetAudience, setTargetAudience] = useState(contextRules?.targetAudience || "");
+  const [additionalRules, setAdditionalRules] = useState(contextRules?.additionalRules || "");
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSave({
+      toneOfVoice: toneOfVoice || null,
+      writingStyle: writingStyle || null,
+      targetAudience: targetAudience || null,
+      additionalRules: additionalRules || null,
+    });
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="text-sm text-muted-foreground mb-4">
+        Configure the writing style and tone for AI-generated articles. These rules will apply to all new articles.
+      </div>
+      
+      <div className="space-y-2">
+        <Label htmlFor="toneOfVoice">Tone of Voice</Label>
+        <Textarea
+          id="toneOfVoice"
+          value={toneOfVoice}
+          onChange={(e) => setToneOfVoice(e.target.value)}
+          placeholder="e.g., Professional but accessible, enthusiastic about F1, confident in predictions"
+          rows={2}
+          data-testid="input-tone-of-voice"
+        />
+      </div>
+      
+      <div className="space-y-2">
+        <Label htmlFor="writingStyle">Writing Style</Label>
+        <Textarea
+          id="writingStyle"
+          value={writingStyle}
+          onChange={(e) => setWritingStyle(e.target.value)}
+          placeholder="e.g., Use short paragraphs, include statistics and data, avoid jargon"
+          rows={2}
+          data-testid="input-writing-style"
+        />
+      </div>
+      
+      <div className="space-y-2">
+        <Label htmlFor="targetAudience">Target Audience</Label>
+        <Textarea
+          id="targetAudience"
+          value={targetAudience}
+          onChange={(e) => setTargetAudience(e.target.value)}
+          placeholder="e.g., F1 fans who are new to prediction markets, experienced sports bettors"
+          rows={2}
+          data-testid="input-target-audience"
+        />
+      </div>
+      
+      <div className="space-y-2">
+        <Label htmlFor="additionalRules">Additional Guidelines</Label>
+        <Textarea
+          id="additionalRules"
+          value={additionalRules}
+          onChange={(e) => setAdditionalRules(e.target.value)}
+          placeholder="Any other specific guidelines for the AI writer, e.g., always mention odds, include driver quotes when relevant"
+          rows={3}
+          data-testid="input-additional-rules"
+        />
+      </div>
+      
+      <Button type="submit" disabled={isPending} className="w-full" data-testid="button-save-rules">
+        {isPending ? (
+          <>
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            Saving...
+          </>
+        ) : (
+          <>
+            <Save className="h-4 w-4 mr-2" />
+            Save Writing Rules
+          </>
         )}
       </Button>
     </form>

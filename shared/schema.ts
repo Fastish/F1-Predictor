@@ -808,7 +808,9 @@ export const collectedFees = pgTable("collected_fees", {
   feePercentage: real("fee_percentage").notNull(), // Fee % at time of order
   feeAmount: real("fee_amount").notNull(), // Expected fee amount in USDC
   txHash: text("tx_hash"), // Matched treasury transfer txHash (if matched)
+  status: text("status").notNull().default("pending_collection"), // 'pending_collection', 'collected'
   createdAt: timestamp("created_at").notNull().defaultNow(),
+  confirmedAt: timestamp("confirmed_at"), // When fee was actually collected
 });
 
 // Treasury fee transfers - on-chain USDC.e transfers to treasury wallet
@@ -905,12 +907,31 @@ export const articles = pgTable("articles", {
   summary: text("summary").notNull(),
   content: text("content").notNull(),
   heroImageUrl: text("hero_image_url"),
+  thumbnailUrl: text("thumbnail_url"),
   category: text("category").notNull().default("news"),
   tags: text("tags").array(),
   status: text("status").notNull().default("draft"),
   metaTitle: text("meta_title"),
   metaDescription: text("meta_description"),
+  promptInput: text("prompt_input"),
   publishedAt: timestamp("published_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  lastEditedAt: timestamp("last_edited_at"),
+});
+
+// =====================================================
+// ARTICLE CONTEXT RULES - LLM writing guidelines
+// =====================================================
+
+export const articleContextRules = pgTable("article_context_rules", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull().default("default"),
+  toneOfVoice: text("tone_of_voice"),
+  writingStyle: text("writing_style"),
+  targetAudience: text("target_audience"),
+  additionalRules: text("additional_rules"),
+  isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -925,18 +946,21 @@ export const createArticleSchema = z.object({
   title: z.string().min(5).max(200),
   summary: z.string().min(10).max(500),
   content: z.string().min(50),
-  heroImageUrl: z.string().url().optional(),
+  heroImageUrl: z.string().url().optional().nullable(),
+  thumbnailUrl: z.string().url().optional().nullable(),
   category: z.string().optional(),
   tags: z.array(z.string()).optional(),
   metaTitle: z.string().max(70).optional(),
   metaDescription: z.string().max(160).optional(),
+  promptInput: z.string().optional(),
 });
 
 export const updateArticleSchema = z.object({
   title: z.string().min(5).max(200).optional(),
   summary: z.string().min(10).max(500).optional(),
   content: z.string().min(50).optional(),
-  heroImageUrl: z.string().url().optional(),
+  heroImageUrl: z.string().url().optional().nullable(),
+  thumbnailUrl: z.string().url().optional().nullable(),
   category: z.string().optional(),
   tags: z.array(z.string()).optional(),
   status: z.enum(["draft", "published", "archived"]).optional(),
@@ -944,7 +968,24 @@ export const updateArticleSchema = z.object({
   metaDescription: z.string().max(160).optional(),
 });
 
+export const insertContextRulesSchema = createInsertSchema(articleContextRules).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const updateContextRulesSchema = z.object({
+  toneOfVoice: z.string().optional().nullable(),
+  writingStyle: z.string().optional().nullable(),
+  targetAudience: z.string().optional().nullable(),
+  additionalRules: z.string().optional().nullable(),
+  isActive: z.boolean().optional(),
+});
+
 export type InsertArticle = z.infer<typeof insertArticleSchema>;
 export type Article = typeof articles.$inferSelect;
 export type CreateArticleRequest = z.infer<typeof createArticleSchema>;
 export type UpdateArticleRequest = z.infer<typeof updateArticleSchema>;
+export type ArticleContextRules = typeof articleContextRules.$inferSelect;
+export type InsertContextRules = z.infer<typeof insertContextRulesSchema>;
+export type UpdateContextRules = z.infer<typeof updateContextRulesSchema>;

@@ -4024,10 +4024,10 @@ export async function registerRoutes(
   // Admin: Generate AI article
   app.post("/api/admin/articles/generate", requireAdmin, async (req, res) => {
     try {
-      const { topic } = req.body;
+      const { topic, customPrompt } = req.body;
       const { generateAndSaveArticle, F1_TOPICS } = await import("./articleGenerator");
       
-      const result = await generateAndSaveArticle(topic);
+      const result = await generateAndSaveArticle({ topic, customPrompt });
       res.json({
         success: true,
         article: result,
@@ -4064,6 +4064,65 @@ export async function registerRoutes(
       res.json({ topics: F1_TOPICS });
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Failed to get topics" });
+    }
+  });
+
+  // Article Context Rules
+  app.get("/api/admin/context-rules", requireAdmin, async (req, res) => {
+    try {
+      const rules = await storage.getAllContextRules();
+      res.json(rules);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to get context rules" });
+    }
+  });
+
+  app.get("/api/admin/context-rules/active", requireAdmin, async (req, res) => {
+    try {
+      const rules = await storage.getActiveContextRules();
+      res.json(rules || null);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to get active context rules" });
+    }
+  });
+
+  app.post("/api/admin/context-rules", requireAdmin, async (req, res) => {
+    try {
+      const { name, toneOfVoice, writingStyle, targetAudience, additionalRules, isActive } = req.body;
+      const rules = await storage.createContextRules({
+        name: name || "default",
+        toneOfVoice,
+        writingStyle,
+        targetAudience,
+        additionalRules,
+        isActive: isActive ?? true,
+      });
+      res.json(rules);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to create context rules" });
+    }
+  });
+
+  app.patch("/api/admin/context-rules/:id", requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const rules = await storage.updateContextRules(id, req.body);
+      if (!rules) {
+        return res.status(404).json({ error: "Context rules not found" });
+      }
+      res.json(rules);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to update context rules" });
+    }
+  });
+
+  app.delete("/api/admin/context-rules/:id", requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deleteContextRules(id);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to delete context rules" });
     }
   });
 

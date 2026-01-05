@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import { storage } from "./storage";
 import { randomBytes } from "crypto";
+import type { ArticleContextRules } from "@shared/schema";
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
@@ -16,6 +17,12 @@ interface GeneratedArticle {
   tags: string[];
   metaTitle: string;
   metaDescription: string;
+}
+
+interface GenerateArticleOptions {
+  topic: string;
+  customPrompt?: string;
+  contextRules?: ArticleContextRules | null;
 }
 
 function generateSlug(title: string): string {
@@ -42,9 +49,27 @@ const F1_TOPICS = [
   "F1 betting strategies and market trends",
 ];
 
-export async function generateArticleFromTopic(topic: string): Promise<GeneratedArticle> {
-  const systemPrompt = `You are an expert Formula 1 journalist and prediction market analyst. Write engaging, informative articles that combine F1 racing insights with prediction market analysis. Your articles should:
+function buildSystemPrompt(contextRules?: ArticleContextRules | null): string {
+  let basePrompt = `You are an expert Formula 1 journalist and prediction market analyst. Write engaging, informative articles that combine F1 racing insights with prediction market analysis.`;
+  
+  if (contextRules) {
+    if (contextRules.toneOfVoice) {
+      basePrompt += `\n\nTone of Voice: ${contextRules.toneOfVoice}`;
+    }
+    if (contextRules.writingStyle) {
+      basePrompt += `\n\nWriting Style: ${contextRules.writingStyle}`;
+    }
+    if (contextRules.targetAudience) {
+      basePrompt += `\n\nTarget Audience: ${contextRules.targetAudience}`;
+    }
+    if (contextRules.additionalRules) {
+      basePrompt += `\n\nAdditional Guidelines: ${contextRules.additionalRules}`;
+    }
+  }
+  
+  basePrompt += `
 
+Your articles should:
 1. Be factual and well-researched about F1 teams and drivers
 2. Include prediction market insights and betting angles
 3. Use SEO-friendly language with relevant keywords
@@ -64,11 +89,22 @@ Format your response as JSON with this structure:
   "metaDescription": "SEO meta description (max 155 chars)"
 }`;
 
+  return basePrompt;
+}
+
+export async function generateArticleFromTopic(options: GenerateArticleOptions): Promise<GeneratedArticle> {
+  const { topic, customPrompt, contextRules } = options;
+  const systemPrompt = buildSystemPrompt(contextRules);
+  
+  const userMessage = customPrompt 
+    ? `${customPrompt}\n\nTopic: ${topic}`
+    : `Write an article about: ${topic}`;
+
   const response = await openai.chat.completions.create({
     model: "gpt-4o",
     messages: [
       { role: "system", content: systemPrompt },
-      { role: "user", content: `Write an article about: ${topic}` },
+      { role: "user", content: userMessage },
     ],
     response_format: { type: "json_object" },
     max_tokens: 3000,
@@ -112,12 +148,27 @@ Format your response as JSON with this structure:
   };
 }
 
-export async function generateAndSaveArticle(topic?: string): Promise<{ id: string; title: string; slug: string }> {
+interface GenerateAndSaveOptions {
+  topic?: string;
+  customPrompt?: string;
+}
+
+export async function generateAndSaveArticle(options?: GenerateAndSaveOptions): Promise<{ id: string; title: string; slug: string }> {
+  const { topic, customPrompt } = options || {};
   const selectedTopic = topic || F1_TOPICS[Math.floor(Math.random() * F1_TOPICS.length)];
   
-  console.log(`[ArticleGenerator] Generating article for topic: ${selectedTopic}`);
+  const contextRules = await storage.getActiveContextRules();
   
-  const article = await generateArticleFromTopic(selectedTopic);
+  console.log(`[ArticleGenerator] Generating article for topic: ${selectedTopic}`);
+  if (contextRules) {
+    console.log(`[ArticleGenerator] Using context rules: ${contextRules.name}`);
+  }
+  
+  const article = await generateArticleFromTopic({ 
+    topic: selectedTopic, 
+    customPrompt,
+    contextRules 
+  });
   
   const savedArticle = await storage.createArticle({
     slug: article.slug,
@@ -129,6 +180,7 @@ export async function generateAndSaveArticle(topic?: string): Promise<{ id: stri
     status: "draft",
     metaTitle: article.metaTitle,
     metaDescription: article.metaDescription,
+    promptInput: customPrompt || null,
   });
 
   console.log(`[ArticleGenerator] Created draft article: ${savedArticle.title} (${savedArticle.id})`);
@@ -148,7 +200,7 @@ export async function generateMultipleArticles(count: number = 3): Promise<{ id:
   
   for (const topic of selectedTopics) {
     try {
-      const result = await generateAndSaveArticle(topic);
+      const result = await generateAndSaveArticle({ topic });
       results.push(result);
       await new Promise(resolve => setTimeout(resolve, 1000));
     } catch (error) {

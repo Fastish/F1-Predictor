@@ -1,7 +1,7 @@
 import { 
   users, teams, drivers, holdings, transactions, deposits, priceHistory, seasons, payouts, markets, orderFills,
   championshipPools, championshipOutcomes, poolTrades, poolPositions, poolPayouts, zkProofs, poolPriceHistory,
-  raceMarkets, raceMarketOutcomes, polymarketOrders, portfolioHistory, platformConfig, collectedFees, treasuryFeeTransfers, marketComments, articles,
+  raceMarkets, raceMarketOutcomes, polymarketOrders, portfolioHistory, platformConfig, collectedFees, treasuryFeeTransfers, marketComments, articles, articleContextRules,
   type User, type InsertUser, 
   type Team, type InsertTeam,
   type Driver, type InsertDriver,
@@ -29,7 +29,8 @@ import {
   type MarketComment,
   type BuySharesRequest,
   type SellSharesRequest,
-  type Article, type InsertArticle
+  type Article, type InsertArticle,
+  type ArticleContextRules, type InsertContextRules, type UpdateContextRules
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, asc, sql, inArray, gte } from "drizzle-orm";
@@ -218,6 +219,14 @@ export interface IStorage {
   updateArticle(id: string, updates: Partial<Article>): Promise<Article | undefined>;
   publishArticle(id: string): Promise<Article | undefined>;
   deleteArticle(id: string): Promise<void>;
+  
+  // Article Context Rules
+  getActiveContextRules(): Promise<ArticleContextRules | undefined>;
+  getContextRules(id: string): Promise<ArticleContextRules | undefined>;
+  getAllContextRules(): Promise<ArticleContextRules[]>;
+  createContextRules(rules: InsertContextRules): Promise<ArticleContextRules>;
+  updateContextRules(id: string, updates: UpdateContextRules): Promise<ArticleContextRules | undefined>;
+  deleteContextRules(id: string): Promise<void>;
 }
 
 // Initial F1 2026 teams data - all teams start at equal $0.10 price
@@ -1632,6 +1641,46 @@ export class DatabaseStorage implements IStorage {
       .substring(0, 50);
     const timestamp = Date.now().toString(36);
     return `${base}-${timestamp}`;
+  }
+
+  // Article Context Rules
+  async getActiveContextRules(): Promise<ArticleContextRules | undefined> {
+    const [rules] = await db
+      .select()
+      .from(articleContextRules)
+      .where(eq(articleContextRules.isActive, true))
+      .limit(1);
+    return rules || undefined;
+  }
+
+  async getContextRules(id: string): Promise<ArticleContextRules | undefined> {
+    const [rules] = await db
+      .select()
+      .from(articleContextRules)
+      .where(eq(articleContextRules.id, id));
+    return rules || undefined;
+  }
+
+  async getAllContextRules(): Promise<ArticleContextRules[]> {
+    return db.select().from(articleContextRules).orderBy(desc(articleContextRules.createdAt));
+  }
+
+  async createContextRules(rules: InsertContextRules): Promise<ArticleContextRules> {
+    const [created] = await db.insert(articleContextRules).values(rules).returning();
+    return created;
+  }
+
+  async updateContextRules(id: string, updates: UpdateContextRules): Promise<ArticleContextRules | undefined> {
+    const [updated] = await db
+      .update(articleContextRules)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(articleContextRules.id, id))
+      .returning();
+    return updated || undefined;
+  }
+
+  async deleteContextRules(id: string): Promise<void> {
+    await db.delete(articleContextRules).where(eq(articleContextRules.id, id));
   }
 }
 
