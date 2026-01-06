@@ -57,8 +57,28 @@ const colors = {
   gradient: "linear-gradient(135deg, #e10600 0%, #ff4d4d 100%)",
 };
 
+// Load and cache logo as data URL
+let logoDataUrl: string | null = null;
+
+async function loadLogo(): Promise<string> {
+  if (logoDataUrl) return logoDataUrl;
+  
+  try {
+    const fs = await import("fs/promises");
+    const path = await import("path");
+    const logoPath = path.join(process.cwd(), "attached_assets", "F1_Predict_Logo_1767663241204.png");
+    const logoBuffer = await fs.readFile(logoPath);
+    logoDataUrl = `data:image/png;base64,${logoBuffer.toString("base64")}`;
+    return logoDataUrl;
+  } catch (e) {
+    console.log("Failed to load logo, using fallback");
+    return "";
+  }
+}
+
 export async function generateShareImage(data: ShareImageData): Promise<Buffer> {
   const font = await loadFont();
+  logoDataUrl = await loadLogo();
   
   // Get top 5 outcomes sorted by price (highest first)
   const topOutcomes = [...data.outcomes]
@@ -129,39 +149,15 @@ export async function generateShareImage(data: ShareImageData): Promise<Buffer> 
                     ],
                   },
                 },
-                // Right side - Logo text
+                // Right side - Logo image
                 {
-                  type: "div",
+                  type: "img",
                   props: {
+                    src: logoDataUrl,
                     style: {
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "12px",
+                      height: "60px",
+                      width: "auto",
                     },
-                    children: [
-                      {
-                        type: "div",
-                        props: {
-                          style: {
-                            fontSize: "36px",
-                            fontWeight: "700",
-                            color: colors.primary,
-                          },
-                          children: "F1",
-                        },
-                      },
-                      {
-                        type: "div",
-                        props: {
-                          style: {
-                            fontSize: "36px",
-                            fontWeight: "700",
-                            color: colors.text,
-                          },
-                          children: "PREDICT",
-                        },
-                      },
-                    ],
                   },
                 },
               ],

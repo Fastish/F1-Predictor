@@ -207,7 +207,7 @@ export function PolymarketPriceChart({
                     />
                     <span>{entry.name}</span>
                   </div>
-                  <span className="font-medium">{entry.value.toFixed(1)}c</span>
+                  <span className="font-medium">{entry.value.toFixed(1)}%</span>
                 </div>
               ))}
           </div>
@@ -279,7 +279,7 @@ export function PolymarketPriceChart({
                 />
                 <YAxis 
                   domain={[0, 'auto']}
-                  tickFormatter={(v) => `${v.toFixed(0)}c`}
+                  tickFormatter={(v) => `${v.toFixed(0)}%`}
                   tick={{ fontSize: 11 }}
                   tickLine={false}
                   axisLine={false}
