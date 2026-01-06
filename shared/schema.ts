@@ -911,6 +911,7 @@ export const articles = pgTable("articles", {
   category: text("category").notNull().default("news"),
   tags: text("tags").array(),
   status: text("status").notNull().default("draft"),
+  articleType: text("article_type").notNull().default("standard"),
   metaTitle: text("meta_title"),
   metaDescription: text("meta_description"),
   promptInput: text("prompt_input"),
@@ -918,6 +919,18 @@ export const articles = pgTable("articles", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
   lastEditedAt: timestamp("last_edited_at"),
+});
+
+export const dailyRoundupSettings = pgTable("daily_roundup_settings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  enabled: boolean("enabled").notNull().default(false),
+  scheduledHour: integer("scheduled_hour").notNull().default(8),
+  scheduledMinute: integer("scheduled_minute").notNull().default(0),
+  timezone: text("timezone").notNull().default("UTC"),
+  autoPublish: boolean("auto_publish").notNull().default(true),
+  autoTweet: boolean("auto_tweet").notNull().default(true),
+  lastGeneratedAt: timestamp("last_generated_at"),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
 // =====================================================
@@ -989,3 +1002,15 @@ export type UpdateArticleRequest = z.infer<typeof updateArticleSchema>;
 export type ArticleContextRules = typeof articleContextRules.$inferSelect;
 export type InsertContextRules = z.infer<typeof insertContextRulesSchema>;
 export type UpdateContextRules = z.infer<typeof updateContextRulesSchema>;
+export type DailyRoundupSettings = typeof dailyRoundupSettings.$inferSelect;
+
+export const updateRoundupSettingsSchema = z.object({
+  enabled: z.boolean().optional(),
+  scheduledHour: z.number().min(0).max(23).optional(),
+  scheduledMinute: z.number().min(0).max(59).optional(),
+  timezone: z.string().optional(),
+  autoPublish: z.boolean().optional(),
+  autoTweet: z.boolean().optional(),
+});
+
+export type UpdateRoundupSettings = z.infer<typeof updateRoundupSettingsSchema>;

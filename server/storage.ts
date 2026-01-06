@@ -227,6 +227,11 @@ export interface IStorage {
   createContextRules(rules: InsertContextRules): Promise<ArticleContextRules>;
   updateContextRules(id: string, updates: UpdateContextRules): Promise<ArticleContextRules | undefined>;
   deleteContextRules(id: string): Promise<void>;
+  
+  // Daily Roundup Settings
+  getDailyRoundupSettings(): Promise<DailyRoundupSettings | undefined>;
+  updateDailyRoundupSettings(updates: UpdateRoundupSettings): Promise<DailyRoundupSettings>;
+  updateLastGeneratedAt(): Promise<void>;
 }
 
 // Initial F1 2026 teams data - all teams start at equal $0.10 price
