@@ -44,7 +44,7 @@ function setCachedGeoblockStatus(data: GeoblockStatus): void {
   }
 }
 
-async function checkGeoblockStatus(): Promise<GeoblockStatus | null> {
+async function checkGeoblockStatus(): Promise<GeoblockStatus> {
   const cached = getCachedGeoblockStatus();
   if (cached) {
     console.log("[Geoblock] Using cached status:", cached);
@@ -52,10 +52,12 @@ async function checkGeoblockStatus(): Promise<GeoblockStatus | null> {
   }
 
   try {
-    const response = await fetch("https://polymarket.com/api/geoblock");
+    const response = await fetch("https://polymarket.com/api/geoblock", {
+      signal: AbortSignal.timeout(5000)
+    });
     if (!response.ok) {
-      console.warn("[Geoblock] API returned non-OK status:", response.status);
-      return null;
+      console.warn("[Geoblock] API returned non-OK status, failing closed:", response.status);
+      return { blocked: true, ip: "", country: "Unknown", region: "Unknown" };
     }
     
     const data: GeoblockStatus = await response.json();
@@ -63,8 +65,8 @@ async function checkGeoblockStatus(): Promise<GeoblockStatus | null> {
     setCachedGeoblockStatus(data);
     return data;
   } catch (error) {
-    console.error("[Geoblock] Failed to check geo status:", error);
-    return null;
+    console.error("[Geoblock] Failed to check geo status, failing closed:", error);
+    return { blocked: true, ip: "", country: "Unknown", region: "Unknown" };
   }
 }
 
@@ -485,9 +487,46 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
   }, [walletType, walletAddress]);
 
+  const geoblockCheckedRef = useRef(false);
+  
+  useEffect(() => {
+    if (isLoading || geoblockCheckedRef.current) {
+      return;
+    }
+    
+    if (walletAddress && walletType) {
+      const checkAndDisconnectIfBlocked = async () => {
+        geoblockCheckedRef.current = true;
+        const geoStatus = await checkGeoblockStatus();
+        if (geoStatus.blocked) {
+          console.log("[Geoblock] Disconnecting restored session - user in blocked region:", geoStatus.country);
+          setGeoBlockedData(geoStatus);
+          setShowGeoBlockedModal(true);
+          
+          setWalletAddress(null);
+          setWalletType(null);
+          setUserEmail(null);
+          setProvider(null);
+          setSigner(null);
+          setPolymarketCredentials(null);
+          localStorage.removeItem("polygon_wallet_type");
+          localStorage.removeItem("polygon_wallet_address");
+          queryClient.removeQueries({ queryKey: ["polymarket-cash-balance"] });
+          queryClient.removeQueries({ queryKey: ["polygon-usdc-balance"] });
+          queryClient.removeQueries({ queryKey: ["polymarket-positions"] });
+          
+          if (wagmiIsConnected) {
+            wagmiDisconnect();
+          }
+        }
+      };
+      checkAndDisconnectIfBlocked();
+    }
+  }, [isLoading, walletAddress, walletType, wagmiIsConnected, wagmiDisconnect]);
+
   const ensureNotGeoblocked = useCallback(async (): Promise<boolean> => {
     const geoStatus = await checkGeoblockStatus();
-    if (geoStatus?.blocked) {
+    if (geoStatus.blocked) {
       console.log("[Geoblock] User is in a blocked region:", geoStatus.country);
       setGeoBlockedData(geoStatus);
       setShowGeoBlockedModal(true);
