@@ -41,7 +41,8 @@ import {
   Image,
   Twitter
 } from "lucide-react";
-import type { Article, ArticleContextRules } from "@shared/schema";
+import type { Article, ArticleContextRules, DailyRoundupSettings } from "@shared/schema";
+import { Clock, Newspaper } from "lucide-react";
 
 const ARTICLES_QUERY_KEY = "/api/admin/articles";
 
@@ -54,6 +55,7 @@ export function ArticleAdmin() {
   const [editingArticle, setEditingArticle] = useState<Article | null>(null);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [activeTab, setActiveTab] = useState<string>("articles");
+  const [articleType, setArticleType] = useState<"standard" | "daily-roundup">("standard");
 
   const { data: articles = [], isLoading } = useQuery<Article[]>({
     queryKey: [ARTICLES_QUERY_KEY],
@@ -88,6 +90,18 @@ export function ArticleAdmin() {
     },
     enabled: !!walletAddress,
   });
+
+  const { data: roundupSettings } = useQuery<DailyRoundupSettings | null>({
+    queryKey: ["/api/admin/roundup-settings"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/roundup-settings", {
+        headers: { "x-wallet-address": walletAddress || "" },
+      });
+      if (!res.ok) throw new Error("Failed to fetch roundup settings");
+      return res.json();
+    },
+    enabled: !!walletAddress,
+  });
   
   const invalidateArticles = () => {
     queryClient.invalidateQueries({ queryKey: [ARTICLES_QUERY_KEY] });
@@ -96,6 +110,10 @@ export function ArticleAdmin() {
   const invalidateContextRules = () => {
     queryClient.invalidateQueries({ queryKey: ["/api/admin/context-rules/active"] });
     queryClient.invalidateQueries({ queryKey: ["/api/admin/context-rules"] });
+  };
+
+  const invalidateRoundupSettings = () => {
+    queryClient.invalidateQueries({ queryKey: ["/api/admin/roundup-settings"] });
   };
 
   const generateMutation = useMutation({
@@ -122,12 +140,72 @@ export function ArticleAdmin() {
       setShowGenerateDialog(false);
       setSelectedTopic("");
       setCustomPrompt("");
+      setArticleType("standard");
       invalidateArticles();
     },
     onError: (error: any) => {
       toast({
         title: "Generation Failed",
         description: error.message || "Failed to generate article",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const generateRoundupMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/admin/articles/generate-roundup", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-wallet-address": walletAddress || "",
+        },
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || "Failed to generate daily roundup");
+      }
+      return res.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Daily Roundup Generated",
+        description: `"${data.article.title}" created as draft.`,
+      });
+      setShowGenerateDialog(false);
+      setArticleType("standard");
+      invalidateArticles();
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Generation Failed",
+        description: error.message || "Failed to generate daily roundup",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateRoundupSettingsMutation = useMutation({
+    mutationFn: async (updates: Partial<DailyRoundupSettings>) => {
+      const res = await fetch("/api/admin/roundup-settings", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "x-wallet-address": walletAddress || "",
+        },
+        body: JSON.stringify(updates),
+      });
+      if (!res.ok) throw new Error("Failed to update roundup settings");
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Settings Updated" });
+      invalidateRoundupSettings();
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message,
         variant: "destructive",
       });
     },
@@ -302,58 +380,121 @@ export function ArticleAdmin() {
               </DialogHeader>
               <div className="space-y-4 py-4">
                 <div className="space-y-2">
-                  <Label>Select Topic (optional)</Label>
-                  <Select value={selectedTopic} onValueChange={setSelectedTopic}>
-                    <SelectTrigger data-testid="select-topic">
-                      <SelectValue placeholder="Random topic" />
+                  <Label>Article Type</Label>
+                  <Select value={articleType} onValueChange={(v) => setArticleType(v as "standard" | "daily-roundup")}>
+                    <SelectTrigger data-testid="select-article-type">
+                      <SelectValue placeholder="Select type" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="random">Random Topic</SelectItem>
-                      {topics.map((topic) => (
-                        <SelectItem key={topic} value={topic}>
-                          {topic}
-                        </SelectItem>
-                      ))}
+                      <SelectItem value="standard">
+                        <div className="flex items-center gap-2">
+                          <FileText className="h-4 w-4" />
+                          Standard Article
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="daily-roundup">
+                        <div className="flex items-center gap-2">
+                          <Newspaper className="h-4 w-4" />
+                          Daily Roundup
+                        </div>
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-2">
-                  <Label>Custom Instructions (optional)</Label>
-                  <Textarea
-                    value={customPrompt}
-                    onChange={(e) => setCustomPrompt(e.target.value)}
-                    placeholder="Add specific instructions for this article, e.g., 'Focus on betting strategies for the Monaco GP' or 'Include recent driver stats'"
-                    rows={3}
-                    data-testid="input-custom-prompt"
-                  />
-                </div>
+
+                {articleType === "standard" && (
+                  <>
+                    <div className="space-y-2">
+                      <Label>Select Topic (optional)</Label>
+                      <Select value={selectedTopic} onValueChange={setSelectedTopic}>
+                        <SelectTrigger data-testid="select-topic">
+                          <SelectValue placeholder="Random topic" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="random">Random Topic</SelectItem>
+                          {topics.map((topic) => (
+                            <SelectItem key={topic} value={topic}>
+                              {topic}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Custom Instructions (optional)</Label>
+                      <Textarea
+                        value={customPrompt}
+                        onChange={(e) => setCustomPrompt(e.target.value)}
+                        placeholder="Add specific instructions for this article, e.g., 'Focus on betting strategies for the Monaco GP' or 'Include recent driver stats'"
+                        rows={3}
+                        data-testid="input-custom-prompt"
+                      />
+                    </div>
+                  </>
+                )}
+
+                {articleType === "daily-roundup" && (
+                  <div className="p-3 rounded-md bg-muted/50 text-sm">
+                    <p className="font-medium flex items-center gap-2">
+                      <Newspaper className="h-4 w-4" />
+                      Daily Roundup
+                    </p>
+                    <p className="text-muted-foreground mt-1">
+                      Automatically fetches and summarizes the latest F1 news from trusted sources. 
+                      Includes links to original articles.
+                    </p>
+                  </div>
+                )}
+
                 {contextRules && (
                   <div className="text-xs text-muted-foreground flex items-center gap-1">
                     <Settings className="h-3 w-3" />
                     Using writing rules: {contextRules.name || "default"}
                   </div>
                 )}
-                <Button
-                  className="w-full"
-                  onClick={() => generateMutation.mutate({ 
-                    topic: selectedTopic === "random" ? undefined : selectedTopic,
-                    customPrompt: customPrompt || undefined 
-                  })}
-                  disabled={generateMutation.isPending}
-                  data-testid="button-confirm-generate"
-                >
-                  {generateMutation.isPending ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Generating...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="h-4 w-4 mr-2" />
-                      Generate Article
-                    </>
-                  )}
-                </Button>
+
+                {articleType === "standard" ? (
+                  <Button
+                    className="w-full"
+                    onClick={() => generateMutation.mutate({ 
+                      topic: selectedTopic === "random" ? undefined : selectedTopic,
+                      customPrompt: customPrompt || undefined 
+                    })}
+                    disabled={generateMutation.isPending}
+                    data-testid="button-confirm-generate"
+                  >
+                    {generateMutation.isPending ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-4 w-4 mr-2" />
+                        Generate Article
+                      </>
+                    )}
+                  </Button>
+                ) : (
+                  <Button
+                    className="w-full"
+                    onClick={() => generateRoundupMutation.mutate()}
+                    disabled={generateRoundupMutation.isPending}
+                    data-testid="button-confirm-generate-roundup"
+                  >
+                    {generateRoundupMutation.isPending ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Generating Roundup...
+                      </>
+                    ) : (
+                      <>
+                        <Newspaper className="h-4 w-4 mr-2" />
+                        Generate Daily Roundup
+                      </>
+                    )}
+                  </Button>
+                )}
               </div>
             </DialogContent>
           </Dialog>
@@ -363,6 +504,7 @@ export function ArticleAdmin() {
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="mb-4">
             <TabsTrigger value="articles" data-testid="tab-articles">Articles</TabsTrigger>
+            <TabsTrigger value="roundup" data-testid="tab-roundup">Daily Roundup</TabsTrigger>
             <TabsTrigger value="settings" data-testid="tab-settings">Writing Rules</TabsTrigger>
           </TabsList>
           
@@ -543,6 +685,134 @@ export function ArticleAdmin() {
                 <p className="text-muted-foreground">No articles yet. Generate your first article!</p>
               </div>
             )}
+          </TabsContent>
+
+          <TabsContent value="roundup" className="space-y-6">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-medium">Automated Daily Roundup</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Automatically generate and publish a daily F1 news summary
+                  </p>
+                </div>
+                <Switch
+                  checked={roundupSettings?.enabled ?? false}
+                  onCheckedChange={(enabled) => updateRoundupSettingsMutation.mutate({ enabled })}
+                  disabled={updateRoundupSettingsMutation.isPending}
+                  data-testid="switch-roundup-enabled"
+                />
+              </div>
+
+              {roundupSettings?.enabled && (
+                <div className="space-y-4 p-4 rounded-md bg-muted/50">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Publish Time (Hour)</Label>
+                      <Select
+                        value={String(roundupSettings?.scheduledHour ?? 8)}
+                        onValueChange={(v) => updateRoundupSettingsMutation.mutate({ scheduledHour: parseInt(v) })}
+                      >
+                        <SelectTrigger data-testid="select-roundup-hour">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Array.from({ length: 24 }, (_, i) => (
+                            <SelectItem key={i} value={String(i)}>
+                              {i.toString().padStart(2, '0')}:00
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Timezone</Label>
+                      <Select
+                        value={roundupSettings?.timezone ?? "UTC"}
+                        onValueChange={(v) => updateRoundupSettingsMutation.mutate({ timezone: v })}
+                      >
+                        <SelectTrigger data-testid="select-roundup-timezone">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="UTC">UTC</SelectItem>
+                          <SelectItem value="America/New_York">Eastern Time</SelectItem>
+                          <SelectItem value="America/Los_Angeles">Pacific Time</SelectItem>
+                          <SelectItem value="Europe/London">London</SelectItem>
+                          <SelectItem value="Europe/Paris">Paris</SelectItem>
+                          <SelectItem value="Asia/Tokyo">Tokyo</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2">
+                    <div>
+                      <p className="text-sm font-medium">Auto-publish</p>
+                      <p className="text-xs text-muted-foreground">Automatically publish when generated</p>
+                    </div>
+                    <Switch
+                      checked={roundupSettings?.autoPublish ?? true}
+                      onCheckedChange={(autoPublish) => updateRoundupSettingsMutation.mutate({ autoPublish })}
+                      disabled={updateRoundupSettingsMutation.isPending}
+                      data-testid="switch-auto-publish"
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium">Auto-tweet on publish</p>
+                      <p className="text-xs text-muted-foreground">Share to X.com when article is published</p>
+                    </div>
+                    <Switch
+                      checked={roundupSettings?.autoTweet ?? true}
+                      onCheckedChange={(autoTweet) => updateRoundupSettingsMutation.mutate({ autoTweet })}
+                      disabled={updateRoundupSettingsMutation.isPending}
+                      data-testid="switch-auto-tweet"
+                    />
+                  </div>
+
+                  {roundupSettings?.lastGeneratedAt && (
+                    <div className="text-xs text-muted-foreground flex items-center gap-1 pt-2 border-t">
+                      <Clock className="h-3 w-3" />
+                      Last generated: {new Date(roundupSettings.lastGeneratedAt).toLocaleString()}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="pt-4 border-t">
+                <h4 className="font-medium mb-2">Manual Generation</h4>
+                <p className="text-sm text-muted-foreground mb-3">
+                  Generate a daily roundup article now, regardless of schedule settings.
+                </p>
+                <Button
+                  onClick={() => generateRoundupMutation.mutate()}
+                  disabled={generateRoundupMutation.isPending}
+                  data-testid="button-generate-roundup-manual"
+                >
+                  {generateRoundupMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Newspaper className="h-4 w-4 mr-2" />
+                      Generate Daily Roundup Now
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              <div className="p-3 rounded-md bg-amber-500/10 border border-amber-500/20 text-sm">
+                <p className="font-medium text-amber-600 dark:text-amber-400">X.com API Required</p>
+                <p className="text-muted-foreground mt-1">
+                  To auto-publish to X.com, add your Twitter API credentials as secrets: 
+                  TWITTER_API_KEY, TWITTER_API_SECRET, TWITTER_ACCESS_TOKEN, TWITTER_ACCESS_TOKEN_SECRET
+                </p>
+              </div>
+            </div>
           </TabsContent>
           
           <TabsContent value="settings">

@@ -1,7 +1,7 @@
 import { 
   users, teams, drivers, holdings, transactions, deposits, priceHistory, seasons, payouts, markets, orderFills,
   championshipPools, championshipOutcomes, poolTrades, poolPositions, poolPayouts, zkProofs, poolPriceHistory,
-  raceMarkets, raceMarketOutcomes, polymarketOrders, portfolioHistory, platformConfig, collectedFees, treasuryFeeTransfers, marketComments, articles, articleContextRules,
+  raceMarkets, raceMarketOutcomes, polymarketOrders, portfolioHistory, platformConfig, collectedFees, treasuryFeeTransfers, marketComments, articles, articleContextRules, dailyRoundupSettings,
   type User, type InsertUser, 
   type Team, type InsertTeam,
   type Driver, type InsertDriver,
@@ -30,7 +30,8 @@ import {
   type BuySharesRequest,
   type SellSharesRequest,
   type Article, type InsertArticle,
-  type ArticleContextRules, type InsertContextRules, type UpdateContextRules
+  type ArticleContextRules, type InsertContextRules, type UpdateContextRules,
+  type DailyRoundupSettings, type UpdateRoundupSettings
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, asc, sql, inArray, gte } from "drizzle-orm";
@@ -1697,6 +1698,44 @@ export class DatabaseStorage implements IStorage {
 
   async deleteContextRules(id: string): Promise<void> {
     await db.delete(articleContextRules).where(eq(articleContextRules.id, id));
+  }
+
+  async getDailyRoundupSettings(): Promise<DailyRoundupSettings | undefined> {
+    const [settings] = await db.select().from(dailyRoundupSettings).limit(1);
+    if (!settings) {
+      const [created] = await db.insert(dailyRoundupSettings).values({
+        enabled: false,
+        scheduledHour: 8,
+        scheduledMinute: 0,
+        timezone: "UTC",
+        autoPublish: true,
+        autoTweet: true,
+      }).returning();
+      return created;
+    }
+    return settings;
+  }
+
+  async updateDailyRoundupSettings(updates: UpdateRoundupSettings): Promise<DailyRoundupSettings> {
+    const existing = await this.getDailyRoundupSettings();
+    if (!existing) {
+      throw new Error("Failed to get or create roundup settings");
+    }
+    
+    const [updated] = await db.update(dailyRoundupSettings)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(dailyRoundupSettings.id, existing.id))
+      .returning();
+    return updated;
+  }
+
+  async updateLastGeneratedAt(): Promise<void> {
+    const existing = await this.getDailyRoundupSettings();
+    if (existing) {
+      await db.update(dailyRoundupSettings)
+        .set({ lastGeneratedAt: new Date(), updatedAt: new Date() })
+        .where(eq(dailyRoundupSettings.id, existing.id));
+    }
   }
 }
 

@@ -16,6 +16,7 @@ import { matchingEngine } from "./matchingEngine";
 import { randomBytes } from "crypto";
 import { registerPoolRoutes } from "./pool-routes";
 import { ProxyAgent, fetch as undiciFetch } from "undici";
+import { startDailyRoundupScheduler } from "./dailyRoundupScheduler";
 
 // Oxylabs proxy configuration for bypassing Polymarket's US IP block
 // Returns undefined if proxy is not configured
@@ -4152,6 +4153,45 @@ export async function registerRoutes(
     }
   });
 
+  // Admin: Generate Daily Roundup article
+  app.post("/api/admin/articles/generate-roundup", requireAdmin, async (req, res) => {
+    try {
+      const { generateDailyRoundup } = await import("./articleGenerator");
+      const result = await generateDailyRoundup();
+      await storage.updateLastGeneratedAt();
+      res.json({
+        success: true,
+        article: result,
+      });
+    } catch (error: any) {
+      console.error("Failed to generate daily roundup:", error);
+      res.status(500).json({ error: error.message || "Failed to generate daily roundup" });
+    }
+  });
+
+  // Admin: Get daily roundup settings
+  app.get("/api/admin/roundup-settings", requireAdmin, async (req, res) => {
+    try {
+      const settings = await storage.getDailyRoundupSettings();
+      res.json(settings);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to get roundup settings" });
+    }
+  });
+
+  // Admin: Update daily roundup settings
+  app.patch("/api/admin/roundup-settings", requireAdmin, async (req, res) => {
+    try {
+      const { updateRoundupSettingsSchema } = await import("@shared/schema");
+      const parsed = updateRoundupSettingsSchema.parse(req.body);
+      const settings = await storage.updateDailyRoundupSettings(parsed);
+      res.json(settings);
+    } catch (error: any) {
+      console.error("Failed to update roundup settings:", error);
+      res.status(500).json({ error: error.message || "Failed to update roundup settings" });
+    }
+  });
+
   // Article Context Rules
   app.get("/api/admin/context-rules", requireAdmin, async (req, res) => {
     try {
@@ -4210,6 +4250,9 @@ export async function registerRoutes(
       res.status(500).json({ error: error.message || "Failed to delete context rules" });
     }
   });
+
+  // Start the daily roundup scheduler
+  startDailyRoundupScheduler();
 
   return httpServer;
 }
