@@ -595,6 +595,40 @@ export async function registerRoutes(
     }
   });
 
+  // Generate share image for a market
+  app.get("/api/markets/:marketType/share-image", async (req, res) => {
+    try {
+      const { marketType } = req.params;
+      const { generateCachedShareImage } = await import("./shareImageGenerator");
+      const { getConstructorsMarket, getDriversMarket } = await import("./polymarket");
+      
+      let marketTitle: string;
+      let outcomes: Array<{ name: string; price: number }>;
+      
+      if (marketType === "constructors") {
+        marketTitle = "Who will win the 2026 F1 Constructors' Championship?";
+        const data = await getConstructorsMarket();
+        outcomes = data.map(o => ({ name: o.name, price: o.price }));
+      } else if (marketType === "drivers") {
+        marketTitle = "Who will win the 2026 F1 Drivers' Championship?";
+        const data = await getDriversMarket();
+        outcomes = data.map(o => ({ name: o.name, price: o.price }));
+      } else {
+        return res.status(400).json({ error: "Invalid market type. Use 'constructors' or 'drivers'" });
+      }
+      
+      const imageBuffer = await generateCachedShareImage(marketType, marketTitle, outcomes);
+      
+      res.setHeader("Content-Type", "image/png");
+      res.setHeader("Content-Disposition", `attachment; filename="f1-predict-${marketType}-odds.png"`);
+      res.setHeader("Cache-Control", "public, max-age=300"); // 5 minute browser cache
+      res.send(imageBuffer);
+    } catch (error) {
+      console.error("Failed to generate share image:", error);
+      res.status(500).json({ error: "Failed to generate share image" });
+    }
+  });
+
   // Get order book for a token
   app.get("/api/polymarket/orderbook/:tokenId", async (req, res) => {
     try {
