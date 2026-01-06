@@ -1,8 +1,13 @@
 import satori from "satori";
 import { Resvg } from "@resvg/resvg-js";
 import { readFileSync, existsSync } from "fs";
-import { join } from "path";
+import { join, dirname } from "path";
+import { fileURLToPath } from "url";
 import type { NormalizedOutcome } from "./polymarket";
+
+// ESM equivalent of __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 interface ShareImageData {
   marketTitle: string;
@@ -23,12 +28,25 @@ async function loadFont(): Promise<ArrayBuffer> {
   }
   fontLoadAttempted = true;
   
-  // Multiple font sources - Satori requires TTF or OTF format (not woff/woff2)
+  // Try local bundled font first (works in both dev and production)
+  const localFontPath = join(__dirname, "assets", "Roboto-Regular.ttf");
+  try {
+    if (existsSync(localFontPath)) {
+      const buffer = readFileSync(localFontPath);
+      fontData = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+      console.log(`[ShareImage] Successfully loaded local font from ${localFontPath} (${buffer.byteLength} bytes)`);
+      return fontData;
+    } else {
+      console.log(`[ShareImage] Local font not found at ${localFontPath}, falling back to remote`);
+    }
+  } catch (e: any) {
+    console.log(`[ShareImage] Failed to load local font: ${e.message}`);
+  }
+  
+  // Fallback to remote font sources - Satori requires TTF or OTF format (not woff/woff2)
   const fontUrls = [
     // Roboto TTF from Google Fonts - most reliable
     "https://fonts.gstatic.com/s/roboto/v30/KFOmCnqEu92Fr1Mu4mxP.ttf",
-    // Inter TTF from GitHub releases
-    "https://github.com/rsms/inter/releases/download/v4.0/Inter-Regular.ttf",
     // Open Sans TTF fallback
     "https://fonts.gstatic.com/s/opensans/v35/memSYaGs126MiZpBA-UvWbX2vVnXBbObj2OVZyOOSr4dVJWUgsjZ0C4n.ttf",
     // Noto Sans TTF fallback
