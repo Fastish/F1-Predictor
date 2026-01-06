@@ -16,6 +16,7 @@ import { matchingEngine } from "./matchingEngine";
 import { randomBytes } from "crypto";
 import { registerPoolRoutes } from "./pool-routes";
 import { ProxyAgent, fetch as undiciFetch } from "undici";
+import { registerObjectStorageRoutes, ObjectStorageService } from "./replit_integrations/object_storage";
 import { startDailyRoundupScheduler } from "./dailyRoundupScheduler";
 
 // Oxylabs proxy configuration for bypassing Polymarket's US IP block
@@ -160,6 +161,9 @@ export async function registerRoutes(
 ): Promise<Server> {
   // Register LMSR pool routes (non-blocking)
   registerPoolRoutes(app);
+
+  // Register object storage routes for file uploads
+  registerObjectStorageRoutes(app);
 
   // ============ Client Configuration (Runtime) ============
   // This endpoint provides environment variables to the client at RUNTIME
@@ -4127,6 +4131,74 @@ export async function registerRoutes(
       res.json({ configured: isTwitterConfigured() });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Admin: Get presigned URL for article image upload
+  app.post("/api/admin/articles/:id/upload-image", requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const article = await storage.getArticle(id);
+      
+      if (!article) {
+        return res.status(404).json({ error: "Article not found" });
+      }
+      
+      const objectStorageService = new ObjectStorageService();
+      const uploadURL = await objectStorageService.getObjectEntityUploadURL();
+      const objectPath = objectStorageService.normalizeObjectEntityPath(uploadURL);
+      
+      res.json({
+        uploadURL,
+        objectPath,
+        articleId: id,
+      });
+    } catch (error: any) {
+      console.error("Failed to generate article image upload URL:", error);
+      res.status(500).json({ error: error.message || "Failed to generate upload URL" });
+    }
+  });
+
+  // Admin: Confirm article image upload and update heroImageUrl
+  app.post("/api/admin/articles/:id/confirm-image", requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { objectPath } = req.body;
+      
+      if (!objectPath) {
+        return res.status(400).json({ error: "objectPath is required" });
+      }
+      
+      const article = await storage.getArticle(id);
+      if (!article) {
+        return res.status(404).json({ error: "Article not found" });
+      }
+      
+      // Set the ACL policy to public so the image can be served
+      const objectStorageService = new ObjectStorageService();
+      try {
+        const objectFile = await objectStorageService.getObjectEntityFile(objectPath);
+        const { setObjectAclPolicy } = await import("./replit_integrations/object_storage/objectAcl");
+        await setObjectAclPolicy(objectFile, {
+          owner: "admin",
+          visibility: "public",
+        });
+      } catch (aclError) {
+        console.warn("Failed to set ACL policy for uploaded image:", aclError);
+      }
+      
+      // Update the article with the new image URL
+      const updatedArticle = await storage.updateArticle(id, {
+        heroImageUrl: objectPath,
+      });
+      
+      res.json({
+        success: true,
+        article: updatedArticle,
+      });
+    } catch (error: any) {
+      console.error("Failed to confirm article image upload:", error);
+      res.status(500).json({ error: error.message || "Failed to update article image" });
     }
   });
 

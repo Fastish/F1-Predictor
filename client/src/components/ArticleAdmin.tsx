@@ -39,9 +39,11 @@ import {
   Settings,
   Save,
   Image,
-  Twitter
+  Twitter,
+  Upload
 } from "lucide-react";
 import type { Article, ArticleContextRules, DailyRoundupSettings } from "@shared/schema";
+import { useUpload } from "@/hooks/use-upload";
 import { Clock, Newspaper } from "lucide-react";
 
 const ARTICLES_QUERY_KEY = "/api/admin/articles";
@@ -855,6 +857,8 @@ function EditArticleForm({
   onSave: (data: Partial<Article>) => void;
   isPending: boolean;
 }) {
+  const { toast } = useToast();
+  const { walletAddress } = useWallet();
   const [title, setTitle] = useState(article.title);
   const [summary, setSummary] = useState(article.summary);
   const [content, setContent] = useState(article.content);
@@ -862,6 +866,82 @@ function EditArticleForm({
   const [heroImageUrl, setHeroImageUrl] = useState(article.heroImageUrl || "");
   const [metaTitle, setMetaTitle] = useState(article.metaTitle || "");
   const [metaDescription, setMetaDescription] = useState(article.metaDescription || "");
+  const [isUploading, setIsUploading] = useState(false);
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: "hero" | "thumbnail") => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    try {
+      // Get presigned URL from server
+      const presignResponse = await fetch(`/api/admin/articles/${article.id}/upload-image`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-wallet-address": walletAddress || "",
+        },
+      });
+      
+      if (!presignResponse.ok) {
+        throw new Error("Failed to get upload URL");
+      }
+      
+      const { uploadURL, objectPath } = await presignResponse.json();
+      
+      // Upload file directly to presigned URL
+      const uploadResponse = await fetch(uploadURL, {
+        method: "PUT",
+        body: file,
+        headers: {
+          "Content-Type": file.type || "image/png",
+        },
+      });
+      
+      if (!uploadResponse.ok) {
+        throw new Error("Failed to upload file");
+      }
+      
+      // Confirm upload and update article
+      const confirmResponse = await fetch(`/api/admin/articles/${article.id}/confirm-image`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-wallet-address": walletAddress || "",
+        },
+        body: JSON.stringify({ objectPath }),
+      });
+      
+      if (!confirmResponse.ok) {
+        throw new Error("Failed to confirm upload");
+      }
+      
+      // Update local state with the object path
+      if (type === "hero") {
+        setHeroImageUrl(objectPath);
+        if (!thumbnailUrl) {
+          setThumbnailUrl(objectPath);
+        }
+      } else {
+        setThumbnailUrl(objectPath);
+      }
+      
+      toast({
+        title: "Image Uploaded",
+        description: "Image uploaded successfully to storage.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Upload Failed",
+        description: error.message || "Failed to upload image",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploading(false);
+      // Reset file input
+      e.target.value = "";
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -927,18 +1007,46 @@ function EditArticleForm({
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <Label htmlFor="heroImageUrl">Hero / OG Image URL</Label>
-            {heroImageUrl && thumbnailUrl !== heroImageUrl && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setThumbnailUrl(heroImageUrl)}
-                data-testid="button-sync-thumbnail"
-              >
-                <RefreshCw className="h-3 w-3 mr-1" />
-                Use as Thumbnail
-              </Button>
-            )}
+            <div className="flex items-center gap-2">
+              {heroImageUrl && thumbnailUrl !== heroImageUrl && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setThumbnailUrl(heroImageUrl)}
+                  data-testid="button-sync-thumbnail"
+                >
+                  <RefreshCw className="h-3 w-3 mr-1" />
+                  Use as Thumbnail
+                </Button>
+              )}
+              <label className="cursor-pointer">
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => handleImageUpload(e, "hero")}
+                  disabled={isUploading}
+                  data-testid="input-upload-hero"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={isUploading}
+                  asChild
+                >
+                  <span>
+                    {isUploading ? (
+                      <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                    ) : (
+                      <Upload className="h-3 w-3 mr-1" />
+                    )}
+                    Upload
+                  </span>
+                </Button>
+              </label>
+            </div>
           </div>
           <Input
             id="heroImageUrl"
@@ -949,7 +1057,7 @@ function EditArticleForm({
                 setThumbnailUrl(e.target.value);
               }
             }}
-            placeholder="https://example.com/hero.png (1200x628 recommended)"
+            placeholder="https://example.com/hero.png or upload"
             data-testid="input-edit-hero-url"
           />
           {heroImageUrl && (

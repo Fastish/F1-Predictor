@@ -51,7 +51,15 @@ Preferred communication style: Simple, everyday language.
 - **Integration**: Replit AI Integrations (OpenAI API).
 - **Workflow**: Generate draft articles via admin UI, review, then publish to a `/news` page.
 - **Image Generation**: Articles automatically get AI-generated 1024x1024 images used for both thumbnail and hero/OG.
+- **Manual Image Upload**: Admin can upload custom images to Object Storage for articles when AI generation fails or for custom images.
 - **X.com Publishing**: Admin can post published articles to X.com with auto-generated teaser tweets. Requires `TWITTER_API_KEY`, `TWITTER_API_SECRET`, `TWITTER_ACCESS_TOKEN`, `TWITTER_ACCESS_TOKEN_SECRET`.
+
+### Object Storage
+- **Provider**: Replit Object Storage (Google Cloud Storage backend)
+- **Purpose**: Host article images and other uploaded assets
+- **Upload Flow**: Presigned URL flow - get upload URL from server, upload directly to GCS
+- **Serving**: Files served via `/objects/:path` endpoint
+- **ACL**: Public visibility for article images
 
 ### Navigation Structure
 - **Predictive Markets** (dropdown): Constructors, Drivers, Races, Guide
