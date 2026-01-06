@@ -30,6 +30,7 @@ import { usePolymarketPositions } from "@/hooks/usePolymarketPositions";
 import { useTradingWalletBalance } from "@/hooks/useTradingWalletBalance";
 import { UsernameModal } from "./UsernameModal";
 import { MeldFundingModal } from "./MeldFundingModal";
+import f1PredictLogo from "@assets/Predict_(1)_1767657713719.png";
 
 export function Header() {
   const { walletAddress, walletType, disconnectWallet } = useWallet();
@@ -61,9 +62,13 @@ export function Header() {
       <div className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-4 px-4">
         <div className="flex items-center gap-6">
           <Link href="/">
-            <div className="flex items-center gap-2 hover-elevate cursor-pointer rounded-md px-2 py-1" data-testid="link-home">
-              <TrendingUp className="h-6 w-6 text-primary" />
-              <span className="text-lg font-bold" data-testid="text-logo">F1 Predict</span>
+            <div className="flex items-center hover-elevate cursor-pointer rounded-md px-2 py-1" data-testid="link-home">
+              <img 
+                src={f1PredictLogo} 
+                alt="F1 Predict" 
+                className="h-8 w-auto"
+                data-testid="img-logo"
+              />
             </div>
           </Link>
           

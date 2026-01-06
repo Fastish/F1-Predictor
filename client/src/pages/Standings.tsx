@@ -1,8 +1,10 @@
 import { useState, useEffect } from "react";
+import { Header } from "@/components/Header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Clock, Trophy, Car, User } from "lucide-react";
+import { useSEO } from "@/hooks/useSEO";
 
 const CONSTRUCTOR_STANDINGS_2025 = [
   { position: 1, team: "Red Bull Racing", points: 860, color: "#3671C6" },
@@ -105,16 +107,23 @@ function CountdownTimer() {
 }
 
 export default function Standings() {
-  return (
-    <div className="container max-w-6xl mx-auto py-8 px-4">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2" data-testid="text-standings-title">F1 Championship Standings</h1>
-        <p className="text-muted-foreground">
-          Current standings from the 2025 Formula 1 World Championship
-        </p>
-      </div>
+  useSEO({
+    title: "F1 Championship Standings | F1 Predict",
+    description: "Current Formula 1 championship standings for constructors and drivers. View points, rankings, and countdown to the 2026 season."
+  });
 
-      <CountdownTimer />
+  return (
+    <div className="min-h-screen bg-background">
+      <Header />
+      <div className="container max-w-6xl mx-auto py-8 px-4">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold mb-2" data-testid="text-standings-title">F1 Championship Standings</h1>
+          <p className="text-muted-foreground">
+            Current standings from the 2025 Formula 1 World Championship
+          </p>
+        </div>
+
+        <CountdownTimer />
 
       <Badge variant="secondary" className="mb-4">
         2025 Season Data - 2026 standings will update when the season begins
@@ -203,6 +212,7 @@ export default function Standings() {
           </div>
         </TabsContent>
       </Tabs>
+      </div>
     </div>
   );
 }

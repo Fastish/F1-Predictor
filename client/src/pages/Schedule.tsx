@@ -1,6 +1,8 @@
+import { Header } from "@/components/Header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Calendar, MapPin, Clock, Flag } from "lucide-react";
+import { useSEO } from "@/hooks/useSEO";
 
 const F1_2026_RACES = [
   { round: 1, name: "Australian Grand Prix", location: "Melbourne, Australia", circuit: "Albert Park Circuit", date: "March 15, 2026", time: "05:00 GMT" },
@@ -40,10 +42,17 @@ function getRaceStatus(dateStr: string): "upcoming" | "next" | "past" {
 }
 
 export default function Schedule() {
+  useSEO({
+    title: "2026 F1 Race Calendar | F1 Predict",
+    description: "Complete schedule for the 2026 Formula 1 World Championship season. View all 24 race dates, locations, circuits, and start times."
+  });
+  
   const nextRace = F1_2026_RACES.find(race => getRaceStatus(race.date) !== "past");
   
   return (
-    <div className="container max-w-6xl mx-auto py-8 px-4">
+    <div className="min-h-screen bg-background">
+      <Header />
+      <div className="container max-w-6xl mx-auto py-8 px-4">
       <div className="mb-8">
         <h1 className="text-3xl font-bold mb-2" data-testid="text-schedule-title">2026 F1 Race Calendar</h1>
         <p className="text-muted-foreground">
@@ -126,6 +135,7 @@ export default function Schedule() {
             </Card>
           );
         })}
+      </div>
       </div>
     </div>
   );
