@@ -12,7 +12,8 @@ import {
   Legend,
 } from "recharts";
 import { format } from "date-fns";
-import { Loader2 } from "lucide-react";
+import { Loader2, Download } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 interface PolymarketOutcome {
   id: string;
@@ -80,7 +81,40 @@ export function PolymarketPriceChart({
   onSelectOutcome 
 }: PolymarketPriceChartProps) {
   const [timeRange, setTimeRange] = useState<TimeRange>("1W");
+  const [isDownloading, setIsDownloading] = useState(false);
+  const { toast } = useToast();
   const colorKey = type === "constructors" ? teamColors : driverColors;
+
+  const handleDownloadShareImage = async () => {
+    setIsDownloading(true);
+    try {
+      const response = await fetch(`/api/markets/${type}/share-image`);
+      if (!response.ok) {
+        throw new Error("Failed to generate image");
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `f1-predict-${type}-odds.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast({
+        title: "Image downloaded",
+        description: "Share it on social media!",
+      });
+    } catch (error) {
+      toast({
+        title: "Download failed",
+        description: "Could not generate the share image. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDownloading(false);
+    }
+  };
 
   const isValidName = (name: string): boolean => {
     const trimmed = name.trim();
@@ -186,22 +220,40 @@ export function PolymarketPriceChart({
   return (
     <Card className="mb-6">
       <CardContent className="pt-4">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between gap-4 mb-4 flex-wrap">
           <h3 className="font-semibold text-lg">
             {type === "constructors" ? "Constructors" : "Drivers"} Championship Odds
           </h3>
-          <div className="flex gap-1">
-            {timeRanges.map(range => (
-              <Button
-                key={range.key}
-                variant={timeRange === range.key ? "secondary" : "ghost"}
-                size="sm"
-                onClick={() => setTimeRange(range.key)}
-                data-testid={`button-range-${range.key.toLowerCase()}`}
-              >
-                {range.label}
-              </Button>
-            ))}
+          <div className="flex items-center gap-2">
+            <div className="flex gap-1">
+              {timeRanges.map(range => (
+                <Button
+                  key={range.key}
+                  variant={timeRange === range.key ? "secondary" : "ghost"}
+                  size="sm"
+                  onClick={() => setTimeRange(range.key)}
+                  data-testid={`button-range-${range.key.toLowerCase()}`}
+                >
+                  {range.label}
+                </Button>
+              ))}
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDownloadShareImage}
+              disabled={isDownloading}
+              data-testid="button-download-share-image"
+            >
+              {isDownloading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <>
+                  <Download className="h-4 w-4 mr-1" />
+                  Share
+                </>
+              )}
+            </Button>
           </div>
         </div>
 
