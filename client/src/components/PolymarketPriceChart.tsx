@@ -9,7 +9,6 @@ import {
   YAxis,
   Tooltip,
   ResponsiveContainer,
-  Legend,
 } from "recharts";
 import { format } from "date-fns";
 import { Loader2, Download } from "lucide-react";
@@ -286,20 +285,6 @@ export function PolymarketPriceChart({
                   width={45}
                 />
                 <Tooltip content={<CustomTooltip />} />
-                <Legend 
-                  verticalAlign="bottom"
-                  height={36}
-                  iconType="circle"
-                  iconSize={8}
-                  formatter={(value) => <span className="text-sm">{value}</span>}
-                  onClick={(e) => {
-                    const outcome = topOutcomes.find(o => o.name === e.value);
-                    if (outcome && onSelectOutcome) {
-                      onSelectOutcome(outcome);
-                    }
-                  }}
-                  wrapperStyle={{ cursor: 'pointer' }}
-                />
                 {topOutcomes.map(outcome => (
                   <Line 
                     key={outcome.id}
