@@ -32,6 +32,8 @@ import { UsernameModal } from "./UsernameModal";
 import { MeldFundingModal } from "./MeldFundingModal";
 import f1PredictLogo from "@assets/Predict_(1)_1767657713719.png";
 
+import F1_Predict_Logo from "@assets/F1 Predict Logo.png";
+
 export function Header() {
   const { walletAddress, walletType, disconnectWallet } = useWallet();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -64,7 +66,7 @@ export function Header() {
           <Link href="/">
             <div className="flex items-center hover-elevate cursor-pointer rounded-md px-2 py-1" data-testid="link-home">
               <img 
-                src={f1PredictLogo} 
+                src={F1_Predict_Logo} 
                 alt="F1 Predict" 
                 className="h-8 w-auto"
                 data-testid="img-logo"
