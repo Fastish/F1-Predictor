@@ -1,6 +1,6 @@
 import satori from "satori";
 import { Resvg } from "@resvg/resvg-js";
-import { readFileSync } from "fs";
+import { readFileSync, existsSync } from "fs";
 import { join } from "path";
 import type { NormalizedOutcome } from "./polymarket";
 
@@ -12,36 +12,64 @@ interface ShareImageData {
 
 // Load Inter font for Satori (TTF format required - satori doesn't support woff2)
 let fontData: ArrayBuffer | null = null;
+let fontLoadAttempted = false;
 
 async function loadFont(): Promise<ArrayBuffer> {
   if (fontData) return fontData;
   
-  // Use Inter TTF from GitHub releases (satori requires TTF or OTF, not woff2)
+  // Prevent multiple concurrent load attempts
+  if (fontLoadAttempted) {
+    throw new Error("Font loading already failed");
+  }
+  fontLoadAttempted = true;
+  
+  // Multiple font sources - Satori requires TTF or OTF format (not woff/woff2)
   const fontUrls = [
-    // Inter TTF from unpkg (rsms/inter)
-    "https://unpkg.com/@fontsource/inter@5.0.8/files/inter-latin-400-normal.woff",
-    // Roboto TTF fallback 
-    "https://github.com/googlefonts/roboto/raw/main/src/hinted/Roboto-Regular.ttf",
+    // Roboto TTF from Google Fonts - most reliable
+    "https://fonts.gstatic.com/s/roboto/v30/KFOmCnqEu92Fr1Mu4mxP.ttf",
+    // Inter TTF from GitHub releases
+    "https://github.com/rsms/inter/releases/download/v4.0/Inter-Regular.ttf",
+    // Open Sans TTF fallback
+    "https://fonts.gstatic.com/s/opensans/v35/memSYaGs126MiZpBA-UvWbX2vVnXBbObj2OVZyOOSr4dVJWUgsjZ0C4n.ttf",
+    // Noto Sans TTF fallback
+    "https://fonts.gstatic.com/s/notosans/v28/o-0IIpQlx3QUlC5A4PNr5TRA.ttf",
   ];
   
   for (const url of fontUrls) {
     try {
-      const response = await fetch(url);
+      console.log(`[ShareImage] Attempting to load font from: ${url}`);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      
+      const response = await fetch(url, { 
+        signal: controller.signal,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; F1Predict/1.0)'
+        }
+      });
+      clearTimeout(timeoutId);
+      
       if (response.ok) {
         const buffer = await response.arrayBuffer();
-        // Check it's not HTML (starts with < which is 0x3C)
+        // Check it's not HTML (starts with < which is 0x3C) and has reasonable size
         const firstByte = new Uint8Array(buffer)[0];
         if (firstByte !== 0x3C && buffer.byteLength > 1000) {
           fontData = buffer;
-          console.log(`Loaded font from ${url}`);
+          console.log(`[ShareImage] Successfully loaded font from ${url} (${buffer.byteLength} bytes)`);
           return fontData;
+        } else {
+          console.log(`[ShareImage] Font from ${url} appears invalid (firstByte=${firstByte}, size=${buffer.byteLength})`);
         }
+      } else {
+        console.log(`[ShareImage] Font fetch returned status ${response.status} for ${url}`);
       }
-    } catch (e) {
-      console.log(`Font fetch failed for ${url}`);
+    } catch (e: any) {
+      console.log(`[ShareImage] Font fetch failed for ${url}: ${e.message || e}`);
     }
   }
   
+  // Reset so it can be tried again later
+  fontLoadAttempted = false;
   throw new Error("Could not load any fonts for image generation");
 }
 

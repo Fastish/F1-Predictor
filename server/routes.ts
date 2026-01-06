@@ -603,6 +603,8 @@ export async function registerRoutes(
   app.get("/api/markets/:marketType/share-image", async (req, res) => {
     try {
       const { marketType } = req.params;
+      console.log(`[ShareImage] Generating share image for market type: ${marketType}`);
+      
       const { generateCachedShareImage } = await import("./shareImageGenerator");
       const { getConstructorsMarket, getDriversMarket } = await import("./polymarket");
       
@@ -611,25 +613,32 @@ export async function registerRoutes(
       
       if (marketType === "constructors") {
         marketTitle = "Who will win the 2026 F1 Constructors' Championship?";
+        console.log("[ShareImage] Fetching constructors market data...");
         const data = await getConstructorsMarket();
         outcomes = data.map(o => ({ name: o.name, price: o.price }));
+        console.log(`[ShareImage] Got ${outcomes.length} constructor outcomes`);
       } else if (marketType === "drivers") {
         marketTitle = "Who will win the 2026 F1 Drivers' Championship?";
+        console.log("[ShareImage] Fetching drivers market data...");
         const data = await getDriversMarket();
         outcomes = data.map(o => ({ name: o.name, price: o.price }));
+        console.log(`[ShareImage] Got ${outcomes.length} driver outcomes`);
       } else {
         return res.status(400).json({ error: "Invalid market type. Use 'constructors' or 'drivers'" });
       }
       
+      console.log("[ShareImage] Generating image...");
       const imageBuffer = await generateCachedShareImage(marketType, marketTitle, outcomes);
+      console.log(`[ShareImage] Generated image buffer: ${imageBuffer.length} bytes`);
       
       res.setHeader("Content-Type", "image/png");
       res.setHeader("Content-Disposition", `attachment; filename="f1-predict-${marketType}-odds.png"`);
       res.setHeader("Cache-Control", "public, max-age=300"); // 5 minute browser cache
       res.send(imageBuffer);
-    } catch (error) {
-      console.error("Failed to generate share image:", error);
-      res.status(500).json({ error: "Failed to generate share image" });
+    } catch (error: any) {
+      console.error("[ShareImage] Failed to generate share image:", error?.message || error);
+      console.error("[ShareImage] Stack trace:", error?.stack);
+      res.status(500).json({ error: "Failed to generate share image", details: error?.message });
     }
   });
 
