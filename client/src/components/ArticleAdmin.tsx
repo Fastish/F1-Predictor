@@ -1066,16 +1066,36 @@ function EditArticleForm({
             data-testid="input-edit-hero-url"
           />
           {heroImageUrl && (
-            <div className="mt-2">
-              <img 
-                src={heroImageUrl} 
-                alt="Hero preview" 
-                className="h-24 w-auto rounded-md object-cover"
-                style={{ aspectRatio: "16/9" }}
-                onError={(e) => {
-                  (e.target as HTMLImageElement).style.display = 'none';
-                }}
-              />
+            <div className="mt-2 relative">
+              <div className="relative h-32 w-56 rounded-md border border-border overflow-hidden bg-muted">
+                <img 
+                  src={heroImageUrl} 
+                  alt="Hero preview" 
+                  className="h-full w-full object-cover"
+                  data-testid="img-hero-preview"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.style.display = 'none';
+                    const parent = target.parentElement;
+                    if (parent && !parent.querySelector('.error-placeholder')) {
+                      const errorDiv = document.createElement('div');
+                      errorDiv.className = 'error-placeholder absolute inset-0 flex flex-col items-center justify-center text-muted-foreground text-xs gap-1';
+                      errorDiv.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg><span>Image not found</span>';
+                      parent.appendChild(errorDiv);
+                    }
+                  }}
+                  onLoad={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.style.display = 'block';
+                    const parent = target.parentElement;
+                    const errorPlaceholder = parent?.querySelector('.error-placeholder');
+                    if (errorPlaceholder) {
+                      errorPlaceholder.remove();
+                    }
+                  }}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">Hero image preview (16:9)</p>
             </div>
           )}
           <div className="mt-2">
@@ -1114,15 +1134,36 @@ function EditArticleForm({
             data-testid="input-edit-thumbnail-url"
           />
           {thumbnailUrl && (
-            <div className="mt-2">
-              <img 
-                src={thumbnailUrl} 
-                alt="Thumbnail preview" 
-                className="h-20 w-auto rounded-md object-cover"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).style.display = 'none';
-                }}
-              />
+            <div className="mt-2 relative">
+              <div className="relative h-24 w-24 rounded-md border border-border overflow-hidden bg-muted">
+                <img 
+                  src={thumbnailUrl} 
+                  alt="Thumbnail preview" 
+                  className="h-full w-full object-cover"
+                  data-testid="img-thumbnail-preview"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.style.display = 'none';
+                    const parent = target.parentElement;
+                    if (parent && !parent.querySelector('.error-placeholder')) {
+                      const errorDiv = document.createElement('div');
+                      errorDiv.className = 'error-placeholder absolute inset-0 flex flex-col items-center justify-center text-muted-foreground text-xs gap-1';
+                      errorDiv.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg><span>Not found</span>';
+                      parent.appendChild(errorDiv);
+                    }
+                  }}
+                  onLoad={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.style.display = 'block';
+                    const parent = target.parentElement;
+                    const errorPlaceholder = parent?.querySelector('.error-placeholder');
+                    if (errorPlaceholder) {
+                      errorPlaceholder.remove();
+                    }
+                  }}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">Thumbnail preview</p>
             </div>
           )}
         </div>
