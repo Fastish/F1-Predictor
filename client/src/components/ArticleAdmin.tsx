@@ -872,6 +872,11 @@ function EditArticleForm({
   const [metaDescription, setMetaDescription] = useState(article.metaDescription || "");
   const [isUploading, setIsUploading] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [showInlineImageDialog, setShowInlineImageDialog] = useState(false);
+  const [inlineImageAlt, setInlineImageAlt] = useState("");
+  const [inlineImageCaption, setInlineImageCaption] = useState("");
+  const [isUploadingInline, setIsUploadingInline] = useState(false);
+  const [lastMarkdown, setLastMarkdown] = useState("");
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: "hero" | "thumbnail") => {
     const file = e.target.files?.[0];
@@ -944,6 +949,83 @@ function EditArticleForm({
     } finally {
       setIsUploading(false);
       // Reset file input
+      e.target.value = "";
+    }
+  };
+
+  const handleInlineImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploadingInline(true);
+    try {
+      const presignResponse = await fetch(`/api/admin/articles/${article.id}/upload-image`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-wallet-address": walletAddress || "",
+        },
+      });
+      
+      if (!presignResponse.ok) {
+        throw new Error("Failed to get upload URL");
+      }
+      
+      const { uploadURL, objectPath } = await presignResponse.json();
+      
+      const uploadResponse = await fetch(uploadURL, {
+        method: "PUT",
+        body: file,
+        headers: {
+          "Content-Type": file.type || "image/png",
+        },
+      });
+      
+      if (!uploadResponse.ok) {
+        throw new Error("Failed to upload file");
+      }
+      
+      const confirmResponse = await fetch(`/api/admin/articles/${article.id}/confirm-inline-image`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-wallet-address": walletAddress || "",
+        },
+        body: JSON.stringify({ objectPath }),
+      });
+      
+      if (!confirmResponse.ok) {
+        throw new Error("Failed to confirm upload");
+      }
+      
+      const confirmData = await confirmResponse.json();
+      const imageUrl = confirmData.publicUrl;
+      const alt = inlineImageAlt || "image";
+      const caption = inlineImageCaption;
+      const markdown = caption 
+        ? `![${alt}](${imageUrl} "${caption}")`
+        : `![${alt}](${imageUrl})`;
+      
+      setLastMarkdown(markdown);
+      
+      await navigator.clipboard.writeText(markdown);
+      
+      toast({
+        title: "Image Uploaded",
+        description: "Markdown copied to clipboard. Paste it into your article content.",
+      });
+      
+      setShowInlineImageDialog(false);
+      setInlineImageAlt("");
+      setInlineImageCaption("");
+    } catch (error: any) {
+      toast({
+        title: "Upload Failed",
+        description: error.message || "Failed to upload image",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploadingInline(false);
       e.target.value = "";
     }
   };
@@ -1061,9 +1143,108 @@ function EditArticleForm({
             data-testid="input-edit-content"
           />
         )}
-        <p className="text-xs text-muted-foreground">
-          Tip: Add images with captions on their own line: ![alt text](image-url "Photo credit or caption")
-        </p>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs text-muted-foreground">
+            Tip: Add images with captions: ![alt](url "caption")
+          </p>
+          <Dialog open={showInlineImageDialog} onOpenChange={setShowInlineImageDialog}>
+            <DialogTrigger asChild>
+              <Button 
+                type="button" 
+                variant="outline" 
+                size="sm"
+                data-testid="button-insert-image"
+              >
+                <Upload className="h-3 w-3 mr-1" />
+                Insert Image
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Insert Image</DialogTitle>
+                <DialogDescription>
+                  Upload an image to get Markdown syntax for your article.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="inline-alt">Alt Text</Label>
+                  <Input
+                    id="inline-alt"
+                    value={inlineImageAlt}
+                    onChange={(e) => setInlineImageAlt(e.target.value)}
+                    placeholder="Describe the image"
+                    data-testid="input-inline-alt"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="inline-caption">Caption (optional)</Label>
+                  <Input
+                    id="inline-caption"
+                    value={inlineImageCaption}
+                    onChange={(e) => setInlineImageCaption(e.target.value)}
+                    placeholder="Photo credit or caption"
+                    data-testid="input-inline-caption"
+                  />
+                </div>
+                <div className="flex justify-center">
+                  <label className="cursor-pointer">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleInlineImageUpload}
+                      disabled={isUploadingInline}
+                      data-testid="input-inline-image-file"
+                    />
+                    <Button
+                      type="button"
+                      variant="default"
+                      disabled={isUploadingInline}
+                      asChild
+                    >
+                      <span>
+                        {isUploadingInline ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Uploading...
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="h-4 w-4 mr-2" />
+                            Choose Image
+                          </>
+                        )}
+                      </span>
+                    </Button>
+                  </label>
+                </div>
+                {lastMarkdown && (
+                  <div className="space-y-2">
+                    <Label>Last Generated Markdown</Label>
+                    <div className="flex items-center gap-2">
+                      <code className="flex-1 p-2 bg-muted rounded text-xs break-all">
+                        {lastMarkdown}
+                      </code>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => {
+                          navigator.clipboard.writeText(lastMarkdown);
+                          toast({ title: "Copied", description: "Markdown copied to clipboard" });
+                        }}
+                        data-testid="button-copy-markdown"
+                      >
+                        <FileText className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
       <div className="space-y-4 p-4 rounded-md bg-muted/50">
         <div className="flex items-center justify-between">

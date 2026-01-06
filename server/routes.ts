@@ -4211,6 +4211,52 @@ export async function registerRoutes(
     }
   });
 
+  // Admin: Confirm inline image upload (doesn't update article, just returns public URL)
+  app.post("/api/admin/articles/:id/confirm-inline-image", requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { objectPath } = req.body;
+      
+      if (!objectPath) {
+        return res.status(400).json({ error: "objectPath is required" });
+      }
+      
+      const article = await storage.getArticle(id);
+      if (!article) {
+        return res.status(404).json({ error: "Article not found" });
+      }
+      
+      // Normalize objectPath to ensure it starts with /
+      const normalizedPath = objectPath.startsWith("/") ? objectPath : `/${objectPath}`;
+      
+      // Validate the path has the required /objects/ prefix
+      if (!normalizedPath.startsWith("/objects/")) {
+        return res.status(400).json({ error: "Invalid object path format - must start with /objects/" });
+      }
+      
+      // Set the ACL policy to public so the image can be served
+      const objectStorageService = new ObjectStorageService();
+      const objectFile = await objectStorageService.getObjectEntityFile(normalizedPath);
+      const { setObjectAclPolicy } = await import("./replit_integrations/object_storage/objectAcl");
+      await setObjectAclPolicy(objectFile, {
+        owner: "admin",
+        visibility: "public",
+      });
+      
+      // Return the normalized path as the public URL
+      const publicUrl = normalizedPath;
+      
+      res.json({
+        success: true,
+        publicUrl,
+        objectPath,
+      });
+    } catch (error: any) {
+      console.error("Failed to confirm inline image upload:", error);
+      res.status(500).json({ error: error.message || "Failed to confirm upload" });
+    }
+  });
+
   // Admin: Delete article
   app.delete("/api/admin/articles/:id", async (req, res) => {
     try {
