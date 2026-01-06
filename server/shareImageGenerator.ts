@@ -5,10 +5,6 @@ import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import type { NormalizedOutcome } from "./polymarket";
 
-// ESM equivalent of __dirname
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
 interface ShareImageData {
   marketTitle: string;
   outcomes: Array<{ name: string; price: number; image?: string }>;
@@ -19,6 +15,29 @@ interface ShareImageData {
 let fontData: ArrayBuffer | null = null;
 let fontLoadAttempted = false;
 
+// Get all possible font paths for dev and production environments
+function getFontPaths(): string[] {
+  const paths: string[] = [];
+  const cwd = process.cwd();
+  
+  // Development: server/assets relative to project root
+  paths.push(join(cwd, "server", "assets", "Roboto-Regular.ttf"));
+  
+  // Production: dist/assets relative to project root (copied during build)
+  paths.push(join(cwd, "dist", "assets", "Roboto-Regular.ttf"));
+  
+  // ESM: try import.meta.url if available (tsx in dev)
+  try {
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = dirname(__filename);
+    paths.push(join(__dirname, "assets", "Roboto-Regular.ttf"));
+  } catch (e) {
+    // import.meta.url may not work in bundled CJS
+  }
+  
+  return paths;
+}
+
 async function loadFont(): Promise<ArrayBuffer> {
   if (fontData) return fontData;
   
@@ -28,20 +47,22 @@ async function loadFont(): Promise<ArrayBuffer> {
   }
   fontLoadAttempted = true;
   
-  // Try local bundled font first (works in both dev and production)
-  const localFontPath = join(__dirname, "assets", "Roboto-Regular.ttf");
-  try {
-    if (existsSync(localFontPath)) {
-      const buffer = readFileSync(localFontPath);
-      fontData = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
-      console.log(`[ShareImage] Successfully loaded local font from ${localFontPath} (${buffer.byteLength} bytes)`);
-      return fontData;
-    } else {
-      console.log(`[ShareImage] Local font not found at ${localFontPath}, falling back to remote`);
+  // Try all possible local font paths
+  const fontPaths = getFontPaths();
+  for (const fontPath of fontPaths) {
+    try {
+      if (existsSync(fontPath)) {
+        const buffer = readFileSync(fontPath);
+        fontData = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+        console.log(`[ShareImage] Successfully loaded local font from ${fontPath} (${buffer.byteLength} bytes)`);
+        return fontData;
+      }
+    } catch (e: any) {
+      console.log(`[ShareImage] Failed to load font from ${fontPath}: ${e.message}`);
     }
-  } catch (e: any) {
-    console.log(`[ShareImage] Failed to load local font: ${e.message}`);
   }
+  
+  console.log(`[ShareImage] No local font found, tried: ${fontPaths.join(", ")}. Falling back to remote.`);
   
   // Fallback to remote font sources - Satori requires TTF or OTF format (not woff/woff2)
   const fontUrls = [
