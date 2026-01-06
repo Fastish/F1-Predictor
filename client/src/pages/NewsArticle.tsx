@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Calendar, ArrowLeft, Clock, Share2 } from "lucide-react";
 import { format } from "date-fns";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import type { Article } from "@shared/schema";
 
 export default function NewsArticle() {
@@ -161,10 +163,41 @@ export default function NewsArticle() {
             </figure>
           )}
 
-          <div 
-            className="article-content"
-            dangerouslySetInnerHTML={{ __html: formatArticleContent(article.content) }}
-          />
+          <div className="article-content">
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={{
+                img: ({ node, alt, src, title, ...props }) => (
+                  <figure className="my-6">
+                    <img
+                      src={src}
+                      alt={alt || ""}
+                      className="w-full h-auto rounded-lg object-cover"
+                      {...props}
+                    />
+                    {title && (
+                      <figcaption className="text-xs text-muted-foreground mt-2 text-center italic">
+                        {title}
+                      </figcaption>
+                    )}
+                  </figure>
+                ),
+                a: ({ node, children, href, ...props }) => (
+                  <a
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary hover:underline"
+                    {...props}
+                  >
+                    {children}
+                  </a>
+                ),
+              }}
+            >
+              {article.content}
+            </ReactMarkdown>
+          </div>
         </article>
 
         <div className="mt-12 pt-8 border-t">
@@ -181,98 +214,3 @@ export default function NewsArticle() {
   );
 }
 
-function formatInlineMarkdown(text: string): string {
-  return text
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
-    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*([^*]+)\*/g, '<em>$1</em>')
-    .replace(/`([^`]+)`/g, '<code>$1</code>');
-}
-
-function formatImage(line: string): string | null {
-  const imageMatch = line.match(/^!\[([^\]]*)\]\(([^)"]+)(?:\s+"([^"]+)")?\)$/);
-  if (imageMatch) {
-    const [, alt, url, caption] = imageMatch;
-    const figcaption = caption 
-      ? `<figcaption class="text-xs text-muted-foreground mt-2 text-center italic">${caption}</figcaption>` 
-      : '';
-    return `<figure class="my-6"><img src="${url}" alt="${alt || ''}" class="w-full h-auto rounded-lg object-cover" />${figcaption}</figure>`;
-  }
-  return null;
-}
-
-function formatArticleContent(content: string): string {
-  const lines = content.split("\n");
-  const result: string[] = [];
-  let currentParagraph: string[] = [];
-  let inList = false;
-  let listItems: string[] = [];
-
-  const flushParagraph = () => {
-    if (currentParagraph.length > 0) {
-      const text = currentParagraph.join(" ").trim();
-      if (text) {
-        result.push(`<p>${formatInlineMarkdown(text)}</p>`);
-      }
-      currentParagraph = [];
-    }
-  };
-
-  const flushList = () => {
-    if (listItems.length > 0) {
-      result.push(`<ul>${listItems.map(item => `<li>${formatInlineMarkdown(item)}</li>`).join("")}</ul>`);
-      listItems = [];
-      inList = false;
-    }
-  };
-
-  for (const line of lines) {
-    const trimmedLine = line.trim();
-
-    if (trimmedLine === "") {
-      flushList();
-      flushParagraph();
-      continue;
-    }
-
-    const imageHtml = formatImage(trimmedLine);
-    if (imageHtml) {
-      flushList();
-      flushParagraph();
-      result.push(imageHtml);
-      continue;
-    }
-
-    if (trimmedLine.startsWith("### ")) {
-      flushList();
-      flushParagraph();
-      result.push(`<h4>${formatInlineMarkdown(trimmedLine.slice(4))}</h4>`);
-    } else if (trimmedLine.startsWith("## ")) {
-      flushList();
-      flushParagraph();
-      result.push(`<h3>${formatInlineMarkdown(trimmedLine.slice(3))}</h3>`);
-    } else if (trimmedLine.startsWith("# ")) {
-      flushList();
-      flushParagraph();
-      result.push(`<h2>${formatInlineMarkdown(trimmedLine.slice(2))}</h2>`);
-    } else if (trimmedLine.startsWith("- ") || trimmedLine.startsWith("* ")) {
-      flushParagraph();
-      inList = true;
-      listItems.push(trimmedLine.slice(2));
-    } else if (/^\d+\.\s/.test(trimmedLine)) {
-      flushParagraph();
-      inList = true;
-      listItems.push(trimmedLine.replace(/^\d+\.\s/, ""));
-    } else {
-      if (inList) {
-        flushList();
-      }
-      currentParagraph.push(trimmedLine);
-    }
-  }
-
-  flushList();
-  flushParagraph();
-
-  return result.join("");
-}
