@@ -152,6 +152,11 @@ export default function NewsArticle() {
                 alt={article.title}
                 className="w-full h-auto rounded-lg object-cover max-h-96"
               />
+              {article.heroImageCaption && (
+                <figcaption className="text-xs text-muted-foreground mt-2 text-center italic">
+                  {article.heroImageCaption}
+                </figcaption>
+              )}
             </figure>
           )}
 
@@ -180,6 +185,18 @@ function formatInlineMarkdown(text: string): string {
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
     .replace(/\*([^*]+)\*/g, '<em>$1</em>')
     .replace(/`([^`]+)`/g, '<code>$1</code>');
+}
+
+function formatImage(line: string): string | null {
+  const imageMatch = line.match(/^!\[([^\]]*)\]\(([^)"]+)(?:\s+"([^"]+)")?\)$/);
+  if (imageMatch) {
+    const [, alt, url, caption] = imageMatch;
+    const figcaption = caption 
+      ? `<figcaption class="text-xs text-muted-foreground mt-2 text-center italic">${caption}</figcaption>` 
+      : '';
+    return `<figure class="my-6"><img src="${url}" alt="${alt || ''}" class="w-full h-auto rounded-lg object-cover" />${figcaption}</figure>`;
+  }
+  return null;
 }
 
 function formatArticleContent(content: string): string {
@@ -213,6 +230,14 @@ function formatArticleContent(content: string): string {
     if (trimmedLine === "") {
       flushList();
       flushParagraph();
+      continue;
+    }
+
+    const imageHtml = formatImage(trimmedLine);
+    if (imageHtml) {
+      flushList();
+      flushParagraph();
+      result.push(imageHtml);
       continue;
     }
 

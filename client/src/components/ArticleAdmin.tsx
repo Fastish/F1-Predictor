@@ -864,6 +864,7 @@ function EditArticleForm({
   const [content, setContent] = useState(article.content);
   const [thumbnailUrl, setThumbnailUrl] = useState(article.thumbnailUrl || "");
   const [heroImageUrl, setHeroImageUrl] = useState(article.heroImageUrl || "");
+  const [heroImageCaption, setHeroImageCaption] = useState(article.heroImageCaption || "");
   const [metaTitle, setMetaTitle] = useState(article.metaTitle || "");
   const [metaDescription, setMetaDescription] = useState(article.metaDescription || "");
   const [isUploading, setIsUploading] = useState(false);
@@ -950,6 +951,7 @@ function EditArticleForm({
       content,
       thumbnailUrl: thumbnailUrl || null,
       heroImageUrl: heroImageUrl || null,
+      heroImageCaption: heroImageCaption || null,
       metaTitle: metaTitle || undefined,
       metaDescription: metaDescription || undefined,
     };
@@ -993,6 +995,9 @@ function EditArticleForm({
           required
           data-testid="input-edit-content"
         />
+        <p className="text-xs text-muted-foreground">
+          Tip: Add images with captions on their own line: ![alt text](image-url "Photo credit or caption")
+        </p>
       </div>
       <div className="space-y-4 p-4 rounded-md bg-muted/50">
         <div className="flex items-center justify-between">
@@ -1073,6 +1078,17 @@ function EditArticleForm({
               />
             </div>
           )}
+          <div className="mt-2">
+            <Label htmlFor="heroImageCaption" className="text-xs">Photo Credit / Caption</Label>
+            <Input
+              id="heroImageCaption"
+              value={heroImageCaption}
+              onChange={(e) => setHeroImageCaption(e.target.value)}
+              placeholder="e.g., Photo: Getty Images / Reuters"
+              className="mt-1"
+              data-testid="input-edit-hero-caption"
+            />
+          </div>
         </div>
         <div className="space-y-2">
           <div className="flex items-center justify-between">

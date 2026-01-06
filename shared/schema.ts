@@ -907,6 +907,7 @@ export const articles = pgTable("articles", {
   summary: text("summary").notNull(),
   content: text("content").notNull(),
   heroImageUrl: text("hero_image_url"),
+  heroImageCaption: text("hero_image_caption"),
   thumbnailUrl: text("thumbnail_url"),
   category: text("category").notNull().default("news"),
   tags: text("tags").array(),
