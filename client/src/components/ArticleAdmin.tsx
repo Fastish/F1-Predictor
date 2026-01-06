@@ -40,11 +40,14 @@ import {
   Save,
   Image,
   Twitter,
-  Upload
+  Upload,
+  EyeOff
 } from "lucide-react";
 import type { Article, ArticleContextRules, DailyRoundupSettings } from "@shared/schema";
 import { useUpload } from "@/hooks/use-upload";
 import { Clock, Newspaper } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 const ARTICLES_QUERY_KEY = "/api/admin/articles";
 
@@ -868,6 +871,7 @@ function EditArticleForm({
   const [metaTitle, setMetaTitle] = useState(article.metaTitle || "");
   const [metaDescription, setMetaDescription] = useState(article.metaDescription || "");
   const [isUploading, setIsUploading] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: "hero" | "thumbnail") => {
     const file = e.target.files?.[0];
@@ -986,15 +990,77 @@ function EditArticleForm({
         />
       </div>
       <div className="space-y-2">
-        <Label htmlFor="content">Content (Markdown)</Label>
-        <Textarea
-          id="content"
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          rows={10}
-          required
-          data-testid="input-edit-content"
-        />
+        <div className="flex items-center justify-between">
+          <Label htmlFor="content">Content (Markdown)</Label>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowPreview(!showPreview)}
+            data-testid="button-toggle-preview"
+          >
+            {showPreview ? (
+              <>
+                <EyeOff className="h-3 w-3 mr-1" />
+                Hide Preview
+              </>
+            ) : (
+              <>
+                <Eye className="h-3 w-3 mr-1" />
+                Preview
+              </>
+            )}
+          </Button>
+        </div>
+        {showPreview ? (
+          <div 
+            className="prose prose-sm dark:prose-invert max-w-none p-4 rounded-md border bg-background min-h-[200px] max-h-[400px] overflow-y-auto"
+            data-testid="content-preview"
+          >
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={{
+                img: ({ node, alt, src, title, ...props }) => (
+                  <figure className="my-4">
+                    <img
+                      src={src}
+                      alt={alt || ""}
+                      className="w-full h-auto rounded-lg object-cover max-h-48"
+                      {...props}
+                    />
+                    {title && (
+                      <figcaption className="text-xs text-muted-foreground mt-1 text-center italic">
+                        {title}
+                      </figcaption>
+                    )}
+                  </figure>
+                ),
+                a: ({ node, children, href, ...props }) => (
+                  <a
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary hover:underline"
+                    {...props}
+                  >
+                    {children}
+                  </a>
+                ),
+              }}
+            >
+              {content || "*No content yet*"}
+            </ReactMarkdown>
+          </div>
+        ) : (
+          <Textarea
+            id="content"
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            rows={10}
+            required
+            data-testid="input-edit-content"
+          />
+        )}
         <p className="text-xs text-muted-foreground">
           Tip: Add images with captions on their own line: ![alt text](image-url "Photo credit or caption")
         </p>
