@@ -15,6 +15,8 @@ import {
   Mail,
   ExternalLink,
   ArrowRight,
+  ArrowDownLeft,
+  ArrowUpRight,
   CircleDollarSign,
   ArrowRightLeft,
   ShieldCheck,
@@ -433,51 +435,28 @@ export default function HowToUse() {
                 </div>
 
                 <div className="space-y-4">
-                  <h3 className="font-semibold">How to Convert (Built-in)</h3>
+                  <h3 className="font-semibold">How Deposit/Withdraw Handles Conversion</h3>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    When you use the <strong>Deposit</strong> and <strong>Withdraw</strong> buttons in your wallet, the system automatically handles USDC to USDC.e conversion for you:
+                  </p>
                   <div className="space-y-3">
                     <div className="flex items-start gap-3">
-                      <Badge
-                        variant="outline"
-                        className="rounded-full h-6 w-6 flex items-center justify-center p-0"
-                      >
-                        1
-                      </Badge>
-                      <p className="text-sm text-muted-foreground">
-                        Click your <strong>Cash balance</strong> in the header to open your wallet
-                      </p>
+                      <ArrowDownLeft className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-medium text-sm">Deposit</p>
+                        <p className="text-sm text-muted-foreground">
+                          Transfers funds from your connected wallet to your Safe Trading Wallet. If you have USDC, it will be converted to USDC.e automatically so you can trade.
+                        </p>
+                      </div>
                     </div>
                     <div className="flex items-start gap-3">
-                      <Badge
-                        variant="outline"
-                        className="rounded-full h-6 w-6 flex items-center justify-center p-0"
-                      >
-                        2
-                      </Badge>
-                      <p className="text-sm text-muted-foreground">
-                        Click the <strong>Swap</strong> button to open the swap tool
-                      </p>
-                    </div>
-                    <div className="flex items-start gap-3">
-                      <Badge
-                        variant="outline"
-                        className="rounded-full h-6 w-6 flex items-center justify-center p-0"
-                      >
-                        3
-                      </Badge>
-                      <p className="text-sm text-muted-foreground">
-                        Choose your swap direction (USDC to USDC.e or vice versa)
-                      </p>
-                    </div>
-                    <div className="flex items-start gap-3">
-                      <Badge
-                        variant="outline"
-                        className="rounded-full h-6 w-6 flex items-center justify-center p-0"
-                      >
-                        4
-                      </Badge>
-                      <p className="text-sm text-muted-foreground">
-                        Enter the amount and confirm the swap
-                      </p>
+                      <ArrowUpRight className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-medium text-sm">Withdraw</p>
+                        <p className="text-sm text-muted-foreground">
+                          Sends USDC.e from your Safe Trading Wallet back to your connected wallet. You can then convert to USDC on an exchange if needed.
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -486,10 +465,9 @@ export default function HowToUse() {
                   <div className="flex items-start gap-3">
                     <ShieldCheck className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
                     <div>
-                      <p className="font-medium">Zero Slippage Swap</p>
+                      <p className="font-medium">Automatic Conversion</p>
                       <p className="text-sm text-muted-foreground">
-                        Our built-in swap uses 0x Protocol for the best rates
-                        with minimal fees. 1 USDC always equals 1 USDC.e.
+                        The Deposit process uses 0x Protocol to automatically convert USDC to USDC.e with minimal fees. 1 USDC always equals 1 USDC.e - there's no price difference.
                       </p>
                     </div>
                   </div>
