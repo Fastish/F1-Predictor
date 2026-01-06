@@ -11,8 +11,8 @@ import type { Article } from "@shared/schema";
 
 export default function News() {
   useSEO({
-    title: "F1 News & Analysis 2026",
-    description: "Stay updated with the latest Formula 1 news, analysis, and insights. Expert coverage of the 2026 F1 season, team updates, and driver news."
+    title: "F1 News 2026 - Latest Headlines & Analysis | F1 Predict",
+    description: "Breaking Formula 1 news, expert analysis, and insights for the 2026 season. Coverage of teams, drivers, and championship predictions."
   });
 
   const { data: articles = [], isLoading } = useQuery<Article[]>({

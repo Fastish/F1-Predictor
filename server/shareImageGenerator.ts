@@ -10,18 +10,39 @@ interface ShareImageData {
   timestamp: Date;
 }
 
-// Load Inter font for Satori (bundled with satori)
+// Load Inter font for Satori (TTF format required - satori doesn't support woff2)
 let fontData: ArrayBuffer | null = null;
 
 async function loadFont(): Promise<ArrayBuffer> {
   if (fontData) return fontData;
   
-  // Use a built-in font from Google Fonts CDN
-  const response = await fetch(
-    "https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuLyfAZ9hiJ-Ek-_EeA.woff"
-  );
-  fontData = await response.arrayBuffer();
-  return fontData;
+  // Use Inter TTF from GitHub releases (satori requires TTF or OTF, not woff2)
+  const fontUrls = [
+    // Inter TTF from unpkg (rsms/inter)
+    "https://unpkg.com/@fontsource/inter@5.0.8/files/inter-latin-400-normal.woff",
+    // Roboto TTF fallback 
+    "https://github.com/googlefonts/roboto/raw/main/src/hinted/Roboto-Regular.ttf",
+  ];
+  
+  for (const url of fontUrls) {
+    try {
+      const response = await fetch(url);
+      if (response.ok) {
+        const buffer = await response.arrayBuffer();
+        // Check it's not HTML (starts with < which is 0x3C)
+        const firstByte = new Uint8Array(buffer)[0];
+        if (firstByte !== 0x3C && buffer.byteLength > 1000) {
+          fontData = buffer;
+          console.log(`Loaded font from ${url}`);
+          return fontData;
+        }
+      }
+    } catch (e) {
+      console.log(`Font fetch failed for ${url}`);
+    }
+  }
+  
+  throw new Error("Could not load any fonts for image generation");
 }
 
 // F1 Predict brand colors
@@ -45,8 +66,9 @@ export async function generateShareImage(data: ShareImageData): Promise<Buffer> 
     .slice(0, 5);
 
   // Create the image using Satori (JSX-like syntax)
+  // Using 'as any' because Satori accepts a virtual DOM format
   const svg = await satori(
-    {
+    ({
       type: "div",
       props: {
         style: {
@@ -214,20 +236,19 @@ export async function generateShareImage(data: ShareImageData): Promise<Buffer> 
                                 backgroundColor: colors.barBg,
                                 borderRadius: "12px",
                                 overflow: "hidden",
+                                display: "flex",
                               },
-                              children: [
-                                {
-                                  type: "div",
-                                  props: {
-                                    style: {
-                                      width: `${Math.round(outcome.price * 100)}%`,
-                                      height: "100%",
-                                      backgroundColor: colors.primary,
-                                      borderRadius: "12px",
-                                    },
+                              children: {
+                                type: "div",
+                                props: {
+                                  style: {
+                                    width: `${Math.round(outcome.price * 100)}%`,
+                                    height: "100%",
+                                    backgroundColor: colors.primary,
+                                    borderRadius: "12px",
                                   },
                                 },
-                              ],
+                              },
                             },
                           },
                           {
@@ -289,7 +310,7 @@ export async function generateShareImage(data: ShareImageData): Promise<Buffer> 
           },
         ],
       },
-    },
+    }) as any,
     {
       width: 1600,
       height: 900,
@@ -344,7 +365,8 @@ export async function generateCachedShareImage(
   imageCache.set(cacheKey, { buffer, timestamp: Date.now() });
   
   // Clean old cache entries
-  for (const [key, value] of imageCache.entries()) {
+  const entries = Array.from(imageCache.entries());
+  for (const [key, value] of entries) {
     if (Date.now() - value.timestamp > CACHE_TTL) {
       imageCache.delete(key);
     }

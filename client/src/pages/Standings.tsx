@@ -108,8 +108,8 @@ function CountdownTimer() {
 
 export default function Standings() {
   useSEO({
-    title: "F1 Championship Standings | F1 Predict",
-    description: "Current Formula 1 championship standings for constructors and drivers. View points, rankings, and countdown to the 2026 season."
+    title: "F1 Standings 2025 - Constructor & Driver Rankings | F1 Predict",
+    description: "View the current 2025 F1 World Championship standings. See constructor and driver points rankings plus countdown to the 2026 season opener."
   });
 
   return (

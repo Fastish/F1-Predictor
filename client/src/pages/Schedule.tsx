@@ -43,8 +43,8 @@ function getRaceStatus(dateStr: string): "upcoming" | "next" | "past" {
 
 export default function Schedule() {
   useSEO({
-    title: "2026 F1 Race Calendar | F1 Predict",
-    description: "Complete schedule for the 2026 Formula 1 World Championship season. View all 24 race dates, locations, circuits, and start times."
+    title: "F1 Schedule 2026 - All 24 Race Dates & Times | F1 Predict",
+    description: "Complete 2026 Formula 1 race calendar with all 24 Grand Prix dates, circuit locations, and start times in GMT."
   });
   
   const nextRace = F1_2026_RACES.find(race => getRaceStatus(race.date) !== "past");
