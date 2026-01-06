@@ -6,8 +6,67 @@ import { useConnect, useDisconnect, useAccount, useWalletClient, type Connector 
 import { walletConnect, injected } from "@wagmi/connectors";
 import { setExternalProviderForGasless, resetGaslessState } from "@/lib/polymarketGasless";
 import { clearClobClientCache } from "@/hooks/useTradingSession";
+import { GeoBlockedModal } from "@/components/GeoBlockedModal";
 
 type WalletType = "magic" | "external" | "walletconnect" | "phantom" | null;
+
+interface GeoblockStatus {
+  blocked: boolean;
+  ip: string;
+  country: string;
+  region: string;
+}
+
+const GEOBLOCK_CACHE_KEY = "polymarket_geoblock_status";
+const GEOBLOCK_CACHE_DURATION = 5 * 60 * 1000;
+
+function getCachedGeoblockStatus(): GeoblockStatus | null {
+  try {
+    const cached = localStorage.getItem(GEOBLOCK_CACHE_KEY);
+    if (cached) {
+      const { data, timestamp } = JSON.parse(cached);
+      if (Date.now() - timestamp < GEOBLOCK_CACHE_DURATION) {
+        return data;
+      }
+    }
+  } catch {
+  }
+  return null;
+}
+
+function setCachedGeoblockStatus(data: GeoblockStatus): void {
+  try {
+    localStorage.setItem(GEOBLOCK_CACHE_KEY, JSON.stringify({
+      data,
+      timestamp: Date.now()
+    }));
+  } catch {
+  }
+}
+
+async function checkGeoblockStatus(): Promise<GeoblockStatus | null> {
+  const cached = getCachedGeoblockStatus();
+  if (cached) {
+    console.log("[Geoblock] Using cached status:", cached);
+    return cached;
+  }
+
+  try {
+    const response = await fetch("https://polymarket.com/api/geoblock");
+    if (!response.ok) {
+      console.warn("[Geoblock] API returned non-OK status:", response.status);
+      return null;
+    }
+    
+    const data: GeoblockStatus = await response.json();
+    console.log("[Geoblock] Status:", data);
+    setCachedGeoblockStatus(data);
+    return data;
+  } catch (error) {
+    console.error("[Geoblock] Failed to check geo status:", error);
+    return null;
+  }
+}
 
 export interface PolymarketCredentials {
   apiKey: string;
@@ -174,6 +233,9 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [provider, setProvider] = useState<ethers.BrowserProvider | null>(null);
   const [signer, setSigner] = useState<ethers.Signer | null>(null);
   const [polymarketCredentials, setPolymarketCredentials] = useState<PolymarketCredentials | null>(null);
+  
+  const [showGeoBlockedModal, setShowGeoBlockedModal] = useState(false);
+  const [geoBlockedData, setGeoBlockedData] = useState<GeoblockStatus | null>(null);
   
   const { connect, connectAsync, connectors, isPending: wagmiConnecting, error: wagmiError } = useConnect();
   const { disconnect: wagmiDisconnect } = useDisconnect();
@@ -423,7 +485,23 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
   }, [walletType, walletAddress]);
 
+  const ensureNotGeoblocked = useCallback(async (): Promise<boolean> => {
+    const geoStatus = await checkGeoblockStatus();
+    if (geoStatus?.blocked) {
+      console.log("[Geoblock] User is in a blocked region:", geoStatus.country);
+      setGeoBlockedData(geoStatus);
+      setShowGeoBlockedModal(true);
+      return false;
+    }
+    return true;
+  }, []);
+
   const connectWithMagic = useCallback(async (email: string): Promise<boolean> => {
+    const allowed = await ensureNotGeoblocked();
+    if (!allowed) {
+      return false;
+    }
+    
     setIsConnecting(true);
     try {
       console.log("[Magic Debug] Starting connection for email:", email);
@@ -461,9 +539,14 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsConnecting(false);
     }
-  }, []);
+  }, [ensureNotGeoblocked]);
 
   const connectExternalWallet = useCallback(async (): Promise<boolean> => {
+    const allowed = await ensureNotGeoblocked();
+    if (!allowed) {
+      return false;
+    }
+    
     setIsConnecting(true);
     // Mark as user-initiated so we don't auto-disconnect
     userInitiatedConnectionRef.current = true;
@@ -535,7 +618,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsConnecting(false);
     }
-  }, []);
+  }, [ensureNotGeoblocked]);
 
   const isPhantomInstalled = useCallback((): boolean => {
     return !!(window.phantom?.ethereum || window.ethereum?.isPhantom);
@@ -552,6 +635,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const connectPhantomWallet = useCallback(async (): Promise<boolean> => {
+    const allowed = await ensureNotGeoblocked();
+    if (!allowed) {
+      return false;
+    }
+    
     setIsConnecting(true);
     // Mark as user-initiated so we don't auto-disconnect
     userInitiatedConnectionRef.current = true;
@@ -620,9 +708,14 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsConnecting(false);
     }
-  }, [getPhantomProvider]);
+  }, [getPhantomProvider, ensureNotGeoblocked]);
 
   const connectWalletConnect = useCallback(async (): Promise<boolean> => {
+    const allowed = await ensureNotGeoblocked();
+    if (!allowed) {
+      return false;
+    }
+    
     // WalletConnect project ID is managed by wagmi.ts and loaded before app renders
     if (!isWalletConnectAvailable()) {
       throw new Error("WalletConnect is not configured. Missing project ID.");
@@ -684,7 +777,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       setIsConnecting(false);
       throw error;
     }
-  }, [connectAsync, connectors]);
+  }, [connectAsync, connectors, ensureNotGeoblocked]);
 
   const disconnectWallet = useCallback(async () => {
     // Reset user-initiated flag FIRST before any async operations
@@ -808,6 +901,12 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       }}
     >
       {children}
+      <GeoBlockedModal
+        open={showGeoBlockedModal}
+        onClose={() => setShowGeoBlockedModal(false)}
+        country={geoBlockedData?.country}
+        region={geoBlockedData?.region}
+      />
     </WalletContext.Provider>
   );
 }
