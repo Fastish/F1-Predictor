@@ -1,4 +1,5 @@
 import { Header } from "@/components/Header";
+import { Footer } from "@/components/Footer";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Calendar, MapPin, Clock, Flag } from "lucide-react";
@@ -137,6 +138,7 @@ export default function Schedule() {
         })}
       </div>
       </div>
+      <Footer />
     </div>
   );
 }

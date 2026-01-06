@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Header } from "@/components/Header";
+import { Footer } from "@/components/Footer";
 import { useSEO } from "@/hooks/useSEO";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -106,6 +107,7 @@ export default function News() {
           </div>
         )}
       </main>
+      <Footer />
     </div>
   );
 }

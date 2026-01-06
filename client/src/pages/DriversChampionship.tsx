@@ -6,6 +6,7 @@ import { PolymarketPriceChart } from "@/components/PolymarketPriceChart";
 import { PolymarketBetModal } from "@/components/PolymarketBetModal";
 import { CommentsSection } from "@/components/CommentsSection";
 import { ArbitrageSummary, type ArbitrageOpportunity } from "@/components/ArbitrageValueBadge";
+import { Footer } from "@/components/Footer";
 import { useWallet } from "@/context/WalletContext";
 import { useTradingWalletBalance } from "@/hooks/useTradingWalletBalance";
 import { useSEO } from "@/hooks/useSEO";
@@ -294,6 +295,8 @@ export default function DriversChampionship() {
           userBalance={tradingWalletBalance}
         />
       )}
+
+      <Footer />
     </div>
   );
 }

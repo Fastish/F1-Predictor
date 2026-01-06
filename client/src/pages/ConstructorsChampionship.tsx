@@ -6,6 +6,7 @@ import { PolymarketPriceChart } from "@/components/PolymarketPriceChart";
 import { PolymarketBetModal } from "@/components/PolymarketBetModal";
 import { CommentsSection } from "@/components/CommentsSection";
 import { ArbitrageSummary, type ArbitrageOpportunity } from "@/components/ArbitrageValueBadge";
+import { Footer } from "@/components/Footer";
 import { useMarket, type F1Team } from "@/context/MarketContext";
 import { useWallet } from "@/context/WalletContext";
 import { useTradingWalletBalance } from "@/hooks/useTradingWalletBalance";
@@ -256,6 +257,8 @@ export default function ConstructorsChampionship() {
           userBalance={tradingWalletBalance}
         />
       )}
+
+      <Footer />
     </div>
   );
 }

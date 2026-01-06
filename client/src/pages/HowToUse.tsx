@@ -1,4 +1,5 @@
 import { Header } from "@/components/Header";
+import { Footer } from "@/components/Footer";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -705,18 +706,7 @@ export default function HowToUse() {
         </div>
       </div>
 
-      <footer className="border-t py-8">
-        <div className="mx-auto max-w-7xl px-4 text-center text-sm text-muted-foreground">
-          <p>F1 Predict - Predictive Market Platform</p>
-          <p className="mt-1">This site is powered by Polymarket.com</p>
-          <p className="mt-1">
-            All orders are subject to{" "}
-            <a href="https://polymarket.com/tos" className="underline" data-testid="link-polymarket-tos">
-              Polymarket terms
-            </a>
-          </p>
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 }

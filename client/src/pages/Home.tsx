@@ -7,6 +7,7 @@ import { PoolBuyModal } from "@/components/PoolBuyModal";
 import { HowItWorks } from "@/components/HowItWorks";
 import { MarketStats } from "@/components/MarketStats";
 import { DepositModal } from "@/components/DepositModal";
+import { Footer } from "@/components/Footer";
 import { useWallet } from "@/context/WalletContext";
 import { useMarket } from "@/context/MarketContext";
 import { useSEO } from "@/hooks/useSEO";
@@ -158,15 +159,7 @@ export default function Home() {
         onOpenChange={setConnectWalletModalOpen}
       />
 
-      <footer className="border-t py-8">
-        <div className="mx-auto max-w-7xl px-4 text-center text-sm text-muted-foreground">
-          <p>F1 Predict - Predictive Market Platform</p>
-          <p className="mt-1">
-            This site is powered by Polymarket.com
-          </p>
-          <p className="mt-1">All orders are subject to <a href="https://polymarket.com/tos" className="underline">Polymarket terms</a></p>
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 }

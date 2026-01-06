@@ -23,6 +23,7 @@ import News from "@/pages/News";
 import NewsArticle from "@/pages/NewsArticle";
 import Schedule from "@/pages/Schedule";
 import Standings from "@/pages/Standings";
+import About from "@/pages/About";
 
 function Router() {
   return (
@@ -40,6 +41,7 @@ function Router() {
       <Route path="/standings" component={Standings} />
       <Route path="/admin" component={Admin} />
       <Route path="/how-to-use" component={HowToUse} />
+      <Route path="/about" component={About} />
       <Route component={NotFound} />
     </Switch>
   );
