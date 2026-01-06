@@ -122,7 +122,7 @@ const faqItems = [
   {
     question: "How do I withdraw my winnings?",
     answer:
-      "Click on your Cash balance in the header and select 'Deposit / Withdraw' to open wallet management. From the Send tab, you can transfer USDC.e to any address. To convert USDC.e to USDC first, use the 'Swap USDC' option. From your external wallet, you can send funds to any crypto exchange (Coinbase, Kraken, etc.) and convert to your local currency.",
+      "Click on your Cash balance in the header to open your wallet. For external wallets (MetaMask, WalletConnect), click 'Withdraw' to send USDC.e from your Safe Trading Wallet back to your connected wallet. For Magic (email) wallets, use 'Send / Receive' to transfer funds. You can then send to any crypto exchange (Coinbase, Kraken, etc.) and convert to your local currency.",
   },
   {
     question: "What network does this run on?",
@@ -271,11 +271,20 @@ export default function HowToUse() {
                 <div>
                   <h3 className="font-semibold mb-4 flex items-center gap-2">
                     <CreditCard className="h-5 w-5" />
-                    Onramp Options (Fiat to Crypto)
+                    Easiest: Built-in Card/Bank Funding
                   </h3>
+                  <div className="flex items-start gap-4 p-4 rounded-lg bg-primary/10 border border-primary/20 mb-4">
+                    <CreditCard className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm text-muted-foreground">
+                        After connecting your wallet, click <strong>Add External Funds (Bank/Card)</strong> in your wallet menu to purchase crypto directly with your credit card, debit card, or bank transfer - powered by MELD.
+                      </p>
+                    </div>
+                  </div>
+                  <h4 className="font-medium mb-3 text-sm">Alternative Onramp Options</h4>
                   <p className="text-sm text-muted-foreground mb-4">
                     Convert your regular currency (USD, EUR, etc.) to USDC on
-                    Polygon:
+                    Polygon using these external services:
                   </p>
                   <div className="grid gap-4 md:grid-cols-2">
                     {onrampOptions.map((option, index) => (
@@ -365,15 +374,15 @@ export default function HowToUse() {
                     <div className="space-y-2">
                       <div className="flex items-start gap-2">
                         <Badge variant="outline" className="rounded-full h-5 w-5 flex items-center justify-center p-0 text-xs flex-shrink-0 mt-0.5">1</Badge>
-                        <p className="text-sm text-muted-foreground">Click the <strong>Cash</strong> button in the header to open wallet management</p>
+                        <p className="text-sm text-muted-foreground">Click your <strong>Cash</strong> balance in the header to open your wallet</p>
                       </div>
                       <div className="flex items-start gap-2">
                         <Badge variant="outline" className="rounded-full h-5 w-5 flex items-center justify-center p-0 text-xs flex-shrink-0 mt-0.5">2</Badge>
-                        <p className="text-sm text-muted-foreground">Select <strong>Deposit / Withdraw</strong> to see your Safe wallet address and QR code</p>
+                        <p className="text-sm text-muted-foreground">Find your <strong>Safe Trading Wallet</strong> section showing your Safe address and balance</p>
                       </div>
                       <div className="flex items-start gap-2">
                         <Badge variant="outline" className="rounded-full h-5 w-5 flex items-center justify-center p-0 text-xs flex-shrink-0 mt-0.5">3</Badge>
-                        <p className="text-sm text-muted-foreground">Send <strong>USDC.e on Polygon</strong> to this Safe address, or use the built-in transfer from your connected wallet</p>
+                        <p className="text-sm text-muted-foreground">Click <strong>Deposit</strong> to transfer USDC.e from your connected wallet to your Safe, or copy the Safe address to deposit directly from an exchange</p>
                       </div>
                     </div>
                   </div>
@@ -434,8 +443,7 @@ export default function HowToUse() {
                         1
                       </Badge>
                       <p className="text-sm text-muted-foreground">
-                        Click on your <strong>Cash balance</strong> in the
-                        header to open the Cash menu
+                        Click your <strong>Cash balance</strong> in the header to open your wallet
                       </p>
                     </div>
                     <div className="flex items-start gap-3">
@@ -446,7 +454,7 @@ export default function HowToUse() {
                         2
                       </Badge>
                       <p className="text-sm text-muted-foreground">
-                        Select <strong>Swap USDC</strong> to open the swap tool
+                        Click the <strong>Swap</strong> button to open the swap tool
                       </p>
                     </div>
                     <div className="flex items-start gap-3">
@@ -457,7 +465,7 @@ export default function HowToUse() {
                         3
                       </Badge>
                       <p className="text-sm text-muted-foreground">
-                        Choose your <strong>wallet source</strong> (Connected Wallet or Safe Trading Wallet) and swap direction
+                        Choose your swap direction (USDC to USDC.e or vice versa)
                       </p>
                     </div>
                     <div className="flex items-start gap-3">
