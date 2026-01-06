@@ -174,26 +174,78 @@ export default function NewsArticle() {
   );
 }
 
+function formatInlineMarkdown(text: string): string {
+  return text
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>');
+}
+
 function formatArticleContent(content: string): string {
-  return content
-    .split("\n\n")
-    .map(paragraph => {
-      if (paragraph.startsWith("# ")) {
-        return `<h2>${paragraph.slice(2)}</h2>`;
+  const lines = content.split("\n");
+  const result: string[] = [];
+  let currentParagraph: string[] = [];
+  let inList = false;
+  let listItems: string[] = [];
+
+  const flushParagraph = () => {
+    if (currentParagraph.length > 0) {
+      const text = currentParagraph.join(" ").trim();
+      if (text) {
+        result.push(`<p>${formatInlineMarkdown(text)}</p>`);
       }
-      if (paragraph.startsWith("## ")) {
-        return `<h3>${paragraph.slice(3)}</h3>`;
+      currentParagraph = [];
+    }
+  };
+
+  const flushList = () => {
+    if (listItems.length > 0) {
+      result.push(`<ul>${listItems.map(item => `<li>${formatInlineMarkdown(item)}</li>`).join("")}</ul>`);
+      listItems = [];
+      inList = false;
+    }
+  };
+
+  for (const line of lines) {
+    const trimmedLine = line.trim();
+
+    if (trimmedLine === "") {
+      flushList();
+      flushParagraph();
+      continue;
+    }
+
+    if (trimmedLine.startsWith("### ")) {
+      flushList();
+      flushParagraph();
+      result.push(`<h4>${formatInlineMarkdown(trimmedLine.slice(4))}</h4>`);
+    } else if (trimmedLine.startsWith("## ")) {
+      flushList();
+      flushParagraph();
+      result.push(`<h3>${formatInlineMarkdown(trimmedLine.slice(3))}</h3>`);
+    } else if (trimmedLine.startsWith("# ")) {
+      flushList();
+      flushParagraph();
+      result.push(`<h2>${formatInlineMarkdown(trimmedLine.slice(2))}</h2>`);
+    } else if (trimmedLine.startsWith("- ") || trimmedLine.startsWith("* ")) {
+      flushParagraph();
+      inList = true;
+      listItems.push(trimmedLine.slice(2));
+    } else if (/^\d+\.\s/.test(trimmedLine)) {
+      flushParagraph();
+      inList = true;
+      listItems.push(trimmedLine.replace(/^\d+\.\s/, ""));
+    } else {
+      if (inList) {
+        flushList();
       }
-      if (paragraph.startsWith("### ")) {
-        return `<h4>${paragraph.slice(4)}</h4>`;
-      }
-      if (paragraph.startsWith("- ")) {
-        const items = paragraph.split("\n").map(line => 
-          line.startsWith("- ") ? `<li>${line.slice(2)}</li>` : `<li>${line}</li>`
-        ).join("");
-        return `<ul>${items}</ul>`;
-      }
-      return `<p>${paragraph}</p>`;
-    })
-    .join("");
+      currentParagraph.push(trimmedLine);
+    }
+  }
+
+  flushList();
+  flushParagraph();
+
+  return result.join("");
 }

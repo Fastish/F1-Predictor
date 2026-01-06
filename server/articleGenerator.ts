@@ -460,13 +460,13 @@ async function generateArticleImage(title: string, category: string, articleId: 
       mkdirSync(imageDir, { recursive: true });
     }
     
-    const prompt = `Create a professional, eye-catching image for an F1 Formula 1 racing article titled "${title}". The image should be:
+    const prompt = `Create a professional, eye-catching image for an F1 Formula 1 racing article. The image should be:
 - Dramatic and dynamic, capturing the excitement of F1 racing
 - Using red, black, and carbon fiber aesthetic common in F1 branding
 - Include subtle racing elements like a track, car silhouette, or checkered patterns
 - Modern, clean design suitable for a news article hero and Open Graph preview
 - Category: ${category}
-- No text or logos in the image
+- CRITICAL: Absolutely NO text, NO words, NO letters, NO numbers, NO titles, NO captions, NO watermarks, NO logos anywhere in the image. The image must be purely visual with zero text elements.
 - Photorealistic style with dramatic lighting
 - Landscape orientation (16:9 aspect ratio) optimized for social media sharing`;
     
