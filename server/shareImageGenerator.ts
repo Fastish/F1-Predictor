@@ -150,16 +150,19 @@ export async function generateShareImage(data: ShareImageData): Promise<Buffer> 
                   },
                 },
                 // Right side - Logo image
-                {
+                ...(logoDataUrl ? [{
                   type: "img",
                   props: {
                     src: logoDataUrl,
+                    width: 240,
+                    height: 60,
                     style: {
                       height: "60px",
-                      width: "auto",
+                      width: "240px",
+                      objectFit: "contain",
                     },
                   },
-                },
+                }] : []),
               ],
             },
           },
